@@ -743,7 +743,8 @@ local function overlay(node)
         s:SetAnchors({Minimum = {X = 0.0, Y = 0.0}, Maximum = {X = 1.0, Y = 1.0}})
         s:SetOffsets({Left = 36.0, Top = 30.0, Right = 36.0, Bottom = 30.0})
     end
-    w:SetVisibility(K.NOT_HIT)
+    -- (with a button in it, RANKED's chat: the mouse reaches it; anything else over the stage never takes a click)
+    w:SetVisibility(#P.buttons > 0 and K.SELF_HIT or K.NOT_HIT)
     P.shape = sh
     ov = P
 end
@@ -1302,8 +1303,18 @@ function M.tick(t)
         menu.ov_rev = state.rev
         pcall(overlay, want_ov)
     end
-    -- RANKED's chat on the stage: T to write, Page Up / Down to scroll back (chat_tick)
-    pcall(chat_tick, t, key, on_stage and not shown and not menu.paused and state.data.chat == true)
+    -- RANKED's chat on the stage: T to write, Page Up / Down to scroll back (chat_tick); or a click on it (its button
+    -- "chat:open" in the overlay: the overlay then lets the mouse through to its buttons alone)
+    local chat_on = on_stage and not shown and not menu.paused and state.data.chat == true
+    if ov and ov.w and ov.w:IsValid() and #(ov.buttons or {}) > 0 then
+        for _, b in ipairs(ov.buttons) do
+            local okp, p = pcall(function() return b.btn:IsPressed() end)
+            p = okp and p == true
+            if p and not b.pressed and b.id == "chat:open" and chat_on and not chatbox then pcall(chat_open, t) end
+            b.pressed = p
+        end
+    end
+    pcall(chat_tick, t, key, chat_on)
     -- ... and its keys (the keyboard's arrows: the driver before / after, the camera; Enter: the spectator menu)
     if want_ov and not chatbox and (key == "LEFT_ARROW" or key == "RIGHT_ARROW" or key == "UP_ARROW" or
                                     key == "DOWN_ARROW" or key == "RETURN") then

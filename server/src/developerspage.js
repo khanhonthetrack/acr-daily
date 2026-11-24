@@ -33,8 +33,10 @@ const ENDPOINTS = [
   ['/api/v1/cups/{id}', N_('A cup: entrants and seeds, every match, the winner of each.')],
   ['/api/v1/dailies?date={YYYY-MM-DD}', N_('A day\'s dailies: stage, car, weather.')],
   ['/api/v1/dailies/{date}/{slot}', N_('A daily\'s results.'), true],
+  ['/api/v1/dailies/{date}/{slot}/live', N_('Who is on a daily\'s stage right now: progress (0-1), time, position (x, z). Ask again every pollSeconds.')],
   ['/api/v1/timetrials?week={YYYY-MM-DD}', N_('A week\'s time trial stages (the week: its Monday).')],
   ['/api/v1/timetrials/{week}/{slot}', N_('A time trial stage\'s results.'), true],
+  ['/api/v1/timetrials/{week}/{slot}/live', N_('Who is on a time trial stage right now.')],
   ['/api/v1/ranking?country={cc}&page={n}', N_('The world ranking, 100 a page.'), true],
   ['/api/v1/drivers/{steamId}', N_('A driver: country, team, rating and world rank.')],
 ];
@@ -57,6 +59,20 @@ export function developersPage(env) {
   <p class="note">${t('Options: {0} (dark by default), {1} (a colour, no #), {2} (no heading).', code('theme=light'), code('accent=FF4655'), code('title=0'))}
   ${t("{0} for its language (else the visitor's own).", code('lang=pl'))}</p>
   <pre>${esc(embedSnippet(site, '/embed/championship/{id}?theme=light', 560))}</pre>
+
+  <h2 id="broadcast">${esc(t('For broadcasters'))}</h2>
+  <p class="note">${esc(t('TV graphics for your stream, ready made: the standings tower with flags, a LIVE bug, the driver on the stage with their time and how far they are, and between cars the full classification and the stage, in turn. Made for 1920 x 1080; the background stays see-through.'))}</p>
+  <table class="ep">
+    <tr><td>/broadcast/daily/{1|2}</td><td>${esc(t("Today's daily stage."))}</td></tr>
+    <tr><td>/broadcast/tt/{1|2}</td><td>${esc(t("This week's time trial stage."))}</td></tr>
+    <tr><td>/broadcast/event/{id}</td><td>${t("An event: a championship's, a cup's or a ranked session's. {0} for a private rally.", code('?code=XXXX-XXXX'))}</td></tr>
+  </table>
+  <p class="note"><b>OBS / Streamlabs:</b> ${esc(t('Sources → + → Browser. Paste the address, width 1920, height 1080. Put it above your game capture.'))}
+  <b>vMix:</b> ${esc(t('Add Input → Web Browser, 1920 x 1080.'))}</p>
+  <p class="note">${t('Options: {0} (only these parts: tower, bug, lower, studio), {1} (seconds per studio page), {2} (a dark backdrop, to look at it in a browser), {3}, {4}.',
+    code('parts=tower,lower'), code('rotate=10'), code('bg=1'), code('accent=E30613'), code('lang=pl'))}</p>
+  <pre>${esc(site)}/broadcast/daily/1?parts=tower,bug,lower,studio&amp;rotate=12</pre>
+  <p class="note">${esc(t('In the game, ACR DAILY\'s WATCH puts the camera on the drivers themselves (TV cameras, onboard, helicopter) with the same graphics: run WATCH on the PC you stream from and capture the game. Your own graphics instead: draw them from the live endpoints below (who is on the stage, how far, their time), asked every pollSeconds.'))}</p>
 
   <h2>API</h2>
   <p class="note">${t("JSON, read-only, open to every site (CORS). Times are in milliseconds. The tables marked CSV also come as {0}, ready for a spreadsheet. The ids are in each page's address: {1}, {2}, {3}, {4}.",

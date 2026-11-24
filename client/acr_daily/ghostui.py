@@ -32,7 +32,7 @@ LIVE_COL = '#FFB547'            # another driver, live
 FONT_C = i18n.font('Bahnschrift SemiBold Condensed')
 FONT = i18n.font('Bahnschrift')
 FRAME_MS = 16
-PATH_DT_MS, PATH_N = 100, 16           # WATCH: the followed car's path ahead, a pose every 100 ms, 1.5 s of it (on_path)
+PATH_DT_MS, PATH_N = 100, 30           # WATCH: the followed car's path ahead, a pose every 100 ms, 3 s of it (on_path)
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
 MOD_GONE_S = 5.0                # the mod's camera not moving on for this long: the mod is not running (boxes instead)
 MAX_REAL = 10                   # real cars in the game at most: the nearest (a crowded start line costs the game)
@@ -384,7 +384,9 @@ class GhostOverlay:
                 self._write_ingame([])                # (the mod takes the cars away)
             self._show(False)
             return FRAME_MS
-        if not (self.test or ours_in_front(self.game)) or f.clock_ms < 0:
+        if not (self.test or self._watching() or ours_in_front(self.game)) or (f.clock_ms < 0 and not self._watching()):
+            # (WATCH: the mod told where the cars go whatever window is in front: a click on another screen froze the
+            # car followed)
             self._show(False)
             return FRAME_MS
         hide = self._app_hides()                        # 'Hide while driving': the window off the game, the mod's
@@ -725,12 +727,12 @@ class GhostOverlay:
             # (its path ahead, as it will be drawn: the mod moves it along it on its own clock, whatever this thread
             # does meanwhile: a late update made it stop and jump, 22 Nov 2026)
             if target != '-' and now is not None:
-                c0, path = self._path_ahead(w.followed(), now,
-                                            next((c[3] for c in cars if c[0] == target), (None, None)))
+                c0, now_ms, path = self._path_ahead(w.followed(), now,
+                                                    next((c[3] for c in cars if c[0] == target), (None, None)))
                 if path:
-                    # (with their clock at its first pose: the mod keeps its own steady clock along it, main.lua
-                    # play_clock: each update re-placing the path in time made the car judder)
-                    lines.append('path2 %s %d %d %.1f %s' % (target, seq, PATH_DT_MS, c0, path))
+                    # (with their clock at its first pose and now: the mod keeps its own steady clock along it,
+                    # main.lua play_clock: each update re-placing the path in time made the car judder)
+                    lines.append('path3 %s %d %d %.1f %.1f %s' % (target, seq, PATH_DT_MS, c0, now_ms, path))
             # (the road ahead of the car followed: where the mod's TV cameras stand; twice a second is plenty)
             if target != '-' and now is not None and now - getattr(self, '_route_at', -1e9) >= 0.5:
                 self._route_at = now
@@ -771,22 +773,26 @@ class GhostOverlay:
         (None, '')."""
         if d is None or not hasattr(d, 'play_clock'):
             return None, ''
-        c0 = d.play_clock(now)
-        if c0 is None or not d.trace.ms:
-            return None, ''
+        now_ms = d.play_clock(now)
+        if now_ms is None or not d.trace.ms:
+            return None, None, ''
         car, root = car_root if isinstance(car_root, tuple) and len(car_root) == 2 else (None, None)
         r = gc.car_root_of(car) or root or self.root
         out = []
-        c0 -= PATH_DT_MS              # (one pose before now: the mod draws between poses with one on each side)
-        for k in range(PATH_N + 1):
+        # (on a fixed grid of their clock, two poses before now: every path the mod gets has the same poses at the same
+        # moments, so going from one to the next changes nothing. Each one starting at "now" had its own poses: the mod,
+        # a little behind, went back and forth between the newest and the one before, the car's speed swinging 16 <->
+        # 27 m/s from one frame to the next, on Bughuul's recorded run, 24 Nov 2026)
+        c0 = (math.floor(now_ms / PATH_DT_MS) - 2) * PATH_DT_MS
+        for k in range(PATH_N + 3):
             ms = c0 + k * PATH_DT_MS
             if ms > d.trace.ms[-1]:
                 break
-            m = livelink.smooth_at(d.trace.s, ms)
+            m = livelink.watch_pose(d.trace.s, ms)
             if m is None:
                 break
             out.append('%.1f %.1f %.1f %.3f %.3f %.3f' % gc.ue_pose(m[0], r))
-        return (c0, ' '.join(out)) if len(out) >= 2 else (None, '')
+        return (c0, now_ms, ' '.join(out)) if len(out) >= 2 else (None, None, '')
 
     def _car(self, cam, pose, colour):
         c = self.c

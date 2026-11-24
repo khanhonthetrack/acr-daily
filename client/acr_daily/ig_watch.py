@@ -18,7 +18,8 @@ import time
 
 from . import watch as watch_mod
 from .i18n import _
-from .ingamekit import (MUTED, SOFT, WHITE, box, col, fmt_ms, img, kicker, row, size, sp, stage_name, stack, txt)
+from .ingamekit import (MUTED, SOFT, WHITE, box, col, conditions, fmt_ms, img, kicker, row, size, sp, stage_name, stack,
+                        txt)
 
 # the broadcast's look: deep navy panels, the app's red, white words
 NAVY, NAVY2, NAVY3 = '0A1428', '13213D', '1C2D4F'
@@ -26,7 +27,7 @@ RED, RED2 = 'E30613', 'FF2D3A'
 GREEN, AMBER, GREY = '2BD96B', 'FFB020', '5C6A84'
 FAST, SLOW = '2BD96B', 'FF453A'
 NA = 0.88                          # the panels' alpha
-TOWER_W, TOWER_TOP, TOWER_LIVE = 250, 10, 6
+TOWER_W, TOWER_TOP, TOWER_LIVE = 285, 10, 6
 BAR_W, DASH_W = 920, 380
 SPLITS_W = 430
 LINE_W = 580                       # the stage line's width in the driver bar
@@ -76,6 +77,13 @@ def _flag(code, w=36, h=24):
     return img(p, w, h, va='c') if p else None
 
 
+def _tower_flag(code):
+    """A driver's flag in the tower, before their letters (the user, 24 Nov 2026: "include the flags of the users");
+    room kept for one not known, the letters in line."""
+    f = _flag(code, 27, 18)
+    return row(f if f is not None else sp(27), sp(8), va='c')
+
+
 # ---------------------------------------------------------------------- the parts
 def _tower(w, rows, fol, now, board_entries, codes):
     ch = w.ch() or {}
@@ -97,6 +105,7 @@ def _tower(w, rows, fol, now, board_entries, codes):
         lines.append(box(row(size(box(txt('%d' % (i + 1), 16, 'bold', NAVY, j=1), bg=WHITE, al='c', va='c'), w=28, h=26,
                                   va='c'),
                              _slash(RED, 24, 4),
+                             _tower_flag(e.get('country')),
                              txt(code, 19, 'bold', WHITE, va='c', sp=40), sp(fill=1),
                              txt(right, 15, 'semi', SOFT if i else WHITE, va='c')),
                          bg=NAVY, a=NA, p=[8, 3, 10, 3]))
@@ -111,6 +120,7 @@ def _tower(w, rows, fol, now, board_entries, codes):
             lines.append(box(row(size(box(txt('%d' % place if place else '–', 16, 'bold', WHITE if on else NAVY, j=1),
                                           bg=NAVY if on else 'C9D1E0', al='c', va='c'), w=28, h=26, va='c'),
                                  _slash(WHITE if on else RED, 24, 4),
+                                 _tower_flag(r.get('country')),
                                  txt(codes.get(('l', k)) or '???', 19, 'bold', WHITE, va='c', sp=40), sp(fill=1),
                                  txt(_gap_s(g) if g is not None else ('%.1f km' % at['km'] if at.get('km') else ''), 15,
                                      'semi', WHITE if on else (SLOW if (g or 0) > 0 else FAST) if g is not None else SOFT,
@@ -191,14 +201,19 @@ def _splits_panel(w, fol, now, leader_name, codes):
 # under it the maker's badge, two bars and the gear). The dial and every state of its two arcs are pictures drawn once
 # (curves the game's flat boxes can't draw); the mod swaps the arcs' pictures in place as they move (lv src), the
 # words and bars set in place too.
+# 24 Nov 2026 (the user: "remove the logos ... and the circles around them ... on the left of the gauge there is brake
+# and on the right from the gauge it's throttle ... The gears should [have] a nice dedicated space"): no maker's badge,
+# no throttle arc; the brake a segmented bar out to the dial's left, the throttle out to its right (as the WRC's TV
+# dash), the gear on its own plate under the speed.
 GD = 300                                   # the dial's size (square)
-REV_N, THR_N = 28, 14                      # the revs' segments; the throttle arc's steps
+REV_N, THR_N = 28, 14                      # the revs' segments; (the throttle arc's steps: no longer drawn)
 REV_A = (-16.0, 98.0)                      # the revs' arc: from just under the line on the right round to the top (degrees)
-THR_A = (214.0, 146.0)                     # the throttle's arc on the left: from low round to up
+THR_A = (214.0, 146.0)
 LINE_Y = 176                               # the Km/h line
-BADGE = (82, 226, 58)                      # the maker's badge: its middle (x, y) and size in the dial
-BAR_X = 116                                # the brake / throttle bars' left
-DIAL_V = 'v5'
+PEDAL_N, PEDAL_SEG, PEDAL_GAP, PEDAL_H = 12, 9, 3, 20   # the brake / throttle bars: segments, each one's width, gap, height
+PEDAL_Y = 166                              # (their top, in the dial's square: level with the Km/h line)
+GEAR_W, GEAR_H = 92, 78                    # the gear's plate
+DIAL_V = 'v6'
 
 
 def _gauge_dir():
@@ -222,9 +237,8 @@ def gauge_pictures():
         return None
     import math
     d0 = _gauge_dir()
-    out = {'body': os.path.join(d0, 'body.png'), 'rev': [os.path.join(d0, 'rev-%d.png' % k) for k in range(REV_N + 1)],
-           'thr': [os.path.join(d0, 'thr-%d.png' % k) for k in range(THR_N + 1)]}
-    if all(os.path.exists(p) for p in [out['body']] + out['rev'] + out['thr']):
+    out = {'body': os.path.join(d0, 'body.png'), 'rev': [os.path.join(d0, 'rev-%d.png' % k) for k in range(REV_N + 1)]}
+    if all(os.path.exists(p) for p in [out['body']] + out['rev']):
         return out
     os.makedirs(d0, exist_ok=True)
     s = 3
@@ -251,13 +265,6 @@ def gauge_pictures():
     ly = LINE_Y * s
     d.line([(c - R * 0.80, ly), (c - 34 * s, ly)], fill=(225, 232, 245, 230), width=2 * s)
     d.line([(c + 34 * s, ly), (c + R * 0.80, ly)], fill=(225, 232, 245, 230), width=2 * s)
-    d.ellipse([c - R * 0.80 - 5 * s, ly - 5 * s, c - R * 0.80 + 5 * s, ly + 5 * s], outline=(225, 232, 245, 230), width=2 * s)
-    # the maker's badge ring (BADGE: bigger, the user 22 Nov 2026 "the logos of cars are super small"), the bars' tracks
-    bx, by, br = BADGE[0] * s, BADGE[1] * s, (BADGE[2] // 2 + 2) * s
-    d.ellipse([bx - br, by - br, bx + br, by + br], fill=(92, 106, 132, 255), outline=(70, 200, 220, 255), width=2 * s)
-    for y in (204, 222):
-        d.rounded_rectangle([BAR_X * s, y * s, (BAR_X + 82) * s, (y + 10) * s], radius=4 * s, fill=(8, 14, 28, 255),
-                            outline=(210, 220, 240, 200), width=s)
     save(body, out['body'])
     # the revs: REV_N segments round the right, lime, the last ones red
     for k in range(REV_N + 1):
@@ -276,16 +283,6 @@ def gauge_pictures():
                 fill = (60, 30, 36, 150) if hot else (40, 60, 40, 130)
             g.polygon(pts, fill=fill)
         save(im, out['rev'][k])
-    # the throttle: a thin arc on the left, filled from low up
-    for k in range(THR_N + 1):
-        im = Image.new('RGBA', (W, W), (0, 0, 0, 0))
-        g = ImageDraw.Draw(im)
-        r = R - 14 * s
-        g.line(_arc_points(c, c, r, THR_A[0], THR_A[1]), fill=(40, 70, 50, 150), width=6 * s, joint='curve')
-        if k:
-            end = THR_A[0] + (THR_A[1] - THR_A[0]) * k / THR_N
-            g.line(_arc_points(c, c, r, THR_A[0], end), fill=(64, 210, 110, 255), width=6 * s, joint='curve')
-        save(im, out['thr'][k])
     return out
 
 
@@ -295,8 +292,37 @@ def _at(x, y, node, w=None, h=None):
     return row(sp(w=x), col(sp(h=y), inner, al='l', va='t'), al='l', va='t')
 
 
+BRAKE_ON, BRAKE_OFF = 'FF3B47', '3A1A22'
+GAS_ON, GAS_OFF = '9BE22B', '1F3318'
+
+
+def _pedal(value, on, off, outward_left, label):
+    """A pedal's segmented bar beside the dial (the WRC TV dash's): PEDAL_N segments lit from the dial outwards (the
+    brake's to the left, the throttle's to the right), each one's colour set in place as it moves (lv)."""
+    lit = round(PEDAL_N * max(0.0, min(1.0, value or 0.0)))
+    segs = []
+    for i in range(PEDAL_N):
+        k = PEDAL_N - 1 - i if outward_left else i         # (the segment's place counted from the dial)
+        segs.append(size(box(None, bg=on if k < lit else off, lv=True, sk=-14), w=PEDAL_SEG, h=PEDAL_H))
+        if i < PEDAL_N - 1:
+            segs.append(sp(PEDAL_GAP))
+    bar = row(*segs, va='c')
+    word = txt(label, 11, 'bold', SOFT, sp=140, j=0 if outward_left else 2)
+    return col(sp(h=PEDAL_Y), bar, sp(h=4), size(word, w=PEDAL_N * (PEDAL_SEG + PEDAL_GAP)), al='r' if outward_left else 'l')
+
+
+def _gear_plate(cur, lo):
+    """The gear on a plate of its own under the speed: big, the one before it small and grey beside it."""
+    return size(box(col(txt(_('GEAR'), 10, 'bold', SOFT, sp=160, j=1),
+                        row(sp(fill=1), txt(lo, 18, 'bold', GREY, va='b', pad=[0, 0, 6, 6]),
+                            txt(cur, 46, 'bold', WHITE, va='b'), sp(fill=1))),
+                    bg=NAVY3, a=0.96, r=8, ol='3A4F78', olw=2, p=[6, 4, 6, 2], al='c'),
+                w=GEAR_W, h=GEAR_H)
+
+
 def _dash(dash, car_id=None):
-    """The dial (gauge_pictures), the followed car's revs, throttle, speed, brake and gear on it."""
+    """The dial (gauge_pictures): the followed car's revs round it, its speed big in the middle, the gear on its plate
+    under it; the brake's bar out to its left and the throttle's to its right."""
     dash = dash or {}
     pics = gauge_pictures()
     frac = dash.get('rpm_frac')
@@ -311,25 +337,17 @@ def _dash(dash, car_id=None):
     layers = []
     if pics:
         nrev = round(REV_N * max(0.0, min(1.0, frac or 0.0)))
-        nthr = round(THR_N * max(0.0, min(1.0, gas or 0.0)))
-        layers += [img(pics['body'], GD, GD), img(pics['rev'][nrev], GD, GD, lv=True), img(pics['thr'][nthr], GD, GD, lv=True)]
+        layers += [img(pics['body'], GD, GD), img(pics['rev'][nrev], GD, GD, lv=True)]
     else:
         layers.append(box(None, bg=NAVY, a=NA, r=GD // 2))
     layers += [
         _at(50, 74, txt('%d' % round(kmh) if kmh is not None else '–', 66, 'bold', WHITE, j=1), w=200, h=90),
         _at(116, LINE_Y - 11, txt('Km/h', 14, 'bold', WHITE, j=1), w=68, h=22),
-        _at(BADGE[0] - BADGE[2] // 2, BADGE[1] - BADGE[2] // 2, _badge(car_id, BADGE[2]) if car_id else sp(),
-            w=BADGE[2], h=BADGE[2]),
-        _at(BAR_X + 2, 206, row(size(box(None, bg='FF3B47', lv=True),
-                                     w=max(1, round(78 * max(0.0, min(1.0, brake or 0.0)))), h=6, lv=True), sp(fill=1)),
-            w=78, h=6),
-        _at(BAR_X + 2, 224, row(size(box(None, bg='40D26E', lv=True),
-                                     w=max(1, round(78 * max(0.0, min(1.0, gas or 0.0)))), h=6, lv=True), sp(fill=1)),
-            w=78, h=6),
-        _at(202, 196, row(txt(lo, 20, 'bold', GREY, va='b', pad=[0, 0, 6, 8]), txt(cur, 44, 'bold', WHITE, va='b')),
-            w=64, h=56),
+        _at((GD - GEAR_W) // 2, LINE_Y + 18, _gear_plate(cur, lo), w=GEAR_W, h=GEAR_H),
     ]
-    return size(stack(*layers), w=GD, h=GD)
+    dial = size(stack(*layers), w=GD, h=GD)
+    return row(_pedal(brake, BRAKE_ON, BRAKE_OFF, True, _('BRAKE')), sp(6), dial, sp(6),
+               _pedal(gas, GAS_ON, GAS_OFF, False, _('THROTTLE')), va='t')
 
 def _stage_line(w, fol, at, splits):
     """The stage across: its splits (km under each), the part driven red, a dot where they are."""
@@ -434,8 +452,8 @@ def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
                # (a long name smaller, then cut: SARUKAISEKI031 pushed the time off the bar, 22 Nov 2026)
                txt(_fit(fol.name), 30 if len(fol.name or '') <= 12 else 24, 'bold', WHITE, va='c', sp=30),
                sp(14), _flag(country), sp(fill=1),
-               _badge(car_id, 56) if car_id else None, sp(12),
-               txt((fol.car or '')[:18], 14, 'semi', SOFT, va='c'), sp(14), gap_box, sp(8),
+               # (the car's name only: no maker's logo, the user 24 Nov 2026 "remove the logos")
+               txt(_fit(fol.car or '', 22), 15, 'bold', SOFT, va='c', sp=40), sp(14), gap_box, sp(8),
                size(box(txt(_clock(at.get('ms')), 34, 'bold', WHITE, j=1), bg=RED, p=[14, 0, 14, 0], va='c', al='c', sk=-8),
                     w=190, h=50),
                pad=[16, 8, 16, 10])
@@ -481,6 +499,75 @@ def _menu(w, fol):
     lines.append(box(txt(_('UP / DOWN choose  ·  LEFT / RIGHT change  ·  BACK close'), 13, 'semi', MUTED, j=1),
                      bg=NAVY, a=0.95, p=[12, 8, 12, 8]))
     return size(col(*lines), w=460)
+
+
+# ---------------------------------------------------------------------- nobody on the stage: the studio
+STUDIO_PAGE_S = 10.0               # the studio's pages: each this long, in turn
+STUDIO_W = 1040
+
+
+def _studio(w, entries, now, why=None):
+    """Nobody on the stage: as a TV broadcast between cars (the user, 24 Nov 2026: "When there is no one on stage, there
+    could be a full table of top 10 with full names, teams, nationality and driving times, switching tabs to the daily
+    information, weather etc. MAKE IT FEEL LIKE REAL BROADCAST"): the classification, then the stage, in turn."""
+    pages = (['top'] if entries else []) + ['stage']
+    page = pages[int(now // STUDIO_PAGE_S) % len(pages)]
+    ch = w.ch() or {}
+    tabs = row(*[box(txt({'top': _('CLASSIFICATION'), 'stage': _('THE STAGE')}[p], 14, 'bold', WHITE if p == page else SOFT,
+                         sp=140), bg=RED if p == page else NAVY2, a=1.0 if p == page else NA, p=[16, 6, 16, 6],
+                     pad=[0, 0, 4, 0]) for p in pages], sp(fill=1),
+               box(row(size(box(None, bg=WHITE, r=4), w=8, h=8, va='c'), sp(8),
+                       txt(_('BETWEEN CARS'), 13, 'bold', WHITE, sp=140, va='c')), bg=GREY, p=[12, 6, 12, 6]))
+    kind = {'daily': _('DAILY · SS%d') % w.slot, 'tt': _('TIME TRIAL · TT%d') % w.slot}.get(w.kind) or \
+        ('%s · SS%d' % (_fit((w.held() or {}).get('name') or _('EVENT'), 30), w.slot))
+    head = box(row(txt(kind, 16, 'bold', WHITE, sp=120, va='c'), _slash(WHITE, 22, 3),
+                   txt(stage_name(ch).upper(), 26, 'bold', WHITE, va='c', fill=1),
+                   txt(((ch.get('rally') or '').upper()), 16, 'bold', WHITE, sp=120, va='c')),
+               bg=RED, p=[20, 10, 20, 10])
+    if page == 'top':
+        lead = entries[0]['totalMs']
+        cars = {e.get('car') for e in entries[:10] if e.get('car')}
+        lines = [box(row(size(kicker(_('pos')), w=103), kicker(_('driver'), fill=1), size(kicker(_('team')), w=110),
+                         size(kicker(_('car')), w=230) if len(cars) > 1 else None,
+                         size(kicker(_('time'), j=2), w=130), size(kicker(_('gap'), j=2), w=100)),
+                     bg=NAVY, a=NA, p=[20, 8, 20, 6])]
+        for i, e in enumerate(entries[:10]):
+            team = (e.get('look') or {}).get('tag')
+            tb = None
+            if team and team.get('text'):
+                tbg, tfg = tag_colours(team)
+                tb = box(txt(team_text(team), 14, 'bold', tfg, sp=40), bg=tbg, p=[8, 2, 8, 2], va='c')
+            f = _flag(e.get('country'), 33, 22)
+            lines.append(box(row(size(box(txt('%d' % (i + 1), 18, 'bold', NAVY if i else WHITE, j=1),
+                                          bg=WHITE if i else RED, al='c', va='c'), w=38, h=32, va='c'), sp(18),
+                                 f if f is not None else sp(33), sp(14),
+                                 txt(_fit(e.get('name') or '', 26), 20, 'bold', WHITE, va='c', fill=1),
+                                 size(row(tb, sp(fill=1)) if tb else sp(), w=110),
+                                 size(txt(_fit(e.get('car') or '', 22), 15, 'semi', SOFT, va='c'), w=230)
+                                 if len(cars) > 1 else None,
+                                 size(txt(fmt_ms(e['totalMs'], 1), 20, 'bold', WHITE, j=2, va='c'), w=130),
+                                 size(txt('' if i == 0 else _gap_s(e['totalMs'] - lead, 1), 18, 'semi',
+                                          SOFT, j=2, va='c'), w=100)),
+                             bg=NAVY2 if i % 2 else NAVY, a=NA, p=[20, 5, 20, 5]))
+        foot = _('%d drivers on the board') % len(entries)
+    else:
+        km = ('%.2f km' % (ch['lengthM'] / 1000.0)) if ch.get('lengthM') else ''
+        facts = [(_('RALLY'), (ch.get('rally') or '').upper()), (_('LENGTH'), km),
+                 (_('SURFACE'), (ch.get('surface') or '').upper()),
+                 (_('CAR'), (ch.get('car') or '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else '')),
+                 (_('CONDITIONS'), conditions(ch) if ch else ''),
+                 (_('DRIVERS'), '%d' % len(entries) if entries else _('nobody yet')),
+                 (_('BEST'), ('%s  ·  %s' % (fmt_ms(entries[0]['totalMs'], 1), entries[0].get('name') or ''))
+                  if entries else '–')]
+        lines = []
+        for i, (k, v) in enumerate(f for f in facts if f[1]):
+            lines.append(box(row(size(txt(k, 15, 'bold', SOFT, sp=160, va='c'), w=220),
+                                 txt(v, 22, 'bold', WHITE, va='c', fill=1)),
+                             bg=NAVY2 if i % 2 else NAVY, a=NA, p=[20, 9, 20, 9]))
+        foot = why or _('The broadcast picks up the next driver on the stage by itself.')
+    bottom = box(row(size(box(None, bg=RED), w=4, h=16, va='c'), sp(10), txt(foot, 15, 'semi', SOFT, va='c')),
+                 bg=NAVY, a=NA, p=[20, 8, 20, 8])
+    return size(col(tabs, sp(h=6), head, *lines, size(box(None, bg=RED), h=3), bottom), w=STUDIO_W)
 
 
 # ---------------------------------------------------------------------- the whole
@@ -548,7 +635,7 @@ def overlay(ig):
     top = row(left, sp(fill=1), right)
     # bottom left: the spectator menu when open (the user, 21 Nov 2026: "bottom left with a X to close"), and the
     # ACR DAILY mark, as a TV channel's in its corner
-    mark = row(img(LOGO, 40, 48, va='c'), sp(10),
+    mark = row(size(box(None, bg=RED), w=6, h=40, sk=-18, va='c'), sp(10),
                col(txt('ACR DAILY', 22, 'bold', WHITE, sp=60), txt(_('LIVE COVERAGE'), 11, 'bold', SOFT, sp=160)),
                va='b', al='l')
     corner = col(menu, sp(h=14) if menu else None, mark, va='b')
@@ -561,7 +648,12 @@ def overlay(ig):
         bottom = row(corner, sp(fill=1), _dash(dash, car_id), sp(20), _driver_bar(w, fol, now, codes, country, team, car_id),
                      va='b')
     else:
-        waiting = _('Waiting for the next car…') if rows else _('Waiting for a driver on the stage…')
+        waiting = w.why_waiting(rows)
+        if not any(r.get('driver') for r in rows) and g == 'full':
+            # (nobody to show: the studio in the middle of the screen, the classification and the stage in turn)
+            mid = row(sp(fill=1), _studio(w, entries, now, waiting), sp(fill=1))
+            return col(row(sp(fill=1), _bug(w, now, False, bool(rows))), sp(fill=1), mid, sp(fill=1),
+                       row(corner, sp(fill=1), va='b'))
         wait_box = box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10), txt(waiting, 20, 'semi', WHITE, va='c')),
                        bg=NAVY, a=NA, p=[22, 14, 22, 14], va='b')
         # (in the middle of the screen, the corner beside it not pushing it over)

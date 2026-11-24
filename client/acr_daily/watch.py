@@ -108,7 +108,8 @@ class Watch:
         now = time.monotonic() if now is None else now
         out, names = [], set()
         for d in self.drivers():
-            out.append({'name': d.name, 'car': d.car, 'at': self.where(d, now), 'driver': d})
+            out.append({'name': d.name, 'car': d.car, 'at': self.where(d, now), 'driver': d,
+                        'country': self.country_of(d.name, getattr(d, 'sid', None))})
             names.add((d.name or '').strip().lower())
         h = self.held()
         age = now - h.get('live_at', now)
@@ -117,9 +118,22 @@ class Watch:
             if x.get('state') != 'live' or name.strip().lower() in names:
                 continue
             at = self.at_progress(x.get('progress'), (x.get('totalMs') or 0) + age * 1000.0)
-            out.append({'name': name, 'car': x.get('car') or '', 'at': at, 'driver': None})
+            out.append({'name': name, 'car': x.get('car') or '', 'at': at, 'driver': None,
+                        'country': x.get('country') or self.country_of(name, x.get('steamId'))})
         out.sort(key=lambda r: -((r['at'] or {}).get('progress') or -1))
         return out
+
+    def country_of(self, name, sid=None):
+        """A driver's country (two letters) for their flag: today's board, the website's live list, their driver page
+        (fetched once); None when not known."""
+        n = (name or '').strip().lower()
+        h = self.held()
+        for e in ((h.get('board') or {}).get('entries') or []) + list(h.get('live') or []):
+            if (sid and e.get('steamId') == sid) or (n and (e.get('name') or '').strip().lower() == n):
+                if e.get('country'):
+                    return e['country']
+        prof = self.profile(sid) if sid else None
+        return (prof or {}).get('country') or None
 
     def at_progress(self, progress, ms):
         """where() from how far along (0..1) and the clock, as the website has them."""
@@ -187,6 +201,28 @@ class Watch:
             self.target, self._lost_at = ds[0].id, None
             return ds[0]
         return None
+
+    def why_waiting(self, rows):
+        """The broadcast's line while no car is followed: why, as far as known (a friend, 24 Nov 2026: "it just stays
+        stuck on WAITING FOR NEXT CAR... it won't let me switch to any other car")."""
+        g = getattr(self.app, 'ghostcars', None)
+        live = getattr(g, 'live', None)
+        state = getattr(live, 'state', None)
+        if not self.app.s.get('token'):
+            return _('Sign in to ACR DAILY to watch the cars (the live server wants it).')
+        if live is None or state == 'connecting':
+            return _('Connecting to the live server…')
+        if state == 'signin':
+            return _('The live server refused the sign-in: sign in to ACR DAILY again.')
+        if state == 'offline':
+            return _("Can't reach the live server: trying again…")
+        if rows and not any(r.get('driver') for r in rows):
+            names = ', '.join(r['name'] for r in rows[:3] if r.get('name'))
+            return _('%s on the stage: their ACR DAILY sends no car to watch (an older version, or the car not sent yet).') \
+                % names if names else _('Waiting for the next car…')
+        if rows:
+            return _('Waiting for the next car…')
+        return _('Waiting for a driver on the stage…')
 
     # ---- the controls
     def step(self, d):

@@ -75,6 +75,7 @@ import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, remove
 import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
 import { developersPage } from './developerspage.js';
+import { broadcastPage, BROADCAST_HEADERS } from './broadcast.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
@@ -1587,6 +1588,12 @@ async function route(req, env, ctx, L) {
     if (em && ((em[1] === 'event' && /^\d+$/.test(em[2])) || (em[1] === 'championship' && !em[3] && /^[a-z0-9]{8}$/.test(em[2])))) {
       return new Response(inLang(L, () => embedPage(em[3] ? 'live' : em[1], em[2], url.searchParams, env.SITE_URL || url.origin)),
         { headers: EMBED_HEADERS });
+    }
+    // broadcast overlays (src/broadcast.js): TV graphics for a stream's browser source
+    const bm = req.method === 'GET' && path.match(/^\/broadcast\/(daily|tt|event)\/(\d+)$/);
+    if (bm && (bm[1] === 'event' || ['1', '2'].includes(bm[2]))) {
+      return new Response(inLang(L, () => broadcastPage(bm[1], bm[2], url.searchParams, env.SITE_URL || url.origin)),
+        { headers: BROADCAST_HEADERS });
     }
     if (path === '/developers' && req.method === 'GET') return html(inLang(L, () => developersPage(env)));
     if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));

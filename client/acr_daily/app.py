@@ -189,6 +189,17 @@ BACK_IN_MENUS_S = 20          # the game back in its menus this long, a finished
 CHANGED_WAIT_S = 90           # a result whose save says the set-up changed: the game's next save decides, or this long
                               # without one (_official_found)
 OFFICIAL_WAIT_S = 30 * 60     # how long at most (the game still running)
+# A run set up by ACR DAILY in the running game: its time at the finish line (the stage clock stopped there + the game's
+# penalties, read by the mod) is sent this long after the line, not when the game leaves its results (the user, 24 Nov
+# 2026: "when user finishes the stage ... the time is sent THEN"). The seconds: for the game's penalties of the last
+# moments to come in.
+FINISH_SETTLE_S = 3.0
+
+
+def finish_settled(a):
+    """Has the finish of a waiting run (a: its item, its 'live' read at the line) settled: FINISH_SETTLE_S since?"""
+    at = (a.get('live') or {}).get('at')
+    return bool(at) and time.time() - at >= FINISH_SETTLE_S
 OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree this closely (else: not this run)
 OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in the save already at the start (they have
                               # agreed to the ms on every run so far)
@@ -1625,8 +1636,36 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                                                          lambda p: ghostui.open_kept(p, binary=True))
         for cid, action, text in acts.poll():
             card = next((c for c in cards if '%x' % id(c) == cid), None)
+            if action == 'typing':
+                self._card_typing = True           # (the box open in the game: the buttons send / close it)
+            elif action in ('comment', 'close', 'drive'):
+                self._card_typing = False
             if drawn and card is not None:
                 card.act(action, text)
+        # a wheel's / pad's buttons set for the cards (cardbuttons.py): COMMENT opens the box (the comment's key, for
+        # the mod) and sends it (Enter); CLOSE closes the box, or the card
+        cb = getattr(self, '_card_buttons', None)
+        if cb is None:
+            from . import cardbuttons
+            cb = self._card_buttons = cardbuttons.CardButtons(self)
+        pressed = cb.tick() if (drawn and cards) or cb.capturing else []
+        if not cards:
+            self._card_typing = False
+        for action in pressed:
+            from . import ingamenav
+            typing = getattr(self, '_card_typing', False)
+            if action == 'close':
+                if typing:
+                    ingamenav.press_key(0x1B)          # (Esc: the box closed, nothing sent)
+                    self._card_typing = False
+                else:
+                    cards[0].act('close', '')
+            elif action == 'comment':
+                if typing:
+                    ingamenav.press_key(0x0D)          # (Enter: sent)
+                else:
+                    k = self.ingame_keys().get('comment', 'F9')
+                    ingamenav.press_key(0x6F + int(k[1:]))   # (F1 = 0x70: the box opened by the mod, hud.lua)
 
     def _ingame_feed(self, now=None):
         o = self.s['overlay']
@@ -2463,11 +2502,22 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         waits = [(a['until'] - OFFICIAL_WAIT_S, getattr(self, '_official_watch', None))
                  for a in self.awaiting if not a.get('practice') and a.get('until')]
         run = getattr(self, 'league_run', None)
+        items = [a for a in self.awaiting if not a.get('practice')]
         if run and not run.get('over') and run.get('wait'):          # (leagueui.py: the same 30 minutes at most)
             w = run['wait']
             waits.append((w.get('until', 0) - OFFICIAL_WAIT_S, w.get('watch')))
+            items.append(w)
         if not waits:
             return None
+        # a run sent at the finish line (set up by ACR DAILY in the running game, its penalties read there): "sending"
+        # filling up from the line, FINISH_SETTLE_S, then sent (the user, 24 Nov 2026: the window at the finish, not
+        # once the car has stopped and the results are left)
+        fin = [a['live']['at'] for a in items if (a.get('live') or {}).get('at') and a.get('ingameChanged') == []
+               and not a.get('other')]
+        if fin:
+            self._sending_now = True
+            return min(1.0, max(0.0, (time.time() - max(fin)) / FINISH_SETTLE_S))
+        self._sending_now = False
         best = None
         for since, watch in waits:
             seen = getattr(watch, 'seen', None)
@@ -2506,7 +2556,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.overlay.set_alert(OFFICIAL_HEAD, OFFICIAL_ALERT, 'warn')
             self.overlay.set_progress('wait', colour=SLOW)
         else:
-            self.overlay.set_alert(SAVING_ALERT, kind='info')
+            self.overlay.set_alert(_('Sending your time…') if getattr(self, '_sending_now', False) else SAVING_ALERT,
+                                   kind='info')
             self.overlay.set_progress('saving', s, ACC)
 
     def _waiting_text(self):
@@ -2967,7 +3018,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             # the time at the finish line, sent as soon as the game goes on from the stage's results (penalties given
             # until then read above): no wait for the save, which comes later or, frozen on the loading, never (the
             # user, 22 Nov 2026: "do the uploading screen immediately instead of waiting to take it from the save")
-            if a.get('live') is not None and not a.get('other') and self._left_stage(a):
+            # (and now: FINISH_SETTLE_S after the finish line, still on the stage, the penalties read till then: the user,
+            # 24 Nov 2026 "when user finishes the stage ... the time is sent THEN"; a game left on its results screen
+            # 21 minutes, then closed, lost a championship's SS2, report #559)
+            if a.get('live') is not None and not a.get('other') and (finish_settled(a) or self._left_stage(a)):
                 live = self._live_result(a)
                 if live == 'dq':
                     why = said('disqualified by the game')

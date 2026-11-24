@@ -46,7 +46,7 @@ SNAP_MS = 1500           # ...unless further off than this (a new run, a long ga
 JUMP_MPS = 120.0         # faster than this between two samples: a reset onto the road (a jump, not a curve)
 # WATCH: the drivers played back this far behind, at least (a broadcast's delay: always a sample on each side of what is
 # drawn, however their data comes: the user, 22 Nov 2026 "to make the broadcast smooth")
-WATCH_DELAY_MS = 1500
+WATCH_DELAY_MS = 5000    # (the user, 24 Nov 2026: "Put the buffer/delay to 5 seconds"; 1.5 s before)
 DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 20 s)
 GUESS_MS = 300           # no dash from them: how they speed up, over this long
 DASH_STALE_MS = 1500     # their last dash older than this (on their clock): no longer shown
@@ -102,6 +102,59 @@ def smooth_at(s, ms):
         v, r = _hermite(p0, p1, _slope(s, i, k), _slope(s, i + 1, k), h, u)
         pose.append(v)
         rate.append(r * 1000.0)
+    return tuple(pose), tuple(rate)
+
+
+WATCH_SIGMA_MS = 90.0    # WATCH: the poses eased over their samples this far either side (watch_pose)
+
+
+def watch_pose(s, ms, sigma=WATCH_SIGMA_MS):
+    """WATCH's pose of a run at its clock ms: a straight line fitted through its samples near ms (weighted by how near,
+    a bell curve of sigma), read at ms -> (pose, rate per second) like smooth_at. The drivers' samples come from their
+    game's frames, each a little early or late against the clock they carry: drawn through exactly, the car sped up
+    and slowed down 5 % from one sample to the next (the user, 24 Nov 2026: "WATCH smooth and lag-free"). Played back
+    5 s late (WATCH_DELAY_MS), the samples after ms are already here: the line goes through both sides. Never across a
+    reset (a jump); with too few samples near: smooth_at."""
+    n = len(s)
+    if n < 4 or ms <= s[0][0] or ms >= s[-1][0]:
+        return smooth_at(s, ms)
+    i = _seg(s, ms)
+    reach = 2.5 * sigma
+    lo = i
+    while lo > 0 and s[lo - 1][0] >= ms - reach and not _jump(s[lo - 1], s[lo]):
+        lo -= 1
+    hi = i + 1
+    if _jump(s[i], s[hi]):
+        return smooth_at(s, ms)
+    while hi < n - 1 and s[hi + 1][0] <= ms + reach and not _jump(s[hi], s[hi + 1]):
+        hi += 1
+    if hi - lo < 3:
+        return smooth_at(s, ms)
+    ref = s[i]
+    sw = swt = swtt = 0.0
+    sv = [0.0] * 6
+    svt = [0.0] * 6
+    for j in range(lo, hi + 1):
+        x = s[j]
+        t = x[0] - ms
+        w = math.exp(-0.5 * (t / sigma) ** 2)
+        sw += w
+        swt += w * t
+        swtt += w * t * t
+        for k in range(6):
+            v = x[k + 1] if k != 3 else ref[4] + _wrap(x[4] - ref[4])
+            sv[k] += w * v
+            svt[k] += w * v * t
+    det = sw * swtt - swt * swt
+    if sw <= 0 or det <= 1e-9:
+        return smooth_at(s, ms)
+    pose, rate = [], []
+    for k in range(6):
+        b = (sw * svt[k] - swt * sv[k]) / det         # (per ms)
+        a = (sv[k] - b * swt) / sw                    # (at ms: t = 0)
+        pose.append(a)
+        rate.append(b * 1000.0)
+    pose[3] = _wrap(pose[3])
     return tuple(pose), tuple(rate)
 
 
@@ -502,7 +555,12 @@ class LiveLink:
             return []
         now = time.monotonic() if now is None else now
         with self._lock:
-            for k in [k for k, d in self.drivers.items() if now - d.seen > STALE_S]:
+            # (WATCH plays them back WATCH_DELAY_MS late: kept that much longer after their last word, or the end of
+            # their run, the finish, was never shown: gone from the relay as they crossed the line)
+            gone = [k for k, d in self.drivers.items()
+                    if now - max(d.seen, getattr(d, 'bye_at', 0.0) or 0.0) > STALE_S + getattr(d, 'floor_ms', 0) / 1000.0
+                    or (getattr(d, 'bye_at', None) and now - d.bye_at > getattr(d, 'floor_ms', 0) / 1000.0 + 0.5)]
+            for k in gone:
                 del self.drivers[k]
             return list(self.drivers.values())
 
@@ -556,7 +614,11 @@ class LiveLink:
                 d.add(m.get('s') or [], now)
                 d.add_dash(m.get('d'))
             elif t == 'bye':
-                self.drivers.pop(m.get('id'), None)
+                d = self.drivers.get(m.get('id'))
+                if d is not None and getattr(d, 'floor_ms', 0):
+                    d.bye_at = now                   # (WATCH: kept until their playback has reached their last word)
+                else:
+                    self.drivers.pop(m.get('id'), None)
 
     # ---- the connection
     def _run_loop(self):

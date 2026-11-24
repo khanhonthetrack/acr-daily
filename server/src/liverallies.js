@@ -9,7 +9,7 @@
 //   hour            registration closes; the rally is drawn and the start list published (the dailies' rating, best
 //                   first; the drivers without one after, by registration): the drivers press DRIVE (the app sets the
 //                   game up)
-//   hour + 5 min    the first turn: the top-ranked driver has LIVE.turnMs (20 s) to start SS1
+//   hour + 3 min    the first turn: the top-ranked driver has LIVE.turnMs (20 s) to start SS1
 //
 // Turns, not slots: one driver's turn at a time. A turn opens when the turn before it ends: at its driver's start, or
 // at the end of their 20 s without one. Missed (no start in the turn): to the end of that stage's queue (ready again
@@ -58,7 +58,7 @@ const MONDAY = Date.UTC(1970, 0, 5);          // (a Monday: the weeks start on M
 export const LIVE = {
   everyMs: HOUR,               // a session every hour, the four series in turn: each series every 4 hours
   signupMs: 30 * MIN,          // registration opens this long before the hour
-  firstStartMs: 5 * MIN,       // the first turn this long after the hour (time to start the game and get ready)
+  firstStartMs: 3 * MIN,       // the first turn this long after the hour (time to start the game and get ready; 5 min to 24 Nov 2026: the user, "5 is too long")
   turnMs: 20000,               // a driver's turn: this long to start (the app's green light)
   earlyMs: 2000,               // a start this much before its turn still counts as in it (the game's countdown, the clocks)
   breakMs: 3 * MIN,            // between stages: a driver joins the next stage's queue this long after their finish

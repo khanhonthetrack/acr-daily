@@ -32,8 +32,10 @@ LABELS = {'strip': _('Stage strip'), 'delta': _('Delta trend')}
 # the windows on top of it had no point). The windows are still made (the timer's, the displays') as the source of what
 # the game draws, but never shown; the delta trend, never drawn by the game, is gone from the settings.
 WINDOWS = False
-# The displays the settings page offers: the stage strip (the game draws it); the delta trend was a window only.
-SHOWN = ('strip',)
+# The displays the settings page offers: none. (The stage strip, its ticks under the game's km bar, was taken out of
+# the game on 19 Nov 2026 by the user, "remove this stage addon trackers altogether", but its switch stayed in
+# SETTINGS, doing nothing: "The stage strip on SETTINGS is outdated", 24 Nov 2026. The delta trend was a window only.)
+SHOWN = ()
 
 
 # other drivers on the stage: their own colour each (same picks as the website's live map; red is you)

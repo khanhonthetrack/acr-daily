@@ -270,6 +270,15 @@ async function v1(env, url, p, call, site) {
       track: c.track, lengthM: c.lengthM ?? null, car: c.car, carClass: c.carClass || null, weather: c.weather, time: c.time,
       startsAt: c.startsAt, endsAt: c.endsAt, results: `${site}/api/v1/dailies/${r.data.date}/${c.slot || i + 1}` })) }, TTL.list);
   }
+  // who is on a daily's / a time trial stage now (the broadcast overlay, src/broadcast.js; anyone's stream graphics)
+  if ((m = p.match(/^\/(dailies|timetrials)\/(\d{4}-\d{2}-\d{2})\/([12])\/live$/))) {
+    const r = await ask(call, m[1] === 'dailies' ? `/api/live?date=${m[2]}&slot=${m[3]}` : `/api/tt/live?week=${m[2]}&slot=${m[3]}`);
+    if (!r.ok) return passFail(r);
+    return out({ [m[1] === 'dailies' ? 'date' : 'week']: m[2], slot: +m[3], now: r.data.now, pollSeconds: TTL.live,
+      drivers: (r.data.drivers || []).map((x) => ({ steamId: x.steamId, name: x.name, country: x.country || null, team: look(x),
+        progress: x.progress ?? null, totalMs: x.totalMs ?? null, state: x.state || null, x: x.x ?? null, z: x.z ?? null,
+        updated: x.updated ?? null })) }, TTL.live);
+  }
   if ((m = p.match(/^\/dailies\/(\d{4}-\d{2}-\d{2})\/([12])$/))) {
     const r = await ask(call, `/api/leaderboard?date=${m[1]}&slot=${m[2]}`);
     if (!r.ok) return passFail(r);
@@ -335,6 +344,8 @@ const INDEX = (site) => ({
     'A private rally\'s results need its invite code: ?code=XXXX-XXXX.', 'A hidden event keeps what it hides until it closes.'],
   endpoints: ['/api/v1/championships', '/api/v1/championships/{id}', '/api/v1/championships/{id}/standings?season={id}',
     '/api/v1/events/{id}', '/api/v1/events/{id}/live', '/api/v1/events/{id}/map', '/api/v1/cups/{id}', '/api/v1/dailies?date={YYYY-MM-DD}',
-    '/api/v1/dailies/{date}/{slot}', '/api/v1/timetrials?week={Monday}', '/api/v1/timetrials/{week}/{slot}', '/api/v1/ranking?country={cc}&page={n}',
+    '/api/v1/dailies/{date}/{slot}', '/api/v1/dailies/{date}/{slot}/live', '/api/v1/timetrials?week={Monday}',
+    '/api/v1/timetrials/{week}/{slot}', '/api/v1/timetrials/{week}/{slot}/live', '/api/v1/ranking?country={cc}&page={n}',
     '/api/v1/drivers/{steamId}'].map((e) => site + e),
+  broadcast: ['/broadcast/daily/{slot}', '/broadcast/tt/{slot}', '/broadcast/event/{id}'].map((e) => site + e),
 });

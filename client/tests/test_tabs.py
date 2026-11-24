@@ -424,7 +424,7 @@ class Settings(Harness):
         self.assertEqual(self.shown(a.daily_box, a.settings_box), ['', 'pack'])
         said = texts(a.settings_box)
         for x in ('AUTO', 'Auto-drive', 'Show the timer', 'Size', '100 %',
-                  'Only on a stage', 'Stage strip', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
+                  'Only on a stage', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
             self.assertIn(x, said)
         # (0.1.6: no windows over the game; 0.2: no sound setting, the user 22 Nov 2026)
         for x in ('Move the overlays', 'UNLOCK TO MOVE', 'Hide while driving', 'Delta trend', 'Sound and notification'):
@@ -480,8 +480,8 @@ class Settings(Harness):
         # the timer, only on a stage, our clock in the game, the strip (0.1.6: no move / lock, no hide while driving, no
         # delta trend: they were for the windows over the game; 0.2: no sound setting)
         switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}
-        click(switches[3])
-        a.toggle_widget.assert_called_once_with('strip')
+        # (24 Nov 2026: no stage strip either: the game no longer draws it, its switch did nothing)
+        self.assertNotIn('Stage strip', texts(a.settings_box))
         self.assertNotIn('Drawn by the game', texts(a.settings_box))
         with mock.patch('acr_daily.app.settings.save'):
             click(find(a.settings_box, 'TOP'))               # their place

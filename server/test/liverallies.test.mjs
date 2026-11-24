@@ -145,7 +145,7 @@ const rowOf = (f, id, who, no = 0) => f.db.prepare('SELECT * FROM live_slots WHE
 test('turns: the top-ranked first, 20 s each; a start passes the turn on at once; on red, the seconds jumped added', async () => {
   const f = world();
   const id = await published(f, [CAT, BEN, ANN]);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   let v = (await live(f, S(), BEN, t0 + 1000)).body;
   assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.ahead, q.turnAt && q.turnAt - t0, q.estAt - t0]),
     [['Cat', 'turn', 0, 0, 0], ['Ben', 'waiting', 1, null, 20000], ['Ann', 'waiting', 2, null, 40000]]);
@@ -182,7 +182,7 @@ test('turns: the top-ranked first, 20 s each; a start passes the turn on at once
 test('a turn missed: to the end of the queue, the next turn at once; missed too often, out', async () => {
   const f = world();
   const id = await published(f, [CAT, BEN, ANN]);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   // Cat never starts: at 08:05:20 Ben's turn, Cat after Ann
   let v = (await live(f, S(), ANN, t0 + 21000)).body;
   assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.moved, q.ahead, q.estAt - t0]),
@@ -205,7 +205,7 @@ test('a turn missed: to the end of the queue, the next turn at once; missed too 
 test('a start on its way while the queue moves on: in the turn it was made in', async () => {
   const f = world();
   const id = await published(f);                                // Cat, Ben
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   await live(f, S(), BEN, t0 + 21000);                          // Cat's turn over (her start not in yet): Ben's
   assert.deepEqual([rowOf(f, id, CAT).moved, rowOf(f, id, CAT).moved_at, rowOf(f, id, BEN).turn_at], [1, t0 + 20000, t0 + 20000]);
   // ...it was made at 08:05:10, in her turn, and comes in now: on time, Ben's turn as it was
@@ -232,7 +232,7 @@ test('a start on its way while the queue moves on: in the turn it was made in', 
 test('a later stage: a begin on its way when the queue made the entry a DNF undoes it', async () => {
   const f = world();
   const id = await published(f, [CAT]);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   await start(f, id, CAT, t0, t0);
   const fin = t0 + 6 * MIN;
   const slot = (await live(f, `${S()}/queue`, CAT, fin + 300, { no: 1, finishedAt: fin })).body.slot;
@@ -267,7 +267,7 @@ test('publishing taken over after a stall makes no second event', async () => {
 test('the later stages: ready 3 minutes after the finish, whoever is ready first goes first', async () => {
   const f = world();
   const id = await published(f);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   await start(f, id, CAT, t0, t0);
   await start(f, id, BEN, t0 + 3000, t0 + 3000);
   assert.equal((await live(f, `${S()}/queue`, CAT, t0 + 4000, { no: 2 })).status, 409);         // (SS2 not driven)
@@ -312,7 +312,7 @@ test('nobody there for a long while: the turns go by a few at a time, as they wo
     who.push(sid(k));
   }
   const id = await published(f, who);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   // 12 drivers, none in the game: 4 turns each, 20 s each, the last over at 08:21:00 (looks of 30 writes at most)
   let v;
   for (let k = 0; k < 10; k++) {
@@ -329,7 +329,7 @@ test('nobody there for a long while: the turns go by a few at a time, as they wo
 test('the results are out when every driver is done', async () => {
   const f = world();
   const id = await published(f, [CAT, BEN]);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   await start(f, id, CAT, t0, t0);
   let v = (await live(f, S(), CAT, t0 + 1000)).body;
   assert.equal(v.resultsOut, false);
@@ -385,7 +385,7 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
 test('a stage driven outside the rally (practice before the start, the wrong mode): a DNF, before the entry too', async () => {
   const f = world();
   const id = await published(f);
-  const t0 = H + 5 * MIN;
+  const t0 = H + LIVE.firstStartMs;
   // Ben, not started yet, drives SS2 as a Single Rally Stage at 08:03: out, his entry a DNF with his car
   const r = await live(f, `${S()}/dnf`, BEN, t0 - 2 * MIN, { no: 1, reason: 'SS2 driven before its start' });
   assert.deepEqual(r.body, { status: 'dnf', reason: 'SS2 driven before its start' });

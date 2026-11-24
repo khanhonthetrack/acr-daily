@@ -1481,6 +1481,11 @@ class LeaguesUI:
                    if w['other'] else said('the game closed before saving its official result') if w['closed'] >= 3
                    else said('left from the results screen: the game didn\'t save it') if menus
                    else said('no official result from the game'))
+            live = None if w['other'] or not hasattr(self, '_live_result') else self._live_result(w)
+            if live and live != 'dq':           # (the time the game gave it at the finish line, as app._check_official)
+                waiting.note('%s: %s; the time at the finish line counts: %.3f +%g' % (tag, why, live['time'], live['penalty']))
+                w['result']['officialSource'] = 'finish'
+                return 'stage', live
             waiting.note('%s: DNF: %s' % (tag, why))
             w['lost'] = not w['other']             # the game saved nothing of it: its log goes to the admin (gamelog.py)
             return 'dnf', why
@@ -1492,13 +1497,17 @@ class LeaguesUI:
         given on its results screen are read until then. -> ('stage', result), ('dnf', why) or None (not yet / can't)."""
         if w.get('live') is None or w.get('other') or not hasattr(self, '_left_stage'):
             return None
+        from .app import finish_settled
         if self._still_there(w):
             more = self._live_penalty()
             if more is not None and (more[0] > w['live']['penaltyMs'] or more[1] and not w['live']['dq']):
                 w['live'].update(penaltyMs=max(more[0], w['live']['penaltyMs']), dq=bool(w['live']['dq'] or more[1]))
                 waiting.note('%s: the game\'s penalties after the finish: %d ms' % (w.get('id'), w['live']['penaltyMs']))
-            return None
-        if not self._left_stage(w, w.get('track')):
+            # (sent FINISH_SETTLE_S after the line, still on the stage: the user, 24 Nov 2026; a game left on its
+            # results screen 21 minutes lost a championship's SS2, report #559)
+            if not finish_settled(w):
+                return None
+        elif not self._left_stage(w, w.get('track')):
             return None
         live = self._live_result(w)
         if live == 'dq':

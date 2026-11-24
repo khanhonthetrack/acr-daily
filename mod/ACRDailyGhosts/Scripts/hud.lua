@@ -299,9 +299,11 @@ local function build_column(r)
     -- a card that takes keys (the comment on a run, the next daily / time trial): its words, the comment's box, its
     -- keys ([F8] DRIVE SS2 · [F9] COMMENT · [F10] CLOSE), its time running out
     local cd = K.panel(tree, {fill = PANEL, alpha = 0.9, radius = 3, outline = RED, outline_w = 2})
-    K.add(col, K.size(tree, cd, 460, nil), {pad = {0, 8, 0, 0}, h = 1})
+    local cd_size = K.size(tree, cd, 460, nil)
+    K.add(col, cd_size, {pad = {0, 8, 0, 0}, h = 1})
     local cbody = K.vbox(tree)
     cd:SetContent(cbody)
+    A.card_size, A.cbody = cd_size, cbody
     A.c_title = text(tree, 15, "semi", FG2, {spacing = 120, wrap = true})
     K.add(cbody, A.c_title, {pad = {16, 12, 16, 0}})
     A.c_what = text(tree, 24, "bold", WHITE, {wrap = true})
@@ -309,7 +311,25 @@ local function build_column(r)
     A.c_line = text(tree, 16, "medium", FG2, {wrap = true})
     K.add(cbody, A.c_line, {pad = {16, 4, 16, 0}})
     A.c_box = K.panel(tree, {fill = "FFFFFF", alpha = 0.07, radius = 3, outline = RULE, outline_w = 1, pad = {10, 6, 10, 6}})
-    K.add(cbody, A.c_box, {pad = {16, 8, 16, 0}})
+    -- (in a button of its own, drawn as nothing: a mouse click on the box starts writing, the user 24 Nov 2026 "press
+    -- with a mouse on the chat/comment window and start writing, instead of pressing F9")
+    A.c_click = K.new("Button", tree)
+    pcall(function()
+        local st = A.c_click.WidgetStyle
+        for _, k in ipairs({"Normal", "Hovered", "Pressed", "Disabled"}) do st[k].DrawAs = 0 end
+        st.NormalPadding = K.pad(0)
+        st.PressedPadding = K.pad(0)
+        A.c_click:SetStyle(st)
+    end)
+    local bslot = A.c_click:SetContent(A.c_box)
+    pcall(function()
+        bslot = (bslot and bslot:IsValid()) and bslot or A.c_box.Slot
+        bslot:SetPadding(K.pad(0))
+        bslot:SetHorizontalAlignment(0)
+        bslot:SetVerticalAlignment(0)
+    end)
+    A.c_click:SetVisibility(K.NOT_HIT)
+    K.add(cbody, A.c_click, {pad = {16, 8, 16, 0}})
     local brow = K.hbox(tree)
     A.c_box:SetContent(brow)
     A.c_text = text(tree, 18, "medium", WHITE, {wrap = true})
@@ -595,12 +615,62 @@ local function open_to_keys(A, on)
     end
 end
 
+-- The comment box takes a mouse click while a card with it is up: the displays' root and the column, the card, its body
+-- let the click through to it (SelfHitTestInvisible), everything else of the displays stays out of the mouse's way
+-- (HitTestInvisible), so the game's own buttons under them still work. Off: the root alone takes none again.
+local function hit_only(panel, keep)
+    pcall(function()
+        local n = panel:GetChildrenCount()
+        for i = 0, n - 1 do
+            local ch = panel:GetChildAt(i)
+            if ch and ch:IsValid() and not (keep and ch:GetAddress() == keep:GetAddress()) then
+                if ch:GetVisibility() ~= K.COLLAPSED then ch:SetVisibility(K.NOT_HIT) end
+            end
+        end
+    end)
+end
+
+local function clickable(A, on, box, t)
+    local want = (on and "on" or "off") .. (box and "b" or "")
+    if typing.on then return end
+    -- (again every half second while clickable: the displays' own show / hide set their parts back to NOT_HIT)
+    if A.click_state == want and not (on and box and t and t - (A.click_t or 0) > 0.5) then return end
+    A.click_state, A.click_t = want, t
+    pcall(function()
+        if on and box then
+            ui.w:SetVisibility(K.SELF_HIT)
+            hit_only(ui.canvas, A.col)
+            A.col:SetVisibility(K.SELF_HIT)
+            hit_only(A.col, A.card_size)
+            A.card_size:SetVisibility(K.SELF_HIT)
+            A.card:SetVisibility(K.SELF_HIT)
+            hit_only(A.cbody, A.c_click)
+            A.cbody:SetVisibility(K.SELF_HIT)
+            A.c_click:SetVisibility(K.VISIBLE)
+        else
+            ui.w:SetVisibility(K.NOT_HIT)
+            A.c_click:SetVisibility(box and K.NOT_HIT or K.COLLAPSED)
+        end
+    end)
+end
+
 local function stop_typing(A)
     typing.on = false
     A.c_edit:SetVisibility(K.COLLAPSED)
     A.c_text:SetVisibility(K.NOT_HIT)
     open_to_keys(A, false)
+    A.click_state = nil                                  -- (the box clickable again, as the card says: clickable)
     focus_game()                                         -- (the keyboard back to the game)
+end
+
+local function start_typing(A, cd)
+    typing.on, typing.id, typing.esc_t = true, cd.id, nil
+    open_to_keys(A, true)
+    A.c_text:SetVisibility(K.COLLAPSED)
+    A.c_edit:SetVisibility(K.VISIBLE)
+    A.c_edit:SetText(FText(cd.text == "-" and "" or cd.text))
+    A.c_edit:SetKeyboardFocus()
+    act(cd.id, "typing")
 end
 
 local function keys(A, cd, t)
@@ -622,6 +692,15 @@ local function keys(A, cd, t)
         end
         return
     end
+    -- a click on the comment box: writing, as its key (clickable)
+    local pressed = false
+    pcall(function() pressed = cd ~= nil and cd.text ~= nil and A.c_click:IsPressed() end)
+    if pressed and not A.click_was then
+        A.click_was = true
+        start_typing(A, cd)
+        return
+    end
+    A.click_was = pressed
     if not (k and cd) then return end
     local what = key_of(cd, k)
     if what == "drive" then
@@ -629,19 +708,14 @@ local function keys(A, cd, t)
     elseif what == "close" then
         act(cd.id, "close")
     elseif what == "comment" and cd.text then
-        typing.on, typing.id, typing.esc_t = true, cd.id, nil
-        open_to_keys(A, true)
-        A.c_text:SetVisibility(K.COLLAPSED)
-        A.c_edit:SetVisibility(K.VISIBLE)
-        A.c_edit:SetText(FText(cd.text == "-" and "" or cd.text))
-        A.c_edit:SetKeyboardFocus()
-        act(cd.id, "typing")
+        start_typing(A, cd)
     end
 end
 
 local function put_card(A, cd, clock, t, dt)
     A.card_anim.want = cd and 1 or 0
     anim_step(A.card_anim, A.card, dt)
+    clickable(A, cd ~= nil, cd ~= nil and cd.text ~= nil, t)
     keys(A, cd, t)
     if not cd then return end
     K.say(c, "c.title", A.c_title, cd.title)

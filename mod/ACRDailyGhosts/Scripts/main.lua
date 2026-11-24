@@ -171,6 +171,19 @@ local function read_ghosts(t)
             if #poses >= 2 and c0 then
                 names_now["\0path:" .. w[2]] = {dt = (tonumber(w[4]) or 100) / 1000, c0 = c0 / 1000, poses = poses}
             end
+        elseif w[1] == "path3" and #w >= 12 then                         -- path3 <id> <seq> <dt ms> <clock at the first pose> <clock now> X Y Z P Yw R ...
+            if w[3] ~= seq then return nil end
+            local poses = {}
+            for i = 7, #w - 5, 6 do
+                local p = {}
+                for k = 0, 5 do p[k + 1] = tonumber(w[i + k]) end
+                if p[6] then poses[#poses + 1] = p end
+            end
+            local c0, cn = tonumber(w[5]), tonumber(w[6])
+            if #poses >= 2 and c0 and cn then
+                names_now["\0path:" .. w[2]] = {dt = (tonumber(w[4]) or 100) / 1000, c0 = c0 / 1000, now = cn / 1000,
+                                                poses = poses}
+            end
         elseif w[1] == "wlivery" then                                   -- wlivery <seq> <livery name...> (WATCH)
             if w[2] ~= seq then return nil end
             names_now["\0wlivery"] = line:match("^wlivery %S+ (.+)$")
@@ -238,7 +251,8 @@ local function play_clock(c, t)
     -- (the app sends one pose before now: their clock now is the second pose's. Taken as the first, the car was
     -- drawn a pose early, where the curve has no pose behind it, its speed swinging: the shake left, seen live on
     -- Bughuul 23 Nov 2026)
-    local target = P.c0 + P.dt + (t - P.t0)
+    -- (path3: the app says their clock now outright; its poses on a fixed grid of their clock, the same in every path)
+    local target = (P.now or (P.c0 + P.dt)) + (t - P.t0)
     if not c.pc or not c.pc_t or math.abs(target - (c.pc + (t - c.pc_t))) > PLAY_SNAP then
         c.pc, c.pc_t = target, t
         return target
@@ -314,7 +328,7 @@ local function took(c, g, t_pose, t)
     -- where the car was being carried eased out (a reset: jumped)
     if g.path then                                     -- (WATCH: its path ahead, from now on: on_path)
         c.prev_path = c.path
-        c.path = {t0 = t_pose, c0 = g.path.c0, dt = g.path.dt, poses = g.path.poses}
+        c.path = {t0 = t_pose, c0 = g.path.c0, now = g.path.now, dt = g.path.dt, poses = g.path.poses}
         if on_path(c, t) then return end
     else
         c.path, c.prev_path, c.pc = nil, nil, nil

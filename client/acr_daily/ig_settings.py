@@ -90,6 +90,20 @@ def timer_panel(a, o):
                            row(*[choice('key', arg, k, k == keys[action], sz=15, p=[8, 5, 8, 5],
                                         pad=[0 if i == 0 else 4, 0, 0, 0]) for i, (arg, k) in enumerate(items)]),
                            pad=[0, 0 if not pickers else 6, 0, 0]))
+    # a wheel's / pad's buttons for the same (cardbuttons.py): SET, then the button
+    from . import cardbuttons
+    binds = cardbuttons.bound(a.s)
+    cb = getattr(a, '_card_buttons', None)
+    cap = cb.capturing[0] if cb is not None and cb.capturing else None
+    buttons = []
+    for action, label in (('comment', _('COMMENT')), ('close', _('CLOSE'))):
+        now = _('PRESS A BUTTON…') if cap == action else cardbuttons.name(binds.get(action))
+        buttons.append(row(size(txt(label, 15, 'bold', FG2), w=120, va='c'), sp(8),
+                           size(txt(now, 15, 'bold', WHITE if binds.get(action) or cap == action else FG2, va='c'), w=170),
+                           choice('btn', 'set-' + action, _('SET'), cap == action, sz=15, p=[10, 5, 10, 5]), sp(4),
+                           choice('btn', 'clear-' + action, _('CLEAR'), False, sz=15, p=[10, 5, 10, 5])
+                           if binds.get(action) else None,
+                           pad=[0, 0 if not buttons else 6, 0, 0]))
     scale = '%d %%' % round(100 * float(o.get('scale') or 1.0))
     how_big = row(choice('size', 'down', '−', False, p=[14, 4, 14, 4]),
                   size(txt(scale, 18, 'bold', WHITE, j=1), w=80, va='c'),
@@ -106,7 +120,10 @@ def timer_panel(a, o):
                  setting(_('Our clock in the game'), _("For when the game's HUD is off."),
                          switch('clock', bool(o.get('inGameClock')))),
                  setting(_('Keys in the game'), _('The keys for the comment card after a run: write a comment, close.'),
-                         under=col(*pickers)))
+                         under=col(*pickers)),
+                 setting(_('Wheel / pad buttons'), _('The same on your wheel or pad: SET, then press the button. '
+                                                     'COMMENT again sends what you wrote. You can also click the box.'),
+                         under=col(*buttons)))
 
 
 def displays_panel(a):
@@ -256,6 +273,17 @@ def admin_panel(a):
 
 
 # ---------------------------------------------------------------------- the buttons
+def _capture_wait(ig):
+    """SET: the controllers looked at until a button is pressed (or CAPTURE_S has gone): the page shows it as it comes."""
+    cb = getattr(ig.app, '_card_buttons', None)
+
+    def go():
+        if cb is not None and cb.capturing:
+            cb.tick()
+            ig.app.root.after(50, go)
+    ig.app.root.after(50, go)
+
+
 def click(ig, action, arg):
     a = ig.app
     o = a.s.setdefault('overlay', {})
@@ -281,6 +309,17 @@ def click(ig, action, arg):
     elif action == 'key':
         what, _sep, key = (arg or '').partition('-')
         a.set_ingame_key(what, key)                  # (a key another button had: they swap)
+    elif action == 'btn':                            # (a wheel's / pad's button for the cards: cardbuttons.py)
+        what, _sep, which = (arg or '').partition('-')
+        from . import cardbuttons
+        cb = getattr(a, '_card_buttons', None)
+        if cb is None:
+            cb = a._card_buttons = cardbuttons.CardButtons(a)
+        if what == 'set':
+            cb.capture(which)
+            _capture_wait(ig)
+        elif what == 'clear':
+            cb.clear(which)
     elif action == 'widget':
         key, _sep, state = (arg or '').partition('-')
         if key in (getattr(a, 'widgets', None) or {}) and (state == 'on') != a._widget_on(key):
