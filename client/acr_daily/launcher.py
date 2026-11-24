@@ -52,8 +52,12 @@ class Launcher:
         k = a.root.winfo_fpixels('1i') / 96                  # (the screen's scale: 150 % is 1.5)
         w, h = round(SIZE[0] * k), round(SIZE[1] * k)
         a.root.minsize(w, h)
+        a.root.geometry('%dx%d' % (w, h))
+        if a.root.state() == 'withdrawn':                   # (the app's start: on the screen only now, as the launcher)
+            a.root.deiconify()
+            a.root.update_idletasks()
         # (the app puts its saved size back as it starts: the launcher's size set again once that is done)
-        for ms in (0, 600, 1500):
+        for ms in (600, 1500):
             a.root.after(ms, lambda: self.on and a.root.geometry('%dx%d' % (w, h)))
         a.root.bind('<Return>', lambda _e: self.on and self.play_click())
         if not self._loop:

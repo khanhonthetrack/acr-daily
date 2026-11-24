@@ -926,6 +926,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     coin_img = None
     game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
     notifier = None                # the sound and notification when a run's official time is in or lost (notify.py)
+    start_hidden = False           # (main(): the window kept off the screen until the launcher is on it, launcher.py)
 
     def __init__(self):
         self.s = settings.load()
@@ -956,6 +957,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.local_runs = local_runs()    # the dailies driven on this PC (_driven: a run not sent yet counts too)
 
         self.root = tk.Tk()
+        if self.start_hidden:
+            # (the whole window was drawn at its saved size, then the launcher put over it 200 ms later: the old
+            # window seen for a moment at every start, the user 24 Nov 2026)
+            self.root.withdraw()
         self.root.title(_('ACR Daily (beta)'))
         self.root.configure(bg=BG)
         self.root.geometry('%dx%d' % (WIN_W, WIN_H))
@@ -4381,6 +4386,7 @@ def main():
     if not single.acquire(wait_s=20.0 if again else 0.0):
         single.tell_running()
         return
+    App.start_hidden = True                          # (seen first as the launcher: launcher.show puts it on the screen)
     app = App()
     # real cars in the game: the game mod goes in when ghost cars want it and out when they don't (only here, never
     # in tests: it works on the real game folder)
@@ -4395,7 +4401,7 @@ def main():
     # ... so the window opens as the launcher: a few settings and PLAY (launcher.py; FULL WINDOW: the whole window)
     from . import launcher
     app.launcher = launcher.Launcher(app)
-    app.root.after(200, app.launcher.show)
+    app.launcher.show()
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)
     elif '--restarted' in sys.argv:
