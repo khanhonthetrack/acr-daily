@@ -14,6 +14,7 @@ W = 1180                                 # the screen's width (the page's middle
 TILE_W, TILE_H = 260, 146                # a livery's / a car's tile
 PER_ROW = 4
 COUNT_W = 34
+ROW_H = 40                               # a tyre tab's row (its buttons' height, a little over)
 
 
 def open_(ig, kind, key):
@@ -91,15 +92,18 @@ def tyres(ig, ev):
             label = '%s · %s' % (i18n.data(gear.SURFACE_NAMES[k]).upper(),
                                  ', '.join('SS%d' % n for n in gear.surface_stages(ev, k)))
             face = row(txt(label, 16, 'bold', WHITE if here else FG2, sp=60, va='c'),
-                       size(box(None, bg=WHITE, r=1), w=6, h=6, va='c', pad=[8, 0, 0, 0]) if mine else None)
+                       # (the dot's room kept on every tab: a pick doesn't move the tabs after it)
+                       size(box(None, bg=WHITE if mine else '-', r=1), w=6, h=6, va='c', pad=[8, 0, 0, 0]))
             line.append(btn(tab_id(TAB, 'tyretab', k), c=face, bg=PANEL2 if here else '-', hov=PANEL2, foc=FOCUS,
                             p=[14, 6, 14, 6], ol=LINE2 if here else None, pad=[0 if not line else 6, 0, 0, 0]))
         out.append(row(*line, pad=[0, 0, 0, 12]))
     rows_ = gear.compounds(ev, surface=on)
+    # (each tab's content as tall as the others': switching tabs doesn't move the page, seen in the game 24 Nov 2026)
     if len(rows_) < 2:                         # (one compound, Sweden's snow: all of them, nothing to pick)
-        out.append(row(txt(gear.NAMES.get(rows_[0], rows_[0]), 17, 'semi', SOFT, va='c'), sp(10),
-                       size(txt('%d' % gear.TYRES, 20, 'bold', WHITE, j=1, va='c'), w=COUNT_W),
-                       txt(_('The only tyre here.'), 15, 'medium', MUTED, va='c', pad=[18, 0, 0, 0])))
+        out.append(size(row(txt(gear.NAMES.get(rows_[0], rows_[0]), 17, 'semi', SOFT, va='c'), sp(10),
+                            size(txt('%d' % gear.TYRES, 20, 'bold', WHITE, j=1, va='c'), w=COUNT_W, va='c')),
+                        minh=ROW_H))
+        out.append(txt(_('The only tyre here.'), 15, 'medium', MUTED, pad=[0, 6, 0, 0]))
         return out
     mine = gear.tyres_of(a.s, ev, surface=on)
     counts = mine or gear.start_counts(ev, on)
@@ -113,7 +117,7 @@ def tyres(ig, ev):
                               w=COUNT_W),
                          quiet(tab_id(TAB, 'tyre', '%s:%s:1' % (on, r)), '›', p=[12, 4, 12, 4], va='c'),
                          pad=[26, 0, 0, 0], va='c'))
-    out.append(row(*cells))
+    out.append(size(row(*cells), minh=ROW_H))
     out.append(txt(_('%d tyres in all') % gear.TYRES, 15, 'medium', MUTED, pad=[0, 6, 0, 0]))
     return out
 
