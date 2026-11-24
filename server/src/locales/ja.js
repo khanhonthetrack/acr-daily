@@ -2282,5 +2282,5 @@ export default {
  "give the stage's time (and its penalty in seconds)": "ステージのタイム（とペナルティ秒）を入力してください",
  "times go in order: SS{0} is this driver's next": "タイムは順番に：このドライバーの次は SS{0} です",
  "disqualified: reinstate the entry first": "失格中：まずエントリーを復帰させてください",
- "what should the stewards do? reinstate, retire or time": "スチュワードの操作は？ reinstate・retire・time",
+ "what should the stewards do? reinstate, retire or time": "スチュワードの操作は？ reinstate・retire・time"
 };

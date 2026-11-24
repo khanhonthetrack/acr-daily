@@ -20,10 +20,11 @@ from .i18n import _
 ANSWER_S = 30.0        # the mod's last word on a DRIVE at most this long after the one before
 
 
-def setup_of(stages, car_id, rules=None):
+def setup_of(stages, car_id, rules=None, tail=False):
     """stages as rallyweekend.check_itinerary takes them ([{stage, weather, start, day, service}]) -> the set-up the mod
-    makes (drive.lua). Raises saveslot.SaveError (the same checks as the save's set-up)."""
-    preset = rallyweekend.check_itinerary(stages)
+    makes (drive.lua). Raises saveslot.SaveError (the same checks as the save's set-up). tail: a leg from a later stage
+    on (leagues.recover: its first stage may have no service park)."""
+    preset = rallyweekend.check_itinerary(stages, tail=tail)
     if not car_id or not str(car_id).replace('_', '').isalnum():
         raise saveslot.SaveError('unexpected car id %r' % (car_id,))
     out = []

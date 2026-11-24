@@ -335,11 +335,13 @@ def rule_values(rules):
         raise SaveError('unexpected Rally Weekend rules %r' % (rules,)) from None
 
 
-def check_itinerary(stages):
+def check_itinerary(stages, tail=False):
     """A league event's stages in driving order: [{'stage': game id, 'weather': 'WT_...', 'start': seconds since
     midnight, 'day': 0.., 'service': a service park before it}]. -> the calendar preset's name. Raises SaveError
     unless it is a calendar the game's menu could have made: one location, days in order starting with day 1, each day
-    opening with a service park, at most MAX_DAYS days and MAX_STAGES stages."""
+    opening with a service park, at most MAX_DAYS days and MAX_STAGES stages. tail: a leg from a later stage on (a
+    recovery, leagues.recover): its first stage as the event has it, with or without a service park (set up in the
+    running game, which takes it: probed 24 Nov 2026)."""
     if not stages or len(stages) > MAX_STAGES:
         raise SaveError(_('a Rally Weekend holds 1 to %d stages') % MAX_STAGES)
     rally = None
@@ -357,7 +359,7 @@ def check_itinerary(stages):
         day, prev = st.get('day'), stages[k - 1]['day'] if k else -1
         if not isinstance(day, int) or day not in (prev, prev + 1) or (k == 0 and day != 0):
             raise SaveError(_('the days of a Rally Weekend come in order, from day 1'))
-        if day != prev and not st.get('service'):
+        if day != prev and not st.get('service') and not (tail and k == 0):
             raise SaveError(_('each day of a Rally Weekend starts with a service park'))
     days = stages[-1]['day'] + 1
     if days > MAX_DAYS:

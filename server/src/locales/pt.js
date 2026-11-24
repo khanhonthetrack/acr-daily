@@ -2310,5 +2310,5 @@ export default {
  "give the stage's time (and its penalty in seconds)": "indica o tempo do troço (e a penalização em segundos)",
  "times go in order: SS{0} is this driver's next": "os tempos vão por ordem: o SS{0} é o próximo deste piloto",
  "disqualified: reinstate the entry first": "desclassificado: reintegra primeiro a inscrição",
- "what should the stewards do? reinstate, retire or time": "o que devem fazer os comissários? reinstate, retire ou time",
+ "what should the stewards do? reinstate, retire or time": "o que devem fazer os comissários? reinstate, retire ou time"
 };

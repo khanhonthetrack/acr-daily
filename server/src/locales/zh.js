@@ -2282,5 +2282,5 @@ export default {
  "give the stage's time (and its penalty in seconds)": "请填写赛段时间（以及罚时秒数）",
  "times go in order: SS{0} is this driver's next": "时间需按顺序：该车手的下一个是 SS{0}",
  "disqualified: reinstate the entry first": "已被取消资格：请先恢复该参赛记录",
- "what should the stewards do? reinstate, retire or time": "裁判要做什么？reinstate、retire 或 time",
+ "what should the stewards do? reinstate, retire or time": "裁判要做什么？reinstate、retire 或 time"
 };

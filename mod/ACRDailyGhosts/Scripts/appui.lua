@@ -1155,6 +1155,7 @@ local world_at, world_name = nil, nil
 -- a stage the player got to any other way doesn't count (the user, 21 Nov 2026: a Rally Weekend set up by hand with a
 -- daily's settings must do nothing).
 local ours = false
+local damage_seen = nil           -- (the last data.damage id taken: each once)
 local watched = false             -- (a stage the game went to for WATCH: not ours, but ACR DAILY opens after it all the same)
 local LOADED = os.time()
 local own_used = nil
@@ -1297,6 +1298,14 @@ function M.tick(t)
                 show(false)                                  -- (the game's own screens from here: the Service Park)
             end
         end
+    end
+    -- data.damage = {id, parts, index}: the car at the finish line just crossed, put on the next stage's car before it
+    -- starts (drive.lua next_damage); in the state until it is done (not a command: one at a time, a click could take
+    -- its place), taken once per id
+    local dm = state.data.damage
+    if type(dm) == "table" and dm.id ~= damage_seen and type(dm.parts) == "table" and drive and drive.next_damage then
+        damage_seen = dm.id
+        pcall(drive.next_damage, dm.id, dm.parts, tonumber(dm.index), tell, t)
     end
     if drive then drive.tick(t) end
     -- WATCH's broadcast over the stage: each new state from the app (not over the pages, not in the game's menus)

@@ -243,83 +243,127 @@ steps[7] = function(t)
     live("PlayerFlowComponent"):ServerExecuteFlow(FName("FSM.Flow.StartRaceEvent"))
     log("DRIVE %s: started (%s, %s, %d stages)", tostring(job.n), job.setup.preset, job.setup.car, #job.setup.stages)
     if type(job.setup.damage) == "table" then            -- (the car as it finished the stage before: restore below)
-        car_damage = {parts = job.setup.damage, go = job.setup.go == true, n = job.n, tell = job.tell, at = t}
+        car_damage = {parts = job.setup.damage, n = job.n, tell = job.tell, at = t, index = 0}
     end
     job.tell("drive", string.format("%s ok", job.n))
     job = nil
     return true
 end
 
--- The car as it finished the event's stage before (setup.damage = {<part> = <life points>}: the app read it at that
--- finish line, main.lua write_damage, and the server kept it), put on the car at the Service Park, before the stage:
--- the game hands the car on to the stage through its own snapshot, which sets each part's state from its life points
--- (written on the start line instead, the life points stay but the states don't: probed in the game 24 Nov 2026). For
--- a driver whose game crashed after a finish (the stage counted from its finish-line time): the next stage with the car
--- as it was, not a new one (the user, 24 Nov 2026). setup.go: the event has no service there, so the app presses START
--- STAGE at once (ingameapp.py), no repairs.
-car_damage = nil
-local DAMAGE_WAIT_S = 3.0        -- the Service Park this long before the car is touched (it is being made)
-local DAMAGE_GIVE_UP_S = 240     -- no Service Park by then: not done
+-- The car as it was at the finish line of the event's stage before, put on the car of the next stage before it starts
+-- (the user, 24 Nov 2026): after every finish (what happened past the line doesn't come with it: the same for everyone,
+-- a crash after the line or not), and after a crash of the game (the stage counted from its finish-line time, the rally
+-- set up again from the next stage: setup.damage). parts = {<part> = <life points>} as the app read them at that finish
+-- (main.lua write_damage): every other part is put back to 100.
+-- How (probed in the game 24 Nov 2026): each part's LifePoints written, then the player's repairs component makes its
+-- plans again and applies the selected one, empty (nothing repaired, no time, no penalty): the game sets every part's
+-- state from its life points, as it does at a Service Park (engine 35 -> state 3, radiator 25 -> 3, suspension 50 -> 2;
+-- back to 100 -> 0). Written alone, the life points stay but the states don't. It works on the start line (no Service
+-- Park needed) and at a Service Park (before the player repairs anything: their repairs then go on top).
+car_damage = nil                 -- {parts, n, tell, at, index (the calendar's stage it is for, or nil), old (the car
+                                 -- at the finish: not that one)}
+local DAMAGE_WAIT_S = 2.0        -- the new car this long before it is touched (it is being made)
+local DAMAGE_GIVE_UP_S = 1800    -- no next stage by then: not done
+local CAR_STILL_KMH = 2.0        -- on the start line, the car still standing (before it drives to the start)
+
+--- the app's command (appui.lua): the car at this finish, for the stage after it (index: its place in the calendar)
+function D.next_damage(n, parts, index, tell, t)
+    local old, world = nil, nil
+    pcall(function() old = UEHelpers.GetPlayerController().Pawn:GetAddress() end)
+    pcall(function() world = UEHelpers.GetWorld():GetFullName() end)
+    car_damage = {parts = parts, n = n, tell = tell, at = t, index = index, old = old, world = world}
+end
+
+local UTIL_ = nil
+local function sub_index()
+    local ok, i = pcall(function()
+        UTIL_ = (UTIL_ and UTIL_:IsValid()) and UTIL_ or StaticFindObject(LIB)
+        return UTIL_:GetRallyWeekendSubEventIndex(UEHelpers.GetPlayerController())
+    end)
+    return ok and i or nil
+end
+
 local function restore_damage(t)
     local d = car_damage
     if not d then return end
     if t - d.at > DAMAGE_GIVE_UP_S then
         car_damage = nil
-        d.tell("drive", string.format("%s damage none: no Service Park came", d.n))
+        d.tell("drive", string.format("%s damage none: no next stage came", d.n))
         return
     end
     local okw, w = pcall(UEHelpers.GetWorld)
     local name = okw and w and w:IsValid() and w:GetFullName() or ""
     if name == "" or name:find("MainMenu", 1, true) then
-        d.world = nil
+        d.seen, d.gone = nil, true
         return
     end
-    if d.world ~= name then
-        d.world, d.world_at = name, t
-        return
-    end
-    if t - d.world_at < DAMAGE_WAIT_S then return end
-    local comp, at_park = nil, false
-    pcall(function()
-        local p = UEHelpers.GetPlayerController().Pawn
-        at_park = p and p:IsValid() and p:GetClass():GetFName():ToString():find("ServicePark", 1, true) ~= nil
-    end)
-    -- (only at the Service Park, its car made with all its parts: written as the level came, the car wasn't whole yet
-    -- and nothing took, seen in the game 24 Nov 2026; the set-up always has a Service Park first, leagues.calendar)
-    if not at_park then return end
-    for _, c in ipairs(FindAllOf("CarDamageComponent") or {}) do
-        local ok, n = pcall(function() return c:GetFullName() end)
-        if ok and n:find("PersistentLevel", 1, true) and not n:find("Default__", 1, true) then
-            comp = comp or c
+    if d.world and name ~= d.world then d.gone = true end
+    local pc = UEHelpers.GetPlayerController()
+    local pawn = pc and pc.Pawn
+    if not (pawn and pawn:IsValid()) then d.gone = true return end
+    local at = pawn:GetAddress()
+    if at == d.old and not d.gone then return end        -- (still the car that finished: a new one may come at the
+                                                         -- same address, but only after a loading screen)
+    local at_park = pawn:GetClass():GetFName():ToString():find("ServicePark", 1, true) ~= nil
+    local comp = nil
+    if at_park then                                      -- (the Service Park: its car isn't the player's pawn)
+        for _, c in ipairs(FindAllOf("CarDamageComponent") or {}) do
+            local ok, n = pcall(function() return c:GetFullName() end)
+            if ok and n:find("PersistentLevel", 1, true) and not n:find("Default__", 1, true) then comp = comp or c end
+        end
+    else
+        local ok, c = pcall(function() return pawn.CarDamage end)
+        comp = ok and c and c.IsValid and c:IsValid() and c or nil
+        if not comp then return end                      -- (not a car: a camera, a menu)
+        local okv, v = pcall(function() return pawn:GetVelocity() end)
+        if okv and v and math.sqrt(v.X * v.X + v.Y * v.Y) * 0.036 > CAR_STILL_KMH then
+            if not d.moving then
+                d.moving = true
+                log("DRIVE %s: the car moved before its damage was put on", tostring(d.n))
+            end
+            return
         end
     end
-    if not comp then return end                          -- (the car not made yet: the next frame)
+    if not comp then return end
+    if d.index ~= nil then                               -- (only the stage it is for)
+        local i = sub_index()
+        if i ~= nil and i ~= d.index then return end
+    end
+    if d.seen ~= at then
+        d.seen, d.seen_t = at, t
+        return
+    end
+    if t - d.seen_t < DAMAGE_WAIT_S then return end
     local count = 0
     pcall(function() comp.NamedParts:ForEach(function() count = count + 1 end) end)
     if count < 5 then return end
     local want = {}
-    for k, v in pairs(d.parts) do
+    for k, v in pairs(d.parts or {}) do
         if type(k) == "string" and type(v) == "number" then want[k:lower()] = math.max(0, math.min(100, v)) end
     end
     local set, missed = 0, 0
     comp.NamedParts:ForEach(function(k, v)
         local id = k:get():ToString():lower()            -- (the same part's name differs in case between levels)
-        local lp = want[id]
-        if lp then
-            local p = v:get()
-            local ok = pcall(function() p.LifePoints = lp + 0.0 end)
-            local back = ok and p.LifePoints or -1
-            if ok and math.abs(back - lp) < 0.05 then set = set + 1 else missed = missed + 1 end
-            want[id] = nil
-        end
+        local lp = want[id] or 100
+        local p = v:get()
+        local ok = pcall(function() p.LifePoints = lp + 0.0 end)
+        if ok and math.abs(p.LifePoints - lp) < 0.05 then set = set + 1 else missed = missed + 1 end
+        want[id] = nil
     end)
     for _ in pairs(want) do missed = missed + 1 end
+    -- the states, from the life points: the repairs plans made again, the selected one applied if empty
+    local repaired, states = 0, "set"
+    local okr = pcall(function()
+        local r = pc.PlayerCarRepairs
+        r:GenerateRepairsPlans()
+        pcall(function() r.SelectedRepairsPlan.SelectedRepairs:ForEach(function() repaired = repaired + 1 end) end)
+        if repaired == 0 then r:ApplySelectedRepairsPlan() else states = "kept" end
+    end)
+    if not okr then states = "failed" end
     car_damage = nil
-    log("DRIVE %s: the car's damage put back: %d parts%s", tostring(d.n), set, missed > 0 and (", " .. missed .. " not") or "")
-    -- (go: the event has no service before this stage. The app presses START STAGE then, as the player would: the
-    -- game's own button sets the parts' states from their life points on the way to the stage; its flow GoToRace called
-    -- from here took the car on without them, and after ReadyToRace it didn't go at all: seen 24 Nov 2026)
-    d.tell("drive", string.format("%s damage %d %d park %s", d.n, set, missed, d.go and "go" or "stay"))
+    log("DRIVE %s: the car as it finished put on (%s): %d parts%s; states %s", tostring(d.n), at_park and "Service Park" or "start line",
+        set, missed > 0 and (", " .. missed .. " not") or "", states)
+    d.tell("drive", string.format("%s damage %d %d %s %s", d.n, set, missed, at_park and "park" or "line", states))
 end
 
 -- CONTINUE (a rally of the player's in progress in the game: an event's, set up before): the game's own way back into

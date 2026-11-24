@@ -2282,5 +2282,5 @@ export default {
  "give the stage's time (and its penalty in seconds)": "add meg a szakasz idejét (és a büntetést másodpercben)",
  "times go in order: SS{0} is this driver's next": "az idők sorrendben: ennek a versenyzőnek az SS{0} a következő",
  "disqualified: reinstate the entry first": "kizárva: előbb állítsd vissza a nevezést",
- "what should the stewards do? reinstate, retire or time": "mit tegyenek a felügyelők? reinstate, retire vagy time",
+ "what should the stewards do? reinstate, retire or time": "mit tegyenek a felügyelők? reinstate, retire vagy time"
 };

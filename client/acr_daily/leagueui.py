@@ -917,21 +917,21 @@ class LeaguesUI:
         self._league_setup_and_launch(ev, car)
 
     def _league_recover_in_game(self, ev, car, rec):
-        """leagues.recover: the event's rally set up in the running game from the stage after the one the game lost, its
-        own Service Park first, where the mod puts the car's damage back as it was at that finish (drive.lua); with no
-        service before that stage in the event, the mod starts the stage at once (no repairs). -> False when it can't be
-        tried (the rally in the game goes on as before)."""
+        """leagues.recover: the event's rally set up in the running game from the stage after the one the game lost, with
+        its service park as the event has it (none: none; an extra one would let the driver repair), and the mod puts the
+        car's damage on as it was at that finish, at the Service Park or on the start line (drive.lua). -> False when it
+        can't be tried (the rally in the game goes on as before)."""
         if not ingamedrive.ready(self, allow_rally=True):
             return False
         try:
-            setup = ingamedrive.setup_of(leagues.calendar(ev, rec['leg'], start=rec['start']), car['id'], ev.get('rules'))
+            setup = ingamedrive.setup_of(leagues.calendar(ev, rec['leg'], start=rec['start']), car['id'], ev.get('rules'),
+                                         tail=True)
             setup.update(gear.for_setup(self.s, ev, car['id']))    # (the tyres and livery picked: gear.py)
-            setup['damage'], setup['go'] = rec['damage'], rec['go']
+            setup['damage'] = rec['damage']
         except (saveslot.SaveError, KeyError, ValueError, IndexError):
             return False
-        waiting.note('%s: SS%d lost by the game; on from SS%d with the car as it finished (%s)%s' % (
-            ev['name'], rec['start'], rec['start'] + 1, ', '.join('%s %g' % x for x in sorted(rec['damage'].items())) or 'intact',
-            ', no service: the stage at once' if rec['go'] else ''))
+        waiting.note('%s: SS%d lost by the game; on from SS%d with the car as it finished (%s)' % (
+            ev['name'], rec['start'], rec['start'] + 1, ', '.join('%s %g' % x for x in sorted(rec['damage'].items())) or 'intact'))
 
         def ok():
             leagues.forget_parked(ev['id'])
@@ -939,9 +939,8 @@ class LeaguesUI:
             run = self.league_run
             if run is not None and run.get('ev') is ev:   # (its stages judged on the stage as the game runs it)
                 run['ingame'] = {'setup': setup, 'first': rec['start']}
-            self.sub_l.configure(text=(_('%s: on from SS%d with your car as it finished SS%d.') % (
-                ev['name'], rec['start'] + 1, rec['start'])) + ' ' + (
-                _('The stage starts by itself (no service before it).') if rec['go'] else _('At the Service Park: START STAGE.')))
+            self.sub_l.configure(text=_('%s: on from SS%d with your car as it finished SS%d.') % (
+                ev['name'], rec['start'] + 1, rec['start']))
         self.sub_l.configure(text=_('Setting up %s in the game...') % ev['name'])
         self.ingame_drive(setup, ok, ev['name'], lambda: self._restart_into_league(ev, car))
         return True
@@ -959,7 +958,8 @@ class LeaguesUI:
             tail = (p or {}).get('tail')
             if tail is not None:
                 first = tail
-            setup = ingamedrive.setup_of(leagues.calendar(ev, leg, start=tail), car['id'], ev.get('rules'))
+            setup = ingamedrive.setup_of(leagues.calendar(ev, leg, start=tail), car['id'], ev.get('rules'),
+                                         tail=tail is not None)
         except (saveslot.SaveError, KeyError, ValueError):
             return False
 
@@ -1498,6 +1498,7 @@ class LeaguesUI:
             if dmg:
                 waiting.note('league:%d:%d: the car at the finish: %s' % (ev['id'], k, ', '.join(
                     '%s %g' % (p, v) for p, v in sorted(dmg.items()))))
+            self._next_stage_damage(run, ev, k, dmg)
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
                            'watch': saveslot.SaveWatch()}
@@ -1524,6 +1525,23 @@ class LeaguesUI:
             pass
         self.sub_l.configure(text=_('SS%d finished. %s') % (k + 1, waiting.HINT))
         self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
+
+    def _next_stage_damage(self, run, ev, k, dmg):
+        """The car as it crossed SS(k+1)'s finish line, for the next stage of the same Rally Weekend: the mod puts it on
+        that stage's car before it starts (drive.lua next_damage), whatever happened past the line (the user, 24 Nov
+        2026: the same for everyone, a crash after the finish or not). Not across legs (each its own Rally Weekend,
+        a fresh car: an overnight service)."""
+        ig = getattr(self, 'ingame_app', None)
+        if ig is None or k + 1 >= len(ev.get('stages') or []) or leagues.leg_starts(ev, k + 1):
+            return
+        try:
+            first = (run.get('ingame') or {}).get('first')
+            index = leagues.calendar_index(ev, k + 1, first)
+        except (KeyError, IndexError, ValueError):
+            return
+        ig.next_damage(dmg, index)
+        waiting.note('league:%d:%d: the car at the finish goes on to SS%d (its place in the calendar: %d)' % (
+            ev['id'], k, k + 2, index))
 
     def _league_wait_step(self, b, w, ev, stage_id, car_id, known):
         """One look at the game's save (b) for a league stage waiting for its official result. w: {'result', 'until',

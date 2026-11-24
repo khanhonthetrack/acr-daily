@@ -120,13 +120,22 @@ def leg_starts(ev, k):
 def calendar(ev, leg=0, split=None, start=None):
     """A leg of the event (server: /api/me/events) as the game's calendar takes it (rallyweekend.check_itinerary): its
     days from day 1, a service park before its first stage. start: from that stage of the leg on (a recovery after the
-    game lost a finished stage: recover()), its own service park first."""
+    game lost a finished stage: recover()), its service park as the event has it (none: the car's damage goes on at its
+    start line, drive.lua; an extra service park would let the driver repair what they shouldn't)."""
     a, b = legs(ev, split)[leg]
+    lead = a
     if start is not None and a < start < b:
         a = start
     first = ev['stages'][a]['day']
     return [{'stage': s['stageId'], 'weather': s['weatherGame'], 'start': s['startSeconds'], 'day': s['day'] - first,
-             'service': bool(s['service']) or k == a} for k, s in enumerate(ev['stages'][a:b], start=a)]
+             'service': bool(s['service']) or k == lead} for k, s in enumerate(ev['stages'][a:b], start=a)]
+
+
+def calendar_index(ev, k, first=None):
+    """Stage k's place in the game's calendar of its leg (first: the calendar's own first stage, a recovery's tail)."""
+    if first is None:
+        first = legs(ev)[leg_of(ev, k)][0]
+    return k - first
 
 
 def leg_in(stages, ev, prefer=None, split=None):
@@ -178,8 +187,8 @@ def recover(ev, state, p):
     it finished that one (the app read its damage there and the server kept it: entry 'damage' {no, parts}), not from
     the stage again on a car as it was before (the user, 24 Nov 2026). Only within a leg (a leg starts with a fresh
     car anyway) and only when the damage at that finish is known; else None (the rally in the game goes on as before).
-    state, p: rally_state(). -> {'start': stage index, 'leg', 'damage': {part: life points}, 'go': no service before it
-    (the stage started at once, no repairs)}."""
+    state, p: rally_state(). -> {'start': stage index, 'leg', 'damage': {part: life points}} (the rally set up from that
+    stage, its service park as the event has it; the damage put on at the Service Park or the start line: drive.lua)."""
     e = ev.get('entry') or {}
     done = e.get('done', 0)
     if e.get('status') != 'running' or not 0 < done < len(ev.get('stages') or []) or is_parked(ev['id']):
@@ -196,8 +205,7 @@ def recover(ev, state, p):
         ev['_split'] = setup_split(ev, done)
     if leg_starts(ev, done):
         return None
-    return {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts']),
-            'go': not ev['stages'][done].get('service')}
+    return {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts'])}
 
 
 def setup_split(ev, done):
