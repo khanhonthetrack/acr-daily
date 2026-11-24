@@ -800,9 +800,23 @@ local mode_now, mode_event, mode_frame = "none", nil, -1000
 -- rules on the start line (app.py settings_changed): a change in the game's menus is told before the run, not after.
 -- (Only plain fields are read: reading every kind of field of the race event crashed the game in the probe.)
 local settings_comp, settings_event, settings_now = nil, nil, nil
+-- A search through every object of the engine (FindAllOf) that found nothing is not made again for MISS_S: such
+-- searches, two to four times a second on the game's thread while a level loads (the race event there, the things
+-- searched for not yet), slowed its loading screens to minutes (seen 24 Nov 2026).
+local MISS_S = 5.0
+local missed_at = {}
+local function may_search(what)
+    local t = os.clock()
+    local at = missed_at[what]
+    if at and t - at < MISS_S then return false end
+    missed_at[what] = nil
+    return true
+end
+local function search_missed(what) missed_at[what] = os.clock() end
 local function read_settings(ev)
     local at = ev:GetAddress()
-    if settings_event ~= at or not (settings_comp and settings_comp:IsValid()) then
+    if (settings_event ~= at or not (settings_comp and settings_comp:IsValid())) and
+            (settings_event ~= at or may_search("settings")) then
         settings_comp, settings_event = nil, at
         for _, o in ipairs(FindAllOf("RaceEventRaceSettingsComponent") or {}) do
             local ok, mine = pcall(function()
@@ -811,6 +825,7 @@ local function read_settings(ev)
             end)
             if ok and mine then settings_comp = o end
         end
+        if not settings_comp then search_missed("settings") end
     end
     local s = settings_comp
     if not s then return nil end
@@ -832,7 +847,7 @@ local aid_part, aid_event, aid_vm = nil, nil, nil
 local function bit(x) return x and 1 or 0 end
 local function read_aids(ev)
     local at = ev:GetAddress()
-    if aid_event ~= at or not (aid_part and aid_part:IsValid()) then
+    if (aid_event ~= at or not (aid_part and aid_part:IsValid())) and (aid_event ~= at or may_search("aids")) then
         aid_part, aid_event = nil, at
         local want = UEHelpers.GetPlayerController().PlayerState.ParticipantId:ToString()
         local level = ev:GetOuter():GetAddress()
@@ -842,13 +857,17 @@ local function read_aids(ev)
             end)
             if ok and mine then aid_part = o.RaceParticipantData end
         end
+        if not aid_part then search_missed("aids") end
     end
-    if not (aid_vm and aid_vm:IsValid()) then
+    if not (aid_vm and aid_vm:IsValid()) and may_search("viewmodel") then
         aid_vm = nil
         for _, o in ipairs(FindAllOf("ViewmodelRace") or {}) do
             local ok, n = pcall(function() return o:GetFullName() end)
             if ok and n:find("UIViewmodelManager", 1, true) then aid_vm = o end
         end
+        if not aid_vm then search_missed("viewmodel") end
+    elseif not (aid_vm and aid_vm:IsValid()) then
+        aid_vm = nil
     end
     local a, v = nil, nil
     if aid_part and aid_part:IsValid() then
@@ -961,6 +980,10 @@ local function read_penalty(t)
     if t - pen_look < 0.25 then return end
     pen_look = t
     local ok_s, same = pcall(function() return pen_obj and pen_obj:IsValid() and pen_obj:GetFullName() == pen_name end)
+    if not (ok_s and same) and not may_search("penalty") then
+        pen_obj, penalty_now = nil, nil
+        return
+    end
     if not (ok_s and same) then
         -- yours: the one on your player state (the stage's other cars, the game's AI, have their own: 22 Nov 2026)
         pen_obj, pen_name = nil, nil
@@ -978,6 +1001,7 @@ local function read_penalty(t)
                 end
             end
         end
+        if not pen_obj then search_missed("penalty") end
         if pen_name ~= penalty_seen then
             penalty_seen = pen_name
             log("penalties read from %s", tostring(pen_name))
@@ -1009,6 +1033,64 @@ local function tell_livery(me, t)
         f:close()
         livery_said = id
     end
+end
+
+-- Your car's damage, to ingame-damage.txt 4 times a second while you have a car (the app keeps what it says at the
+-- finish line and sends it with the stage: after a crash of the game past the line, the next stage starts with the car
+-- as it finished, drive.lua; the user, 24 Nov 2026). Each damageable part's life points (100: intact), as the game keeps
+-- them on the car's CarDamageComponent (NamedParts), only those below 100:
+--   ACRDMG <seq> <part>=<life points> ... end <seq>      (or "ACRDMG <seq> none end <seq>": no car of yours)
+-- (kept open and written over in place, padded, as the camera file: probed in the game 24 Nov 2026)
+local DAMAGE_FILE = DIR .. "ingame-damage.txt"
+local dmg_f, dmg_seq, dmg_comp, dmg_of, dmg_look = nil, 0, nil, nil, -1e9
+local function car_damage_comp(car)
+    -- the car's own CarDamage component (a property of the game's car blueprint), looked up once per car. Never by
+    -- FindAllOf: walking every object of the engine 4 times a second slowed the game's loading screens from 1 minute to
+    -- 6 and more (seen 24 Nov 2026, while there was no car to find)
+    local at = car:GetAddress()
+    if dmg_of == at then
+        if dmg_comp == false then return nil end
+        local ok, valid = pcall(function() return dmg_comp:IsValid() end)
+        if ok and valid then return dmg_comp end
+    end
+    dmg_comp, dmg_of = false, at
+    local ok, c = pcall(function() return car.CarDamage end)
+    if ok and c and c.IsValid and c:IsValid() then dmg_comp = c end
+    return dmg_comp or nil
+end
+function car_parts(car)
+    -- {part = life points} of a car's damageable parts (every part), or nil
+    local comp = car and car_damage_comp(car)
+    if not comp then return nil end
+    local out = {}
+    comp.NamedParts:ForEach(function(k, v)
+        local p = v:get()
+        out[k:get():ToString()] = p.LifePoints
+    end)
+    return out
+end
+local function write_damage(me, t)
+    if t - dmg_look < 0.25 then return end
+    dmg_look = t
+    if not dmg_f then
+        dmg_f = io.open(DAMAGE_FILE, "w")
+        if not dmg_f then return end
+    end
+    dmg_seq = dmg_seq + 1
+    local words = {}
+    local parts = me and car_parts(me)
+    if parts then
+        for k, lp in pairs(parts) do
+            if type(lp) == "number" and lp < 99.95 then words[#words + 1] = string.format("%s=%.1f", k, lp) end
+        end
+        table.sort(words)
+    else
+        words[1] = "none"
+    end
+    local line = string.format("ACRDMG %d %s end %d", dmg_seq, table.concat(words, " "), dmg_seq)
+    dmg_f:seek("set", 0)
+    dmg_f:write(line .. string.rep(" ", math.max(0, 1500 - #line)) .. "\n")
+    dmg_f:flush()
 end
 
 local function write_camera(pc)
@@ -1687,6 +1769,7 @@ local function tick()
     else
         penalty_now = nil
     end
+    pcall(write_damage, me, t)
     local cam = write_camera(pc)
     _G.ACRDAILY_NAMES = nil                            -- (the names over the cars, for hud.lua: set again below)
     local seq, when, ghosts, warm_now, names_now = read_ghosts(t)

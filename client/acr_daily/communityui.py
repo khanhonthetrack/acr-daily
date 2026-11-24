@@ -697,8 +697,27 @@ class CommunityUI:
             self.community_install(it, man)
 
     # -------------------------------------------------------------- install / remove
+    def _progress(self):
+        """The window saying what goes on while the game is closed for an install (installprogress.py)."""
+        p = getattr(self, '_install_progress', None)
+        if p is None:
+            from .installprogress import InstallProgress
+            p = self._install_progress = InstallProgress(self.root)
+        return p
+
+    def _progress_close(self):
+        p = getattr(self, '_install_progress', None)
+        if p is not None:
+            p.close()
+
     def _community_say(self, item_id, text, frac=None):
         """What the item's card says it is doing (None: nothing), and how far (0..1: a bar under it; None: no bar)."""
+        p = getattr(self, '_install_progress', None)
+        if text and p is not None and p.shown:        # (the game closed for it: the progress window says it too)
+            try:
+                p.show(step=text, frac=frac)
+            except tk.TclError:
+                pass
         if self._community_busy is None:
             self._community_busy = {}
         if getattr(self, '_community_frac', None) is None:
@@ -860,6 +879,12 @@ class CommunityUI:
             self._community_redraw(item_id)
             return
         self._community_installing = True
+        p = getattr(self, '_install_progress', None)
+        if p is not None and p.shown:
+            try:
+                p.show(what=it.get('name', it['id']), step=_('Installing…'), frac=None)
+            except tk.TclError:
+                pass
         ui = _c().ui
         last = [None]
         steps = 3 if man.get('assemble') or man.get('kit') else 2
@@ -910,6 +935,10 @@ class CommunityUI:
             self.sub_l.configure(text=_('Closing Assetto Corsa Rally…'))
         except Exception:
             pass
+        try:                                        # (up until the game is back: installprogress.py)
+            self._progress().show(what='', step=_('Closing Assetto Corsa Rally…'), frac=None)
+        except tk.TclError:
+            pass
         quit_game(self)
         t0 = time.monotonic()
 
@@ -932,6 +961,7 @@ class CommunityUI:
             if time.monotonic() - t0 > 120:
                 self._community_close_job = None
                 self._community_closing = False
+                self._progress_close()
                 try:
                     self.sub_l.configure(text=_('Assetto Corsa Rally did not close in time. Close it, then try again.'))
                 except Exception:
@@ -1004,6 +1034,8 @@ class CommunityUI:
 
     def _community_done(self, it, e, relaunch=False):
         self._community_installing = False
+        if (e is not None or not relaunch) and getattr(self, '_all_queue', None) is None:
+            self._progress_close()                   # (failed, or no start to wait for: its words in the window)
         if not (e is not None and e.kind == 'page'):
             (self._community_cancel or {}).pop(it['id'], None)
         if e is not None and e.kind == 'page':
@@ -1292,6 +1324,8 @@ class CommunityUI:
             self._all_step_done(it, err if err is not None or ok else community.CommunityError(
                 'files', _('its manager put no stage in the game')))
             return
+        if err is not None or not relaunch:
+            self._progress_close()
         if err is not None:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), err))
         if relaunch and err is None:
@@ -1746,6 +1780,8 @@ class CommunityUI:
         else:
             self._lists_update(force=True)                 # (the one list for all of them, now they are in)
         self._export_strip_show()
+        if res.get('failed') or not relaunch or exports:
+            self._progress_close()
         if res.get('failed'):
             messagebox.showwarning('ACR Daily', _("These couldn't be installed:") + '\n\n' + '\n'.join(
                 '·  %s: %s' % (name, why) for name, why in res['failed']))
@@ -2059,6 +2095,8 @@ class CommunityUI:
                                    CANT_MAKE_ALL % '\n'.join('·  ' + n for n in cant))
         if err is None and relaunch and self._export_ahead() is None:
             self._launch_game_after_lists()
+        elif err is not None or not relaunch:
+            self._progress_close()
 
     # -------------------------------------------------------------- every set in the game: one list (stagelist.py)
     LISTS_WAIT_S = 240                  # the game started at most this long after an install, waiting for the lists
@@ -2068,12 +2106,18 @@ class CommunityUI:
         calendars: _lists_update, in the background). The game reads them as it starts: started before (it was, 30 s
         before the list, 24 Nov 2026) it ran with none, a stage set up in it had no rows, and DRIVE crashed it on the tyre
         allocation."""
+        p = getattr(self, '_install_progress', None)
         if getattr(self, '_lists_busy', False) and waited < self.LISTS_WAIT_S:
+            if p is not None and p.shown and waited == 0:
+                p.show(step=_('Making the stage list for all your stages…'), frac=None)
             self.root.after(500, lambda: self._launch_game_after_lists(waited + 0.5))
             return
         try:
             saveslot.launch_game()
+            if p is not None and p.shown:
+                p.game_starting()                    # (goes once the game's window is up)
         except OSError as err:
+            self._progress_close()
             messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % err)
     def _tool_dir(self):
         return (getattr(self, '_export_env', None) or {}).get('tool')

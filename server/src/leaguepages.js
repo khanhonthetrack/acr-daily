@@ -1068,9 +1068,12 @@ export function eventPage(id, env, meta = {}) {
     add(box,el('h2',null,${tq('Stewards')}));
     if(!D.length)add(box,el('div','empty',${tq('No decisions.')}));
     D.forEach(function(x){var it=el('div','decision');var d=el('div');
-      var tag=x.kind==='dsq'?el('b','bad',${tq('DSQ')}):el('b',x.ms<0?'good':'bad',x.stage?F(${tq('{0} on SS{1}')},secs(x.ms),x.stage):F(${tq('{0} on the total')},secs(x.ms)));
-      add(d,tag,x.driver+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+(x.at?' · '+when(x.at):'')));it.appendChild(d);
-      if(e.me.staff){var rb=el('button','btn ghost small',x.kind==='dsq'?${tq('Reinstate')}:${tq('Take back')});rb.onclick=function(){
+      // (an entry's DNF taken back, an entry retired, a stage's time set by the stewards: kept as they were decided)
+      var tag=x.kind==='dsq'?el('b','bad',${tq('DSQ')}):x.kind==='reinstate'?el('b','good',${tq('DNF taken back')}):
+        x.kind==='retire'?el('b','bad',${tq('Retired by the stewards')}):x.kind==='settime'?el('b',null,F(${tq('SS{0} time set: {1}')},x.stage,ms(x.ms))):
+        el('b',x.ms<0?'good':'bad',x.stage?F(${tq('{0} on SS{1}')},secs(x.ms),x.stage):F(${tq('{0} on the total')},secs(x.ms)));
+      add(d,tag,' '+x.driver+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+(x.at?' · '+when(x.at):'')));it.appendChild(d);
+      if(e.me.staff&&(x.kind==='dsq'||x.kind==='time')){var rb=el('button','btn ghost small',x.kind==='dsq'?${tq('Reinstate')}:${tq('Take back')});rb.onclick=function(){
         (x.kind==='dsq'?api('/api/events/'+id+'/dsq',{steamId:x.steamId,remove:true}):api('/api/events/'+id+'/penalty',{remove:x.id})).then(load,function(er){msg('swm',er.message)})};it.appendChild(rb)}
       box.appendChild(it)});
     if(!e.me.staff)return;
@@ -1086,7 +1089,22 @@ export function eventPage(id, env, meta = {}) {
     ab.onclick=function(){api('/api/events/'+id+'/penalty',{steamId:$('pd').value,stage:$('ps').value,seconds:$('pt').value.replace(',','.'),reason:$('pr').value})
       .then(load,function(er){msg('swm',er.message)})};
     qb.onclick=function(){var nm=$('pd').options[$('pd').selectedIndex].text;if(!confirm(F(${tq('Disqualify {0} from {1}? The reason is shown to everyone.')},nm,e.name)))return;
-      api('/api/events/'+id+'/dsq',{steamId:$('pd').value,reason:$('pr').value}).then(load,function(er){msg('swm',er.message)})}}
+      api('/api/events/'+id+'/dsq',{steamId:$('pd').value,reason:$('pr').value}).then(load,function(er){msg('swm',er.message)})};
+    // DNFs (24 Nov 2026): take a DNF back (the driver goes on from their next stage, the app with the car as it finished
+    // the stage before), retire an entry, or set a stage's time (a finish the game lost: the entry moves on; or a
+    // counted time corrected). The same driver, stage and reason fields; the time and its penalty below.
+    var f2=el('div','stewform');f2.innerHTML='<label><span>${ts('Stage time (m:ss.sss)')}</span><input type="text" id="pst" placeholder="4:12.345"></label>'+
+      '<label><span>${ts('Its penalty (s)')}</span><input type="text" id="psp" placeholder="0"></label>';
+    var bt2=el('div','row');var rb2=el('button','btn small',${tq('Take back DNF')}),tb2=el('button','btn small',${tq('Set stage time')}),
+      xb2=el('button','btn danger small',${tq('Retire (DNF)')});add(bt2,rb2,tb2,xb2);f2.appendChild(bt2);box.insertBefore(f2,$('swm'));
+    function stw(body){return api('/api/events/'+id+'/steward',Object.assign({steamId:$('pd').value,reason:$('pr').value},body)).then(load,function(er){msg('swm',er.message)})}
+    function parseT(s){var m=/^\\s*(?:(\\d+):)?(\\d+(?:[.,]\\d+)?)\\s*$/.exec(s||'');return m?Math.round(((+(m[1]||0))*60+parseFloat(m[2].replace(',','.')))*1000):NaN}
+    rb2.onclick=function(){stw({op:'reinstate'})};
+    xb2.onclick=function(){var nm=$('pd').options[$('pd').selectedIndex].text;if(!confirm(F(${tq('Retire {0} from {1} (DNF)? The reason is shown to everyone.')},nm,e.name)))return;stw({op:'retire'})};
+    tb2.onclick=function(){if(!$('ps').value){msg('swm',${tq('Pick the stage the time is for.')});return}
+      var t=parseT($('pst').value);if(!(t>0)){msg('swm',${tq('Give the stage time as m:ss.sss')});return}
+      stw({op:'time',stage:+$('ps').value,timeMs:t,penaltyMs:Math.round((parseFloat(($('psp').value||'0').replace(',','.'))||0)*1000)})};
+    e.standings.forEach(function(r,i){if(r.status==='dnf')$('pd').options[i].text+=' ('+${tq('DNF')}+')'})}
   // a hidden event: a column that is hidden for every stage goes, and one line over the table says what and until when
   // (it said Hidden in every cell, six times a stage: a UI review, Nov 2026)
   function itin(e){var t=$('itin');t.innerHTML='';var S=e.stages,none=function(k){return S.length&&S.every(function(s){return s[k]==null})};

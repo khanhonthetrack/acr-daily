@@ -1877,5 +1877,13 @@
  "CLOSE GAME & REBUILD": "CHIUDI IL GIOCO E RICOSTRUISCI",
  "Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.": "Ricostruire %s per questa versione del gioco? Assetto Corsa Rally deve chiudersi per farlo.",
  "CLOSE GAME & REMOVE": "CHIUDI IL GIOCO E RIMUOVI",
- "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "Togliere %s dal gioco? Assetto Corsa Rally deve chiudersi per rimuoverlo e si riavvierà da solo alla fine."
+ "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "Togliere %s dal gioco? Assetto Corsa Rally deve chiudersi per rimuoverlo e si riavvierà da solo alla fine.",
+ "INSTALLING COMMUNITY STAGES": "INSTALLAZIONE PROVE DELLA COMMUNITY",
+ "Making the stage list for all your stages…": "Creazione dell’elenco di tutte le tue prove…",
+ "No service before this stage: press START STAGE in the game, without repairs.": "Nessuna assistenza prima di questa prova: premi START STAGE nel gioco, senza riparare.",
+ "Ranked": "Classificato",
+ "Starting Assetto Corsa Rally…": "Avvio di Assetto Corsa Rally…",
+ "The game starts again by itself when this is done.": "Al termine il gioco si riavvia da solo.",
+ "%s: on from SS%d with your car as it finished SS%d.": "%s: si riparte dalla SS%d con la tua auto com’era alla fine della SS%d.",
+ "The stage starts by itself (no service before it).": "La prova parte da sola (nessuna assistenza prima)."
 }

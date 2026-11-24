@@ -285,8 +285,24 @@ CREATE TABLE IF NOT EXISTS league_entries (
   dsq_at      INTEGER,
   stage_at    INTEGER,                  -- when on_stage started, as the app sent it (ms): the same start sent again is no second one (0031)
   team_id     INTEGER,                  -- the league team they drove it for (league_teams.id, set as they start; 0032): points stay with it
+  damage      TEXT,                     -- the car after the last counted stage, at its finish line: {no, parts} (0046)
   PRIMARY KEY (event_id, steam_id)
 );
+
+-- The stewards' decisions on entries (0046): a DNF taken back, an entry retired, a stage's time set
+CREATE TABLE IF NOT EXISTS league_decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  op TEXT NOT NULL,
+  stage_no INTEGER,
+  ms INTEGER,
+  penalty_ms INTEGER,
+  reason TEXT NOT NULL,
+  by TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS league_decisions_event ON league_decisions (event_id);
 
 CREATE TABLE IF NOT EXISTS league_stage_times (
   event_id   INTEGER NOT NULL,

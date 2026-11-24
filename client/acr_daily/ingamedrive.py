@@ -41,9 +41,10 @@ def daily_stages(ch):
              'service': True}]
 
 
-def ready(app):
+def ready(app, allow_rally=False):
     """Can DRIVE be done in the running game now? The game running, the mod in it (its pulse) and the pages' link up.
-    (Whether the game is in its main menu, the mod checks itself: it says so if not.)"""
+    (Whether the game is in its main menu, the mod checks itself: it says so if not.) allow_rally: a rally in progress
+    in the save doesn't stop it (a recovery of that same event's rally: leagues.recover)."""
     ig = getattr(app, 'ingame_app', None)
     if ig is None or not saveslot.game_running():
         return False
@@ -54,7 +55,7 @@ def ready(app):
         return False
     if packages_changed_since_start():
         return False                    # (the old way: the game started again, with the packages as they are now)
-    return not rally_in_progress()
+    return allow_rally or not rally_in_progress()
 
 
 def packages_changed_since_start(game=None, started=None):
@@ -134,6 +135,38 @@ def rally_in_progress():
         return p is None or 0 < p['done'] < len(p['stages'])
     except (OSError, saveslot.SaveError, KeyError):
         return True
+
+
+DAMAGE_FILE = 'ingame-damage.txt'    # your car's damage now (main.lua write_damage)
+
+
+def read_damage(path=None):
+    """Your car's damage as the game has it now (the mod's ingame-damage.txt) -> {part: life points}, only the parts
+    below 100 (an intact car: {}), or None (no car of yours, no file, an older mod, half written). Read at the finish
+    line and sent with the stage: after a crash past the line the next stage starts with the car as it finished there
+    (leagues.recover, drive.lua)."""
+    import os
+    from . import settings
+    try:
+        with open(path or os.path.join(settings.DIR, DAMAGE_FILE), encoding='ascii', errors='replace') as f:
+            words = f.read(4000).split()
+    except OSError:
+        return None
+    if len(words) < 4 or words[0] != 'ACRDMG' or words[-2] != 'end' or words[-1] != words[1]:
+        return None
+    body = words[2:-2]
+    if body == ['none']:
+        return None
+    out = {}
+    for w in body:
+        k, _sep, v = w.partition('=')
+        try:
+            lp = float(v)
+        except ValueError:
+            return None
+        if k and 0 <= lp < 100:
+            out[k] = round(lp, 1)
+    return out
 
 
 SETUP_FILE = 'ingame-setup.txt'      # the stage being driven as the game runs it (main.lua read_setup)
@@ -221,6 +254,14 @@ class Drives:
         """The mod's "drive" event: '<n> ok' / '<n> error <why>' / '<n> step <what>'."""
         parts = (rest or '').split(' ', 2)
         if len(parts) < 2 or not parts[0].isdigit():
+            return
+        if parts[1] == 'damage':                   # (after its "ok": the car's damage put back at the Service Park)
+            self.damage_said = parts[2] if len(parts) > 2 else ''
+            try:
+                from . import waiting
+                waiting.note('in-game DRIVE %s: the car\'s damage put back: %s' % (parts[0], self.damage_said))
+            except Exception:
+                pass
             return
         w = self.waiting.get(int(parts[0]))
         if w is None:

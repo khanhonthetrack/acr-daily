@@ -93,6 +93,19 @@ const DAY = 86400000;
 // (a ranked session's holder, kind 'live', is not public but its rallies' results are everyone's: the /ranked page
 // links each to /e/<id>, which said "No such event" to all but its drivers, 24 Nov 2026)
 const canSee = (l, role) => !!(l.public || role || l.kind === 'league' || l.kind === 'live');
+// The car's damage after a stage, as the app read it at the finish line (the game mod: each part's life points, 0-100):
+// -> the JSON kept on the entry ({no, parts}: only parts below 100, at most 40), or null when there is none to keep
+const DAMAGE_PART = /^[A-Za-z][A-Za-z0-9_]{1,39}$/;
+export function carDamage(d, no) {
+  if (!d || typeof d !== 'object' || Array.isArray(d) || !(no >= 0 && no < 100)) return null;
+  const parts = {};
+  for (const [k, v] of Object.entries(d).slice(0, 40)) {
+    const lp = +v;
+    if (DAMAGE_PART.test(k) && Number.isFinite(lp) && lp >= 0 && lp < 100) parts[k] = Math.round(lp * 10) / 10;
+  }
+  return JSON.stringify({ no, parts });
+}
+const safeJson = (s) => { try { return JSON.parse(s); } catch { return null; } };
 const lockedRally = (l, role) => l.kind === RALLY && !l.public && !role;
 // apps that list private rallies with a lock and ask for their code (client api.py sends it from 0.1.6): older ones
 // list only the public ones, as before
@@ -195,11 +208,18 @@ const divisionsOf = (l) => (l.kind === 'league' && l.divisions ? JSON.parse(l.di
 const groupsOf = (ev, res, now, classes, divisions) => groupStandings(evSpec(ev), res.entries, res.times, now, res.penalties, classes, divisions);
 
 /** The stewards' decisions on an event, as everyone sees them. */
-function decisions(res, nStages) {
+function decisions(res, nStages, entryDecisions = []) {
   const out = res.penalties.map((p) => ({ id: p.id, kind: 'time', steamId: p.steam_id, driver: p.driver_name || 'Driver',
     stage: p.stage_no != null && p.stage_no < nStages ? p.stage_no + 1 : null, ms: p.ms, reason: p.reason, by: p.by_name || 'a steward', at: p.created }));
   for (const e of res.entries) {
     if (e.dsq) out.push({ id: null, kind: 'dsq', steamId: e.steam_id, driver: e.name || 'Driver', stage: null, ms: 0, reason: e.dsq, by: e.dsq_by_name || 'a steward', at: e.dsq_at });
+  }
+  // (a DNF taken back, an entry retired, a stage's time set: stewardEntry)
+  for (const d of entryDecisions) {
+    out.push({ id: null, kind: d.op === 'reinstate' ? 'reinstate' : d.op === 'retire' ? 'retire' : 'settime', steamId: d.steam_id,
+      driver: d.driver_name || 'Driver', stage: d.stage_no != null && d.stage_no < nStages ? d.stage_no + 1 : null,
+      ms: d.op === 'time' ? (d.ms || 0) + (d.penalty_ms || 0) : 0, penaltyMs: d.op === 'time' ? d.penalty_ms || 0 : undefined,
+      reason: d.reason, by: d.by_name || 'a steward', at: d.created });
   }
   return out.sort((a, b) => (a.at || 0) - (b.at || 0));
 }
@@ -602,7 +622,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
         o.teamMatch = { kind: ev.league_kind, mine: sd.mine || null, other: sd.other || null };
         o.opponent = sd.other ? { steamId: null, name: sd.other.tag ? `[${sd.other.tag}] ${sd.other.name}` : sd.other.name } : null;
       } else if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
-      o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
+      o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started,
+        damage: entry.damage ? safeJson(entry.damage) : null } : null;
       out.push(o);
     }
     return json(await withTeams(env, { now, events: out }));
@@ -943,7 +964,10 @@ async function eventView(env, ev, l, role, me, now, codeOk = false) {
   // the standings within each class (a multi-class event) and each of the league's divisions
   const divisions = divisionsOf(l);
   o.groups = groupsOf(ev, res, now, eventClasses(ev), divisions).map((g) => ({ kind: g.kind, name: g.name, standings: g.rows }));
-  o.decisions = decisions(res, o.stages.length);
+  const { results: entryDecisions } = await env.DB.prepare(`SELECT d.*, s.name AS by_name, p.name AS driver_name
+      FROM league_decisions d LEFT JOIN players s ON s.steam_id = d.by LEFT JOIN players p ON p.steam_id = d.steam_id
+     WHERE d.event_id = ? ORDER BY d.created`).bind(ev.id).all();
+  o.decisions = decisions(res, o.stages.length, entryDecisions);
   const td = l.kind === 'league' ? await leagueTeamData(env, l, now) : null;
   const mine = me && st.rows.find((r) => r.steamId === me.steam_id);
   // a hidden event (src/hidden.js): its set-up and the results kept from whoever may not see them yet
@@ -1007,19 +1031,81 @@ async function eventView(env, ev, l, role, me, now, codeOk = false) {
   return json(await withTeams(env, o));
 }
 
+/** A steward's decision on an entry (the championship's owner and admins, the rally's maker; 24 Nov 2026): body
+ *  {steamId, op, reason, stage (1-based), timeMs, penaltyMs}.
+ *    reinstate  a DNF taken back: the entry runs again, on from the stage after its last counted one (the app goes on
+ *               there, with the car as it finished that one: the entry's damage, client leagues.recover)
+ *    retire     the entry ended by the stewards: DNF, the reason shown
+ *    time       a stage's time set: the stage after the last counted one (a finish the game lost: the entry moves on,
+ *               a DNF on it taken back), or one already counted (corrected; the total follows)
+ *  Each is kept in league_decisions and shown with the event's decisions. */
+async function stewardEntry(env, ev, b, me, nStages, now) {
+  const sid = String(b.steamId || '');
+  const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, sid).first();
+  if (!entry) return err('that driver has not started this event', 404);
+  const reason = text(b.reason, LIMITS.reason);
+  if (reason.length < 3) return err('give a reason: everyone sees it');
+  const log = (op, stage = null, ms = null, pen = null) => env.DB.prepare(`INSERT INTO league_decisions (event_id, steam_id, op,
+    stage_no, ms, penalty_ms, reason, by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(ev.id, sid, op, stage, ms, pen, reason, me.steam_id, now);
+  const op = String(b.op || '');
+  if (op === 'reinstate') {
+    if (entry.status !== 'dnf') return err('that entry is not a DNF', 409);
+    const status = entry.done >= nStages ? 'finished' : 'running';
+    await env.DB.batch([env.DB.prepare(`UPDATE league_entries SET status = ?, reason = NULL, on_stage = NULL, updated = ?
+      WHERE event_id = ? AND steam_id = ?`).bind(status, now, ev.id, sid), log('reinstate', entry.done < nStages ? entry.done : null)]);
+    return json({ status, done: entry.done });
+  }
+  if (op === 'retire') {
+    if (entry.status !== 'running') return err(`this entry is ${entry.status}`, 409);
+    await env.DB.batch([env.DB.prepare(`UPDATE league_entries SET status = 'dnf', reason = ?, on_stage = NULL, updated = ?
+      WHERE event_id = ? AND steam_id = ?`).bind(`retired by the stewards: ${reason}`, now, ev.id, sid), log('retire', entry.done)]);
+    return json({ status: 'dnf' });
+  }
+  if (op === 'time') {
+    const no = Math.round(+b.stage) - 1;
+    const timeMs = Math.round(+b.timeMs), penMs = Math.round(+b.penaltyMs || 0);
+    if (!(no >= 0 && no < nStages)) return err('which stage?');
+    if (!(timeMs > 0 && timeMs < 4 * 3600000) || !(penMs >= 0 && penMs < 3600000)) return err('give the stage\'s time (and its penalty in seconds)');
+    const had = await env.DB.prepare('SELECT 1 AS x FROM league_stage_times WHERE event_id = ? AND steam_id = ? AND stage_no = ?')
+      .bind(ev.id, sid, no).first();
+    const total = `(SELECT COALESCE(SUM(time_ms + penalty_ms), 0) FROM league_stage_times WHERE event_id = ?1 AND steam_id = ?2)`;
+    if (had) {                                           // a counted one corrected: the total follows
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE league_stage_times SET time_ms = ?, penalty_ms = ?, retired = NULL WHERE event_id = ? AND steam_id = ? AND stage_no = ?`)
+          .bind(timeMs, penMs, ev.id, sid, no),
+        env.DB.prepare(`UPDATE league_entries SET total_ms = ${total}, updated = ?3 WHERE event_id = ?1 AND steam_id = ?2`).bind(ev.id, sid, now),
+        log('time', no, timeMs, penMs)]);
+      return json({ corrected: true, done: entry.done, status: entry.status });
+    }
+    if (no !== entry.done) return err(`times go in order: SS${entry.done + 1} is this driver's next`, 409);
+    if (entry.dsq) return err('disqualified: reinstate the entry first', 409);
+    const done = entry.done + 1;
+    const status = done >= nStages ? 'finished' : 'running';
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO league_stage_times (event_id, steam_id, stage_no, time_ms, penalty_ms, created) VALUES (?, ?, ?, ?, ?, ?)`)
+        .bind(ev.id, sid, no, timeMs, penMs, now),
+      env.DB.prepare(`UPDATE league_entries SET done = ?3, status = ?4, reason = NULL, on_stage = NULL, total_ms = ${total}, updated = ?5
+        WHERE event_id = ?1 AND steam_id = ?2`).bind(ev.id, sid, done, status, now),
+      log('time', no, timeMs, penMs)]);
+    return json({ done, status });
+  }
+  return err('what should the stewards do? reinstate, retire or time', 400);
+}
+
 async function eventAction(env, ev, l, role, me, action, req, now) {
   const staff = isStaff(role);
   const b = await readBody(req) || {};
   const nStages = JSON.parse(ev.stages).length;
   // a head-to-head's or a cup's match: no stewards (its maker is one of its drivers); only its two drivers drive it
-  if (!STEWARDED.has(l.kind) && ['edit', 'delete', 'penalty', 'dsq'].includes(action)) return err('a match has no stewards', 403);
+  if (!STEWARDED.has(l.kind) && ['edit', 'delete', 'penalty', 'dsq', 'steward'].includes(action)) return err('a match has no stewards', 403);
   if (ev.only_ids && !JSON.parse(ev.only_ids).includes(me.steam_id)) {
     if (TEAM_KINDS.includes(l.kind)) return err('only the drivers in its teams\' lineups drive this match', 403);
     return err('this match is for its two drivers', 403);
   }
   const ta = await eventTeamAction(env, ev, l, me, action, b, now, { json, err, staff });   // its teams (src/leagueteams.js)
   if (ta) return ta;
-  if (['edit', 'delete', 'penalty', 'dsq'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);
+  if (['edit', 'delete', 'penalty', 'dsq', 'steward'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);
+  if (action === 'steward') return stewardEntry(env, ev, b, me, nStages, now);
   if (action === 'delete') {
     await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_entries WHERE event_id = ?').bind(ev.id),
@@ -1215,12 +1301,13 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const splits = Array.isArray(b.splitsMs) ? b.splitsMs.slice(0, 10).map((x) => Math.round(+x)).filter(Number.isFinite) : null;
     const done = entry.done + 1;
     const status = done >= nStages ? 'finished' : 'running';
+    const dmg = carDamage(b.damage, no2);                // (the car at the finish line: the next stage after a crash)
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO league_stage_times (event_id, steam_id, stage_no, time_ms, penalty_ms, splits, started, created)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, no2, timeMs, penMs, splits ? JSON.stringify(splits) : null,
         Number.isFinite(+b.startedAt) ? Math.round(+b.startedAt) : null, now),
-      env.DB.prepare(`UPDATE league_entries SET done = ?, on_stage = NULL, total_ms = total_ms + ?, status = ?, updated = ?, app_version = ?
-        WHERE event_id = ? AND steam_id = ?`).bind(done, timeMs + penMs, status, now, v, ev.id, me.steam_id),
+      env.DB.prepare(`UPDATE league_entries SET done = ?, on_stage = NULL, total_ms = total_ms + ?, status = ?, updated = ?, app_version = ?,
+        damage = ? WHERE event_id = ? AND steam_id = ?`).bind(done, timeMs + penMs, status, now, v, dmg, ev.id, me.steam_id),
     ]);
     return json({ done, status });
   }
@@ -1249,8 +1336,10 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   if (action === 'dnf') {
     if (entry.status !== 'running') return json({ status: entry.status });
     const reason = text(b.reason, 120) || 'retired';
-    await env.DB.prepare('UPDATE league_entries SET status = \'dnf\', reason = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
-      .bind(reason, now, ev.id, me.steam_id).run();
+    // (the car as it finished the stage, when the app read it there: kept for a DNF the stewards take back)
+    const dmg = carDamage(b.damage, Math.round(+b.no));
+    await env.DB.prepare(`UPDATE league_entries SET status = 'dnf', reason = ?, updated = ?, damage = COALESCE(?, damage)
+      WHERE event_id = ? AND steam_id = ?`).bind(reason, now, dmg, ev.id, me.steam_id).run();
     return json({ status: 'dnf', reason });
   }
   return err('not found', 404);

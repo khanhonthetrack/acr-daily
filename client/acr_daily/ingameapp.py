@@ -370,6 +370,7 @@ class InGameApp:
             self.text(id_, words)
         elif what == 'drive':
             self.drives.answer(rest)
+            self._damage_go(rest)
         elif what == 'tab':                       # (Q / E in the game, as its own menu's tabs: appui.lua)
             self.switch_tab(-1 if rest.strip() == 'prev' else 1)
         elif what == 'focus':                     # (the button the keyboard / wheel / pad is on: across())
@@ -503,6 +504,28 @@ class InGameApp:
         m = self.module(tab)
         if m is not None and hasattr(m, 'text'):
             self.run(lambda: m.text(self, field, words))
+
+    GO_MS = 1500                     # START STAGE pressed this long after the car's damage was put back (_damage_go)
+
+    def _damage_go(self, rest):
+        """The mod put the car's damage back at the Service Park ('<n> damage <set> <missed> park go', drive.lua) and the
+        event has no service before this stage: START STAGE pressed as the player would (Enter: the Service Park opens on
+        it), so nothing is repaired. Only with the game in front; else the status line asks for it. (The game's own button
+        sets the parts' states on the way to the stage; the mod calling its flow didn't: 24 Nov 2026.)"""
+        words = (rest or '').split()
+        if len(words) < 6 or words[1] != 'damage' or words[4] != 'park' or words[5] != 'go':
+            return
+        from . import ingamenav
+
+        def press():
+            if ingamenav.game_in_front():
+                ingamenav.press_key(0x0D)
+            else:
+                self.note(_('No service before this stage: press START STAGE in the game, without repairs.'))
+        try:
+            self.app.root.after(self.GO_MS, press)
+        except Exception:
+            pass
 
     def drive(self, setup, on_ok, on_fail):
         """DRIVE in the running game (ingamedrive.py): the set-up to the mod; on_ok() once the game is on its way to

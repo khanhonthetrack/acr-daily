@@ -1834,5 +1834,13 @@
  "CLOSE GAME & REBUILD": "关闭游戏并重建",
  "Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.": "为当前游戏版本重建 %s 吗？重建需要关闭 Assetto Corsa Rally。",
  "CLOSE GAME & REMOVE": "关闭游戏并移除",
- "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "把 %s 从游戏中移除吗？移除需要关闭 Assetto Corsa Rally，完成后会自动重新启动。"
+ "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "把 %s 从游戏中移除吗？移除需要关闭 Assetto Corsa Rally，完成后会自动重新启动。",
+ "INSTALLING COMMUNITY STAGES": "正在安装社区赛段",
+ "Making the stage list for all your stages…": "正在生成所有赛段的列表…",
+ "No service before this stage: press START STAGE in the game, without repairs.": "此赛段前没有维修：请在游戏中直接按 START STAGE，不要维修。",
+ "Ranked": "排位赛",
+ "Starting Assetto Corsa Rally…": "正在启动 Assetto Corsa Rally…",
+ "The game starts again by itself when this is done.": "完成后游戏会自动重新启动。",
+ "%s: on from SS%d with your car as it finished SS%d.": "%s：从 SS%d 继续，赛车保持 SS%d 结束时的状态。",
+ "The stage starts by itself (no service before it).": "赛段会自动开始（之前没有维修）。"
 }

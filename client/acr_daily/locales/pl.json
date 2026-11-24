@@ -1914,5 +1914,13 @@
  "Connecting to the live server…": "Łączenie z serwerem na żywo…",
  "The live server refused the sign-in: sign in to ACR DAILY again.": "Serwer na żywo odrzucił logowanie: zaloguj się ponownie w ACR DAILY.",
  "Can't reach the live server: trying again…": "Brak połączenia z serwerem na żywo: ponawiam…",
- "%s on the stage: their ACR DAILY sends no car to watch (an older version, or the car not sent yet).": "%s na odcinku: ich ACR DAILY nie wysyła auta do oglądania (starsza wersja albo auto jeszcze niewysłane)."
+ "%s on the stage: their ACR DAILY sends no car to watch (an older version, or the car not sent yet).": "%s na odcinku: ich ACR DAILY nie wysyła auta do oglądania (starsza wersja albo auto jeszcze niewysłane).",
+ "INSTALLING COMMUNITY STAGES": "INSTALOWANIE ODCINKÓW SPOŁECZNOŚCI",
+ "Making the stage list for all your stages…": "Tworzenie listy wszystkich twoich odcinków…",
+ "No service before this stage: press START STAGE in the game, without repairs.": "Brak serwisu przed tym odcinkiem: naciśnij START STAGE w grze, bez napraw.",
+ "Ranked": "Rankingowe",
+ "Starting Assetto Corsa Rally…": "Uruchamianie Assetto Corsa Rally…",
+ "The game starts again by itself when this is done.": "Po zakończeniu gra uruchomi się sama.",
+ "%s: on from SS%d with your car as it finished SS%d.": "%s: dalej od SS%d z autem w stanie z mety SS%d.",
+ "The stage starts by itself (no service before it).": "Odcinek startuje sam (bez serwisu przed nim)."
 }

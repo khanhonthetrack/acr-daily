@@ -1877,5 +1877,13 @@
  "CLOSE GAME & REBUILD": "FERMER LE JEU ET RECONSTRUIRE",
  "Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.": "Reconstruire %s pour cette version du jeu ? Assetto Corsa Rally doit se fermer pour cela.",
  "CLOSE GAME & REMOVE": "FERMER LE JEU ET RETIRER",
- "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "Retirer %s du jeu ? Assetto Corsa Rally doit se fermer pour le retirer et redémarrera tout seul ensuite."
+ "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "Retirer %s du jeu ? Assetto Corsa Rally doit se fermer pour le retirer et redémarrera tout seul ensuite.",
+ "INSTALLING COMMUNITY STAGES": "INSTALLATION DES SPÉCIALES COMMUNAUTAIRES",
+ "Making the stage list for all your stages…": "Création de la liste de toutes tes spéciales…",
+ "No service before this stage: press START STAGE in the game, without repairs.": "Pas d’assistance avant cette spéciale : appuie sur START STAGE dans le jeu, sans réparer.",
+ "Ranked": "Classé",
+ "Starting Assetto Corsa Rally…": "Lancement d’Assetto Corsa Rally…",
+ "The game starts again by itself when this is done.": "Le jeu redémarre tout seul une fois terminé.",
+ "%s: on from SS%d with your car as it finished SS%d.": "%s : reprise à la SS%d avec ta voiture telle qu’elle a fini la SS%d.",
+ "The stage starts by itself (no service before it).": "La spéciale démarre toute seule (pas d’assistance avant)."
 }

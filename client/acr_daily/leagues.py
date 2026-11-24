@@ -117,10 +117,13 @@ def leg_starts(ev, k):
     return any(a == k for a, _b in legs(ev))
 
 
-def calendar(ev, leg=0, split=None):
+def calendar(ev, leg=0, split=None, start=None):
     """A leg of the event (server: /api/me/events) as the game's calendar takes it (rallyweekend.check_itinerary): its
-    days from day 1, a service park before its first stage."""
+    days from day 1, a service park before its first stage. start: from that stage of the leg on (a recovery after the
+    game lost a finished stage: recover()), its own service park first."""
     a, b = legs(ev, split)[leg]
+    if start is not None and a < start < b:
+        a = start
     first = ev['stages'][a]['day']
     return [{'stage': s['stageId'], 'weather': s['weatherGame'], 'start': s['startSeconds'], 'day': s['day'] - first,
              'service': bool(s['service']) or k == a} for k, s in enumerate(ev['stages'][a:b], start=a)]
@@ -143,6 +146,58 @@ def find_leg(stages, ev):
         if i is not None:
             return split, i
     return None
+
+
+def find_tail(stages, ev):
+    """A calendar from the save that is the end of one of the event's legs, from a later stage of it on (set up by
+    recover() after the game lost a finished stage) -> (split, leg, its first stage), or None."""
+    have = [(s['stage'].lower(), s['day']) for s in stages]
+
+    def same_set_up(cal):
+        # (its weather and start times too, where the save says them: a daily on the same stage is not a recovery)
+        for s, c in zip(stages, cal):
+            if 'weather' in s and c['weather'] in rallyweekend.WEATHERS and s['weather'] != rallyweekend.WEATHERS.index(c['weather']):
+                return False
+            if 'start' in s and abs(s['start'] - c['start']) > 60:
+                return False
+        return True
+    for split in (DAYS, OLD):
+        for i, (a, b) in enumerate(legs(ev, split)):
+            for j in range(a + 1, b):
+                if b - j != len(have):
+                    continue
+                cal = calendar(ev, i, split, start=j)
+                if have == [(str(c['stage']).lower(), c['day']) for c in cal] and same_set_up(cal):
+                    return split, i, j
+    return None
+
+
+def recover(ev, state, p):
+    """After the game lost a stage the entry has counted (it crashed or hung past the finish line: the stage counted from
+    its finish-line time, the rally in the game behind it or gone), the event goes on from the NEXT stage with the car as
+    it finished that one (the app read its damage there and the server kept it: entry 'damage' {no, parts}), not from
+    the stage again on a car as it was before (the user, 24 Nov 2026). Only within a leg (a leg starts with a fresh
+    car anyway) and only when the damage at that finish is known; else None (the rally in the game goes on as before).
+    state, p: rally_state(). -> {'start': stage index, 'leg', 'damage': {part: life points}, 'go': no service before it
+    (the stage started at once, no repairs)}."""
+    e = ev.get('entry') or {}
+    done = e.get('done', 0)
+    if e.get('status') != 'running' or not 0 < done < len(ev.get('stages') or []) or is_parked(ev['id']):
+        return None
+    if state == 'this':
+        if p['done'] >= done:
+            return None
+    elif state != 'none':
+        return None
+    d = e.get('damage')
+    if not isinstance(d, dict) or d.get('no') != done - 1 or not isinstance(d.get('parts'), dict):
+        return None
+    if state == 'none':
+        ev['_split'] = setup_split(ev, done)
+    if leg_starts(ev, done):
+        return None
+    return {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts']),
+            'go': not ev['stages'][done].get('service')}
 
 
 def setup_split(ev, done):
@@ -192,8 +247,9 @@ def changed_in_game(w, ev):
     at = _SAVE_AT
     out = [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(ev.get('rules')).items() if w.get(at[o], v) != v]
     found = find_leg(w['stages'], ev)              # (a long event: the leg the save holds, in either split)
-    split, leg = found if found else (None, 0)
-    cal, have = calendar(ev, leg, split), w['stages']
+    tail = None if found else find_tail(w['stages'], ev)   # (or the end of one, from a recovery: recover())
+    split, leg = found if found else tail[:2] if tail else (None, 0)
+    cal, have = calendar(ev, leg, split, start=tail[2] if tail else None), w['stages']
     if len(have) != len(cal) or any(s['stage'].lower() != c['stage'].lower() or s['day'] != c['day'] for s, c in zip(have, cal)):
         out.append(N_('stages'))
     elif not w.get('old'):                         # (a set-up from before the game's update of 2026-10-06: no weather read)
@@ -253,6 +309,8 @@ def daily_changed(w, item):
 def same_calendar(stages, ev, leg=None):
     """A calendar from the save (rallyweekend stages) is this event's: one of its legs (leg: that one)."""
     i = leg_in(stages, ev, leg)
+    if i is None and leg is None:                  # (the end of a leg, from a recovery: recover())
+        return find_tail(stages, ev) is not None
     return i is not None and (leg is None or i == leg)
 
 
@@ -265,7 +323,13 @@ def rally_state(b, ev):
         return 'none', None
     found = find_leg(p['stages'], ev)
     if found is None:
-        return 'other', p
+        tail = find_tail(p['stages'], ev)          # (the end of a leg, set up by a recovery: recover())
+        if tail is None:
+            return 'other', p
+        split, leg, start = tail
+        ev['_split'] = split
+        return 'this', dict(p, done=start + p['done'], leg=leg, legDone=start - legs(ev)[leg][0] + p['done'], split=split,
+                            tail=start)
     split, leg = found
     ev['_split'] = split                           # (the event goes on in the split its rally in the game is in)
     return 'this', dict(p, done=legs(ev)[leg][0] + p['done'], leg=leg, legDone=p['done'], split=split)

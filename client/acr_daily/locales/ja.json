@@ -1834,5 +1834,13 @@
  "CLOSE GAME & REBUILD": "ゲームを閉じて再構築",
  "Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.": "このゲームバージョン向けに %s を再構築しますか？再構築には Assetto Corsa Rally を閉じる必要があります。",
  "CLOSE GAME & REMOVE": "ゲームを閉じて削除",
- "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "%s をゲームから外しますか？削除するため Assetto Corsa Rally を閉じ、終わったら自動で再起動します。"
+ "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "%s をゲームから外しますか？削除するため Assetto Corsa Rally を閉じ、終わったら自動で再起動します。",
+ "INSTALLING COMMUNITY STAGES": "コミュニティステージをインストール中",
+ "Making the stage list for all your stages…": "すべてのステージのリストを作成中…",
+ "No service before this stage: press START STAGE in the game, without repairs.": "このステージの前はサービスなし：ゲームで修理せずに START STAGE を押してください。",
+ "Ranked": "ランク戦",
+ "Starting Assetto Corsa Rally…": "Assetto Corsa Rally を起動中…",
+ "The game starts again by itself when this is done.": "完了するとゲームは自動で再起動します。",
+ "%s: on from SS%d with your car as it finished SS%d.": "%s：SS%d から、SS%d 終了時の車の状態で再開します。",
+ "The stage starts by itself (no service before it).": "ステージは自動で始まります（前にサービスなし）。"
 }

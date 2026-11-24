@@ -1834,5 +1834,13 @@
  "CLOSE GAME & REBUILD": "JÁTÉK BEZÁRÁSA ÉS ÚJRAÉPÍTÉS",
  "Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.": "Újraépíted a(z) %s pályát a játék ezen verziójához? Az Assetto Corsa Rallynak ehhez be kell zárulnia.",
  "CLOSE GAME & REMOVE": "JÁTÉK BEZÁRÁSA ÉS ELTÁVOLÍTÁS",
- "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "Kiveszed a(z) %s pályát a játékból? Az Assetto Corsa Rallynak be kell zárulnia az eltávolításhoz; utána magától újraindul."
+ "Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart automatically once done.": "Kiveszed a(z) %s pályát a játékból? Az Assetto Corsa Rallynak be kell zárulnia az eltávolításhoz; utána magától újraindul.",
+ "INSTALLING COMMUNITY STAGES": "KÖZÖSSÉGI SZAKASZOK TELEPÍTÉSE",
+ "Making the stage list for all your stages…": "Az összes szakaszod listájának elkészítése…",
+ "No service before this stage: press START STAGE in the game, without repairs.": "E szakasz előtt nincs szerviz: nyomd meg a START STAGE gombot a játékban, javítás nélkül.",
+ "Ranked": "Rangsorolt",
+ "Starting Assetto Corsa Rally…": "Az Assetto Corsa Rally indítása…",
+ "The game starts again by itself when this is done.": "Ha kész, a játék magától újraindul.",
+ "%s: on from SS%d with your car as it finished SS%d.": "%s: folytatás az SS%d-tól az autóddal, ahogy az SS%d-t befejezte.",
+ "The stage starts by itself (no service before it).": "A szakasz magától indul (előtte nincs szerviz)."
 }
