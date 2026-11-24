@@ -111,6 +111,55 @@ class PickerInTheGame(unittest.TestCase):
         self.assertNotIn('9', a.s['eventTyres'])
 
 
+class TabsOnTheSetUpScreen(unittest.TestCase):
+    """DRIVE's set-up screen (ig_prep.tyres): a tab a surface, named with its stages; snow shown, nothing to pick."""
+    def setUp(self):
+        p = mock.patch('acr_daily.gear.settings.save')
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _ig(self, ev):
+        a = mock.Mock()
+        a.s = {}
+        a._league_event.return_value = ev
+        a._league_car.return_value = None
+        ig = mock.Mock(app=a, prep={'kind': 'event', 'key': ev['id']})
+        return ig
+
+    def test_a_tab_a_surface(self):
+        import json
+        from acr_daily import ig_prep, ingamekit
+        ig = self._ig(MIXED)
+        said = json.dumps(ig_prep.tyres(ig, MIXED), ensure_ascii=False)
+        for tab in ('TARMAC · SS1, SS4', 'GRAVEL · SS2', 'SNOW · SS3'):
+            self.assertIn(tab, said)
+        self.assertIn('TarmacWet', said)                                  # (the first tab open)
+        self.assertNotIn('GravelHard', said)
+        ig_prep.click(ig, 'tyretab', 'gravel')
+        said = json.dumps(ig_prep.tyres(ig, MIXED), ensure_ascii=False)
+        self.assertIn('GravelHard', said)
+        self.assertNotIn('TarmacWet', said)
+        ig_prep.click(ig, 'tyre', 'gravel:GravelHard:1')
+        self.assertIn('@gravel', ig.app.s['eventTyres']['9'])
+        ig_prep.click(ig, 'tyretab', 'snow')
+        nodes = ig_prep.tyres(ig, MIXED)
+        said = json.dumps(nodes, ensure_ascii=False)
+        self.assertIn('The only tyre here.', said)
+        self.assertNotIn('prep.tyre:snow', said)                          # (no arrows: nothing to pick)
+        self.assertEqual(ingamekit.check(ig_prep.page(ig)), [])
+
+    def test_one_surface_no_tabs(self):
+        import json
+        from acr_daily import ig_prep
+        said = json.dumps(ig_prep.tyres(self._ig(EV), EV), ensure_ascii=False)
+        self.assertNotIn('tyretab', said)
+        self.assertIn('GravelSoft', said)
+        sweden = {'id': 8, 'rally': 'Sweden', 'kind': 'league'}
+        said = json.dumps(ig_prep.tyres(self._ig(sweden), sweden), ensure_ascii=False)
+        self.assertIn('The only tyre here.', said)
+        self.assertIn('"16"', said)
+
+
 class Liveries(unittest.TestCase):
     def test_official_and_own(self):
         base = tempfile.mkdtemp()
