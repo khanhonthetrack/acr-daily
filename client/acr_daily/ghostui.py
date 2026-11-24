@@ -357,6 +357,7 @@ class GhostOverlay:
             f = None
         live = self._live_link(watch=True)
         if live is not None:
+            live.spectating = self._watching()          # (WATCH: your car waits at the start: never shown standing)
             live.feed(f)
         if f is None or not f.track:
             self.status = _('Waiting for the game')

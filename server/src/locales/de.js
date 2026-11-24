@@ -189,6 +189,8 @@ export default {
  "member": "Mitglied",
  "private": "privat",
  "No cups yet.": "Noch keine Pokale.",
+ "Series": "Serie",
+ "No ranked rallies yet.": "Noch keine Ranglisten-Rallyes.",
  "{0} drivers": [
   "{0} Fahrer",
   "{0} Fahrer"

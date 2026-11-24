@@ -841,7 +841,7 @@ class CommunityUI:
             ig.ask(it.get('name', it['id']), [msg], _('CLOSE GAME & INSTALL'),
                    lambda: self._community_close_and_run(
                        lambda relaunch=True: self._community_finish_pending(it['id'], relaunch=relaunch), relaunch=True),
-                   _('WHEN I CLOSE THE GAME'))
+                   _('WHEN I CLOSE THE GAME'), safe=True)   # (comes up by itself: never closes the game on a stray press)
         elif ig is None or not ig.game_up() or not from_download:
             if messagebox.askyesno('ACR Daily', msg):
                 self._community_close_and_run(
@@ -1028,10 +1028,7 @@ class CommunityUI:
                 self.sub_l.configure(text=_('%s is installed. Starting Assetto Corsa Rally…') % it.get('name', it['id']))
             except Exception:
                 pass
-            try:
-                saveslot.launch_game()
-            except OSError as err:
-                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % err)
+            self._launch_game_after_lists()
             if getattr(self, '_community_pending', None) and not community.game_running():
                 self._community_poll_game()
             return
@@ -1298,10 +1295,7 @@ class CommunityUI:
         if err is not None:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), err))
         if relaunch and err is None:
-            try:
-                saveslot.launch_game()
-            except OSError as e:
-                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % e)
+            self._launch_game_after_lists()
         if ok:
             return
         self._community_switch = stageswitch.state(self._community_game)
@@ -1756,10 +1750,7 @@ class CommunityUI:
             messagebox.showwarning('ACR Daily', _("These couldn't be installed:") + '\n\n' + '\n'.join(
                 '·  %s: %s' % (name, why) for name, why in res['failed']))
         elif relaunch and not exports:
-            try:
-                saveslot.launch_game()
-            except OSError as err:
-                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % err)
+            self._launch_game_after_lists()
 
     def _all_step_done(self, it, e):
         """One track of INSTALL ALL done (e: why not): the next."""
@@ -2067,12 +2058,23 @@ class CommunityUI:
             messagebox.showwarning('ACR Daily', CANT_MAKE_NOW % cant[0] if len(cant) == 1 else
                                    CANT_MAKE_ALL % '\n'.join('·  ' + n for n in cant))
         if err is None and relaunch and self._export_ahead() is None:
-            try:
-                saveslot.launch_game()
-            except OSError as e:
-                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % e)
+            self._launch_game_after_lists()
 
     # -------------------------------------------------------------- every set in the game: one list (stagelist.py)
+    LISTS_WAIT_S = 240                  # the game started at most this long after an install, waiting for the lists
+
+    def _launch_game_after_lists(self, waited=0.0):
+        """The game started again once the sets' lists are made (the one stage list for every set, WRC Generations'
+        calendars: _lists_update, in the background). The game reads them as it starts: started before (it was, 30 s
+        before the list, 24 Nov 2026) it ran with none, a stage set up in it had no rows, and DRIVE crashed it on the tyre
+        allocation."""
+        if getattr(self, '_lists_busy', False) and waited < self.LISTS_WAIT_S:
+            self.root.after(500, lambda: self._launch_game_after_lists(waited + 0.5))
+            return
+        try:
+            saveslot.launch_game()
+        except OSError as err:
+            messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % err)
     def _tool_dir(self):
         return (getattr(self, '_export_env', None) or {}).get('tool')
 
@@ -2144,8 +2146,9 @@ class CommunityUI:
                 try:
                     stagelist.build(game, tool)
                 except stagelist.ListError as e:
-                    failed.append(e)
-                    self._lists_failed = True
+                    if e.kind != 'running':                 # (the game started meanwhile: made once it is closed)
+                        failed.append(e)
+                        self._lists_failed = True
                 else:
                     self._lists_failed = False
             finally:

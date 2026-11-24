@@ -953,13 +953,13 @@ export function eventPage(id, env, meta = {}) {
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
     // a 1V1's or a cup's match (its holder league is hidden): back to its own page, no league or season
     // (a team 1V1's: th2h, a team cup's: tcup; their pages: /team1v1, /tcup/<id>)
-    var hk=['h2h','cup','th2h','tcup'].indexOf(e.league.kind)>=0?e.league.kind:null;if(hk)navOn(hk==='h2h'||hk==='th2h'?'1v1':'cups');
+    var hk=['h2h','cup','th2h','tcup','live'].indexOf(e.league.kind)>=0?e.league.kind:null;if(hk)navOn(hk==='h2h'||hk==='th2h'?'1v1':hk==='live'?'ranked':'cups');
     // a rally (one event, anyone's; 0033): its maker and words, in its pink; a championship's round in the leagues' blue
     var rk=e.league.kind==='event',k=$('kick');k.innerHTML='';k.style.color=rk?'#FF7AC6':hk?'':'#5BA8FF';
     $('rabout').textContent=rk?e.league.about||'':'';$('rabout').hidden=!(rk&&e.league.about);
     if(rk){var ra=el('a',null,${tq('Rally')});ra.href='/rallies';add(k,ra,' · '+F(${tq('by {0}')},e.league.owner)+' · '+TD(e.rally)+' ')}
-    else{var la=el('a',null,hk==='h2h'?'1V1':hk==='th2h'?${tq('Team 1V1')}:e.league.name);la.href=hk==='h2h'?'/1v1':hk==='th2h'?'/team1v1':hk==='cup'?'/cup/'+e.league.id:hk==='tcup'?'/tcup/'+e.league.id:'/l/'+e.league.id;
-    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk==='tcup'?${tq('team cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'||hk==='th2h'?'':' · ')+TD(e.rally)+' ')}
+    else{var la=el('a',null,hk==='h2h'?'1V1':hk==='th2h'?${tq('Team 1V1')}:hk==='live'?${tq('Ranked')}+' · '+e.league.name:e.league.name);la.href=hk==='h2h'?'/1v1':hk==='th2h'?'/team1v1':hk==='cup'?'/cup/'+e.league.id:hk==='tcup'?'/tcup/'+e.league.id:hk==='live'?'/ranked':'/l/'+e.league.id;
+    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk==='tcup'?${tq('team cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'||hk==='th2h'||hk==='live'?'':' · ')+TD(e.rally)+' ')}
     k.appendChild(el('span','badge '+e.status,e.status==='open'?${tq('open')}:e.status==='upcoming'?${tq('upcoming')}:${tq('finished')}));
     $('facts').innerHTML='';
     fact(e.car?${tq('Car')}:e.carClasses?${tq('Car classes')}:${tq('Car class')},e.car||(e.carClasses?F(${tq('{0} (pick a car of one)')},e.carClasses.join(', ')):F(${tq('{0} (pick one)')},e.carClass)));

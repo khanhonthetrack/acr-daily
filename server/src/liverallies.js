@@ -524,6 +524,31 @@ async function overview(env, me, now, rand) {
 
 const RECENT_N = 20;           // the RESULTS list: the last this many sessions over, and as many of mine besides
 
+/** A driver's ranked rallies (their driver page, src/drivers.js): the last n sessions over they drove in, newest
+ *  first, each {series, seriesName, starts, rally, eventId, drivers, rank, status, totalMs} (rank null: a DNF / not
+ *  placed). The user, 24 Nov 2026: "make sure that on driver page the driver can see the ranked races they
+ *  participated". */
+export function driverRankedStmt(env, sid, now = Date.now(), n = 15) {
+  // (its sessions: one statement, in the driver page's batch; their standings looked up only when there are some)
+  return env.DB.prepare(`SELECT s.series, s.starts, s.event_id, e.only_ids FROM live_sessions s
+      JOIN league_events e ON e.id = s.event_id WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ?
+      AND EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?) ORDER BY s.starts DESC LIMIT ?`)
+    .bind(liveFrom(env), now - LIVE.openMs + 1, sid, n);
+}
+
+export async function driverRanked(env, sid, rows, now = Date.now()) {
+  if (!rows || !rows.length) return [];
+  const table = await eventsRows(env, rows.map((r) => r.event_id), now);
+  return rows.map((r) => {
+    const s = SERIES.find((x) => x.key === r.series);
+    if (!s) return null;
+    const me = (table.get(r.event_id) || []).find((x) => x.steamId === sid) || null;
+    return { series: s.key, seriesName: s.name, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id,
+      drivers: JSON.parse(r.only_ids || '[]').length, rank: me ? me.rank || null : null, status: me ? me.status : null,
+      totalMs: me ? me.totalMs ?? null : null };
+  }).filter(Boolean);
+}
+
 /** What the app says about the rules (and works out the countdowns with). */
 const LIVE_RULES = { signupMin: LIVE.signupMs / MIN, firstStartMin: LIVE.firstStartMs / MIN, turnS: LIVE.turnMs / 1000,
   earlyS: LIVE.earlyMs / 1000, breakS: LIVE.breakMs / 1000, maxMoves: LIVE.maxMoves, stages: LIVE.stages };

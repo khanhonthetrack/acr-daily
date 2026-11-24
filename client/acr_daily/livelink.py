@@ -52,6 +52,15 @@ GUESS_MS = 300           # no dash from them: how they speed up, over this long
 DASH_STALE_MS = 1500     # their last dash older than this (on their clock): no longer shown
 GUESS_GEARS = (42.0, 68.0, 95.0, 122.0, 150.0, 999.0)   # (km/h at the top of each gear: a rally car's, roughly)
 GUESS_HYST_KMH = 6.0     # a guessed gear changes only this far past its change point
+# Before the start and after the finish (the user, 24 Nov 2026: "see the car ghosts ... all the time, not just in the
+# stage"): a car standing on the stage is sent as a pose every STAND_S on a run id below 0 (the relay passes it on as
+# it is); one moving on with the stage clock stopped (rolling past the finish line) goes on in its run, on a clock that
+# keeps counting.
+STAND_S = 0.5
+STAND_MAX_S = 600        # standing this long after the clock stopped: no longer sent (gone for the others)
+FROZEN_S = 0.3           # the clock not moving on this long: stopped (a frame or two of the same clock: not)
+ROLL_LOOK_S = 0.5        # moving or not: looked at this often...
+ROLL_M = 0.5             # ...moved further than this since: moving
 
 
 def _wrap(a):
@@ -208,6 +217,20 @@ class LiveDriver:
         if self.trace.ms:
             w = now - self.trace.ms[-1] / 1000.0
             self.start_wall = w if self.start_wall is None else min(self.start_wall, w)
+        self.seen = now
+
+    standing = False                 # a car standing on the stage: before the start, or stopped after the finish
+
+    def stand(self, samples, now):
+        """A standing car's pose (one sample at clock 0, LiveLink._stand): kept as its only sample (moved there if it
+        moved), never counted as lateness (its delay stays as it was)."""
+        good = [s for s in samples if isinstance(s, (list, tuple)) and len(s) == 7]
+        if good:
+            p = tuple(good[-1])
+            self.trace.s[:] = [p]
+            self.trace.ms[:] = [p[0]]
+            if self.start_wall is None:
+                self.start_wall = now
         self.seen = now
 
     def add_dash(self, x):
@@ -461,6 +484,9 @@ class LiveLink:
         self._out = queue.Queue(maxsize=200)
         self._batch, self._last_sample, self._last_send = [], -1, 0.0
         self._track, self._run, self._was_on_stage = None, None, False
+        self._last_clock, self._clock_wall, self._roll, self._wait_id = -1, 0.0, None, None   # (feed: the clock
+        # last seen moving and when; the car moving on with the clock stopped; the standing run at the start line)
+        self.spectating = False       # WATCH: your car only waits at the start, never shown standing there
         self._joined = None           # the stage the relay was told you are on (name, where it starts, room)
         self.room = None              # a room of its own on the stage (a live rally's session, liveui.py): only its drivers
         self._at, self._at_track = None, None
@@ -499,7 +525,7 @@ class LiveLink:
         if track and f.clock_ms == 0 and self._at is None:
             self._at = [round(f.x), round(f.z)]
         new_run = track and f.clock_ms > 0 and (f.track != self._track or self._run is None or
-                                                 f.clock_ms < self._last_sample - 500)
+                                                 f.clock_ms < self._last_clock - 500)
         if new_run and f.clock_ms < 2000:                # (seen from its start: that is the start line)
             start = [round(f.x), round(f.z)]
             if self._at is None or math.dist(start, self._at) > 50:
@@ -510,21 +536,50 @@ class LiveLink:
             self._put(dict({'t': 'track', 'track': track, 'at': self._at}, **({'room': room} if room else {}))
                       if track else {'t': 'leave'})
             self._joined = joined
-        on_stage = track and f.clock_ms > 0
-        if not on_stage:
-            self._was_on_stage, self._batch = False, []
+        if f is not None and f.car and f.car != self.car:
+            self.car = f.car
+            self._put(self._hello())
+        if not track:
+            self._was_on_stage, self._batch, self._wait_id = False, [], None
             return
+        if f.clock_ms <= 0:
+            # at the start line, the clock not running yet: your car shown standing there (STAND_S), never while you
+            # only WATCH (your car then waits at the start for good)
+            self._was_on_stage, self._batch = False, []
+            if not getattr(self, 'spectating', False):
+                if self._wait_id is None:
+                    self._wait_id = int(time.time() * 1000)
+                self._stand(f, now, -self._wait_id)
+            return
+        self._wait_id = None
         self._was_on_stage = True
         if new_run:
             self._track, self._run, self._last_sample, self._batch = f.track, int(time.time() * 1000), -1, []
+            self._last_clock, self._clock_wall, self._roll = -1, now, None
         run_id = self._run
-        if f.car and f.car != self.car:
-            self.car = f.car
-            self._put(self._hello())
-        if f.clock_ms >= self._last_sample + SAMPLE_MS:
-            self._last_sample = f.clock_ms
-            self._batch.append([f.clock_ms, round(f.x, 2), round(f.y, 2), round(f.z, 2), round(f.heading, 4),
-                                round(f.pitch, 4), round(f.roll, 4)])
+        if f.clock_ms > self._last_clock:                # the stage clock running
+            self._last_clock, self._clock_wall, self._roll = f.clock_ms, now, None
+            if f.clock_ms >= self._last_sample + SAMPLE_MS:
+                self._last_sample, self._sample_wall = f.clock_ms, now
+                self._batch.append([f.clock_ms, round(f.x, 2), round(f.y, 2), round(f.z, 2), round(f.heading, 4),
+                                    round(f.pitch, 4), round(f.roll, 4)])
+        elif now - self._clock_wall >= FROZEN_S:
+            # The clock stopped (the finish, or the game paused). Still moving: the run goes on, on a clock that keeps
+            # counting from the last sample (the car rolling on past the finish line, seen by the others; the user,
+            # 24 Nov 2026: "see the car ghosts even before they start and after the finish"). Stopped: standing.
+            if self._roll is None or now - self._roll[1] >= ROLL_LOOK_S:
+                moved = self._roll is not None and math.dist(self._roll[0], (f.x, f.y, f.z)) > ROLL_M
+                self._roll = ((f.x, f.y, f.z), now, moved)
+            if self._roll[2]:
+                virt = self._last_sample + (now - getattr(self, '_sample_wall', now)) * 1000.0
+                if virt >= self._last_sample + SAMPLE_MS and virt < 3 * 3600 * 1000:
+                    self._last_sample, self._sample_wall = int(virt), now
+                    self._batch.append([self._last_sample, round(f.x, 2), round(f.y, 2), round(f.z, 2),
+                                        round(f.heading, 4), round(f.pitch, 4), round(f.roll, 4)])
+            elif now - self._clock_wall < STAND_MAX_S:
+                self._batch = []
+                self._stand(f, now, -int(run_id or 1))
+                return
         if self._batch and now - self._last_send >= SEND_S:
             self._last_send = now
             m = {'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id or 0), 's': self._batch}
@@ -535,10 +590,26 @@ class LiveLink:
             # your dash now (WATCH's broadcast shows the followed car's: speed, gear, revs, pedals): [clockMs, km/h,
             # gear (0 R, 1 N, 2 first...), rpm, throttle, brake, steering]
             g = lambda k: getattr(f, k, 0) or 0
-            m['d'] = [f.clock_ms, round(float(g('speed')), 1), int(g('gear')), int(g('rpm')), round(float(g('gas')), 2),
-                      round(float(g('brake')), 2), round(float(g('steer')), 2)]
+            m['d'] = [self._batch[-1][0], round(float(g('speed')), 1), int(g('gear')), int(g('rpm')),
+                      round(float(g('gas')), 2), round(float(g('brake')), 2), round(float(g('steer')), 2)]
             self._put(m)
             self._batch = []
+
+    def _stand(self, f, now, run_id):
+        """Your car standing on the stage (at the start line before the clock runs, stopped after the finish or while
+        the game is paused): its pose every STAND_S, on a run of its own whose id is below 0 (the relay passes any
+        run id on as it is; the others' apps tell a standing car by it: LiveDriver.standing)."""
+        if now - getattr(self, '_stand_sent', 0.0) < STAND_S:
+            return
+        self._stand_sent = now
+        m = {'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id),
+             's': [[0, round(f.x, 2), round(f.y, 2), round(f.z, 2), round(f.heading, 4), round(f.pitch, 4),
+                    round(f.roll, 4)]]}
+        if self.room:
+            m['room'] = self.room
+        if self.root:
+            m['root'] = [round(self.root[0], 3), round(self.root[1], 3)]
+        self._put(m)
 
     def _put(self, m):
         if self.state != 'live':
@@ -602,6 +673,27 @@ class LiveLink:
             elif t == 's' and self.watch:            # (sending only: an older relay sends them anyway, dropped)
                 did = m.get('id')
                 d = self.drivers.get(did)
+                run = m.get('run')
+                if isinstance(run, int) and run < 0:
+                    # standing (at the start line, or stopped after the finish / paused): a driver moving on their run
+                    # keeps it (played to its end, then held there); one not driving yet gets a car standing there
+                    if d is not None and isinstance(d.run, int) and d.run > 0:
+                        d.standing, d.seen = True, now
+                        return
+                    if d is None or d.run != run:
+                        d = self.drivers[did] = LiveDriver(did, m.get('name') or _('Driver'), m.get('car') or '', run)
+                        d.sid = m.get('sid') or ''
+                    d.standing = True
+                    d.stand(m.get('s') or [], now)
+                    r = m.get('root')
+                    if isinstance(r, list) and len(r) == 2 and all(isinstance(v, (int, float)) for v in r):
+                        d.root = (float(r[0]), float(r[1]))
+                    lv = m.get('livery')
+                    d.livery = lv if isinstance(lv, str) and 0 < len(lv) <= 80 else None
+                    d.livery_id = m.get('liveryId') if isinstance(m.get('liveryId'), int) else None
+                    return
+                if d is not None and d.run == run:
+                    d.standing = False               # (moving on in the same run: paused, then driving again)
                 if d is None or d.run != m.get('run'):
                     d = self.drivers[did] = LiveDriver(did, m.get('name') or _('Driver'), m.get('car') or '', m.get('run'))
                     d.sid = m.get('sid') or ''

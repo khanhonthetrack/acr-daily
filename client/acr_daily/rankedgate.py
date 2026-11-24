@@ -21,7 +21,7 @@ import time
 import tkinter as tk
 
 from .nextcard import BG, FG2, FONT, FONT_C, LINE2, MUTED, SOFT, WHITE, NextCard, px
-from .widgets import ON_TOP_S, fit_on_screen, keep_on_top
+from .widgets import ON_TOP_S, fit_on_screen, keep_on_top, born, show_window, hide_window
 from . import photos
 from .i18n import _
 
@@ -46,6 +46,7 @@ class TurnWindow:
         self._key = None
         self._ticks = 0
         self.win = w = tk.Toplevel(root)
+        born(w)                                        # (never over the game in front filling its screen)
         w.overrideredirect(True)
         w.attributes('-topmost', True)
         w.protocol('WM_DELETE_WINDOW', lambda: None)       # (it can't be closed: it goes when I start)
@@ -125,8 +126,7 @@ class TurnWindow:
             return
         key = (g['mode'], g['kicker'], g['stage'], g['head'], g['big'], g['line'], g['now'], tuple(g['rows']), g['drive'],
                series)
-        if self.win.state() == 'withdrawn':
-            self.win.deiconify()
+        if self.win.state() == 'withdrawn' and show_window(self.win):   # (never over the game in front filling its screen)
             keep_on_top(self.win)
         if key == self._key:
             return
@@ -186,8 +186,8 @@ class TurnWindow:
         """Put away; keep: still said in the game (show(..., visible=False))."""
         if not keep:
             self.active = False
-        if self.alive and self.win.state() != 'withdrawn':
-            self.win.withdraw()
+        if self.alive:
+            hide_window(self.win)
 
     def _tick(self):
         if not self.alive:

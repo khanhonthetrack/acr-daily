@@ -189,6 +189,8 @@ export default {
  "member": "membre",
  "private": "privée",
  "No cups yet.": "Pas encore de coupes.",
+ "Series": "Série",
+ "No ranked rallies yet.": "Aucun rallye classé pour l’instant.",
  "{0} drivers": [
   "{0} pilote",
   "{0} pilotes"

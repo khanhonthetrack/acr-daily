@@ -391,6 +391,26 @@ def game_running():
         return bool(pids)
 
 
+def game_started_at():
+    """When the running game started (unix seconds), or None (not running, can't be told). The game reads its packages
+    (the stage lists among them) as it starts: one changed after that is not the one it runs with."""
+    if not game_running() or _held is None:
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k = ctypes.WinDLL('kernel32')
+        k.GetProcessTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
+        k.GetProcessTimes.restype = wintypes.BOOL
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if not k.GetProcessTimes(_held[1], *[ctypes.byref(t) for t in times]):
+            return None
+        ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime     # 100 ns since 1601
+        return ft / 1e7 - 11644473600
+    except Exception:
+        return None
+
+
 def ask_game_to_quit():
     """Ask the game to close the normal way (like clicking the window's X), so it saves as it always does on exit.
     -> True if a game window got the request. The game may still ask the player to confirm."""

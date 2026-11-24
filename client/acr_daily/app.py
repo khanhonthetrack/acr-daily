@@ -2009,7 +2009,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 old_way()
             elif from_game:
                 ig.ask(what, [words, _('ACR Daily can close the game, set it up and start it again instead.')],
-                       _('RESTART THE GAME'), old_way)
+                       _('RESTART THE GAME'), old_way, safe=True, expires_s=120)
                 ig.ask_open = True                     # (the pages back over the game's menu, the question on them)
             elif messagebox.askyesno('ACR Daily', words + '\n\n' + _('Close the game, set it up and start it again?')):
                 old_way()

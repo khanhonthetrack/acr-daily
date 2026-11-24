@@ -52,7 +52,42 @@ def ready(app):
             return False
     except Exception:
         return False
+    if packages_changed_since_start():
+        return False                    # (the old way: the game started again, with the packages as they are now)
     return not rally_in_progress()
+
+
+def packages_changed_since_start(game=None, started=None):
+    """Has a package in the game's ~mods changed (a stage set installed, the one stage list for all the sets made again)
+    since the running game started? The game reads them as it starts: DRIVE in that game would set up a stage it has no
+    rows for. It CRASHED the game on the tyre allocation (the user, 24 Nov 2026: London installed from the game's own
+    COMMUNITY page, the game started again 30 s before the stage list was made, then DRIVE on TT3 London). True: DRIVE
+    goes the old way (the game started again)."""
+    import os
+    global _game
+    started = saveslot.game_started_at() if started is None else started
+    if not started:
+        return False
+    try:
+        if game is None:
+            if _game is None:
+                from .modinstall import game_dir
+                _game = game_dir() or ''
+            game = _game
+        mods = os.path.join(game, 'acr', 'Content', 'Paks', '~mods') if game else None
+        if not mods or not os.path.isdir(mods):
+            return False
+        for name in os.listdir(mods):
+            if name.lower().endswith(('.pak', '.ucas', '.utoc')):
+                p = os.path.join(mods, name)
+                if max(os.path.getmtime(p), os.path.getctime(p)) > started + 2:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+_game = None                            # (the game's folder, looked up once: packages_changed_since_start)
 
 
 def held_by_rally(app):

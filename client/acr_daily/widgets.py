@@ -140,6 +140,8 @@ class _Windows:
         u.GetWindow.restype = u.GetParent.restype = wintypes.HWND
         u.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
         u.GetParent.argtypes = u.IsWindowVisible.argtypes = u.IsIconic.argtypes = u.IsWindow.argtypes = (wintypes.HWND,)
+        u.GetForegroundWindow.restype = wintypes.HWND
+        u.GetForegroundWindow.argtypes = ()
         u.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
         u.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
         u.MonitorFromWindow.restype = wintypes.HANDLE
@@ -246,11 +248,22 @@ def covered(hwnd, w):
 
 
 def keep_on_top(win, w=None):
-    """A shown overlay (a Tk toplevel) back on top if another program's window has come over it. -> True if it was."""
+    """A shown overlay (a Tk toplevel) back on top if another program's window has come over it. -> True if it was.
+    Never over the game in front filling its screen (game_in_front): put away then, and back once it isn't."""
     w = w or windows()
     if w is None:
         return False
     try:
+        if game_in_front():
+            if win.winfo_ismapped():
+                win.withdraw()
+                win._acr_held = True
+            return False
+        if getattr(win, '_acr_held', False) is True:
+            win._acr_held = False
+            win.deiconify()
+            win.attributes('-topmost', True)
+            return True
         if win.winfo_ismapped() and covered(w.wrapper(win), w):
             win.attributes('-topmost', True)
             return True
@@ -333,6 +346,74 @@ class GameScreen:
         except Exception:                 # (never a reason to stop the app's tick)
             self._rect = None
         return self._rect
+
+
+# ---- never a window of the app over the game in front, filling its screen
+# A window coming over a game that fills its screen makes Windows switch the game's picture from going straight to the
+# screen to being composed with that window. With NVIDIA's frame generation (DLSS FG) on, the game's next present can
+# fail on that switch ("Streamline/DLSSG present failed ... DXGI_ERROR_INVALID_CALL") and the game stops with a fatal
+# error: Giulio Turatti, 22 Nov 2026, at the finish of three stages in a row, each time as the comment card's window came
+# up over the results (the game hitched there, its mod's file stood still for 2 s, the app took it that the game no
+# longer drew the card and showed its window). So the cards' windows (comment, next daily / time trial, ranked) are made
+# hidden while the game is in front filling a screen (born), shown only through show_window, and put away again by
+# keep_on_top (every card's tick) if the game comes to the front; the game draws them meanwhile (ingamehud.py).
+_game_screen = None
+
+
+def game_in_front():
+    """Is the game's window the one in front, filling its screen? (False when it can't be told.)"""
+    global _game_screen
+    w = windows()
+    if w is None:
+        return False
+    try:
+        if _game_screen is None:
+            _game_screen = GameScreen(w)
+        if not _game_screen.rect() or not _game_screen.hwnd:
+            return False
+        return (w.u.GetForegroundWindow() or 0) == (_game_screen.hwnd or 0)
+    except Exception:
+        return False
+
+
+def born(win):
+    """A card's window just made (before Tk shows it): kept back while the game is in front filling its screen; its
+    keep_on_top shows it once the game isn't."""
+    try:
+        if game_in_front():
+            win.withdraw()
+            win._acr_held = True
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def show_window(win):
+    """A card's window shown, unless the game is in front filling its screen (kept back: keep_on_top shows it later).
+    -> True if shown."""
+    try:
+        if game_in_front():
+            win._acr_held = True
+            if win.state() != 'withdrawn':
+                win.withdraw()
+            return False
+        win._acr_held = False
+        if win.state() == 'withdrawn':
+            win.deiconify()
+        return True
+    except Exception:
+        return False
+
+
+def hide_window(win):
+    """A card's window put away on purpose (the game draws it): not brought back by keep_on_top."""
+    try:
+        win._acr_held = False
+        if win.state() != 'withdrawn':
+            win.withdraw()
+    except Exception:
+        pass
 
 
 class Widget:

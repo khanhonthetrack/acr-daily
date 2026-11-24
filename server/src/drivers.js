@@ -29,6 +29,7 @@ import { ACHIEVEMENTS } from './achievements.js';
 import { cached } from './cache.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { tmPlain, tmStyled } from './tmtext.js';
+import { driverRanked, driverRankedStmt } from './liverallies.js';
 
 export const NAME = { min: 3, max: 20, everyDays: 7 };
 export const AVATAR = { maxBytes: 60_000, min: 64, max: 512 };
@@ -370,7 +371,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
       team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color, tagFmt: p.look_tag_fmt || null } : null,
       rating: rankOut(rk.results[0]), ratingOn: !!env.RATING_FROM, lite: true });
   }
-  const [pl, rk, hist, agg, recent, distance, cars, tracks, leagues, cups, duels, ach] = await env.DB.batch([
+  const [pl, rk, hist, agg, recent, distance, cars, tracks, leagues, cups, duels, ach, rankedRows] = await env.DB.batch([
     q(`SELECT p.*, ${LOOK_COLS}, lkt.id AS team_id, lkt.name AS team_name, lkt.name_fmt AS team_name_fmt, lkt.captain AS team_captain
        FROM players p ${lookJoin('p.steam_id')} WHERE p.steam_id = ?`, sid),
     q(RANK_SQL, sid),
@@ -389,6 +390,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
     q(`SELECT SUM(winner = ?1) AS won, SUM(winner IS NOT NULL AND winner != ?1) AS lost, SUM(winner IS NULL) AS drawn
          FROM h2h WHERE status = 'settled' AND (challenger = ?1 OR opponent = ?1)`, sid),
     q('SELECT id, at FROM achievements WHERE steam_id = ?', sid),
+    driverRankedStmt(env, sid),                      // (their ranked rallies: src/liverallies.js)
   ]);
   // how rare each achievement is (of the drivers who have signed in): counted once an hour, not for every page
   const rarity = await cached(env, 'ach-rarity', 3600000, async () => {
@@ -399,6 +401,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
   });
   const p = pl.results[0];
   if (!p || (p.banned && !mine)) return err('no such driver', 404);
+  const ranked = await driverRanked(env, sid, rankedRows.results).catch(() => []);   // (with their places)
   const rallies = new Map();
   for (const t of tracks.results) { const r = stageParts(t.track).rally; rallies.set(r, (rallies.get(r) || 0) + t.n); }
   const favRally = [...rallies].sort((a, b) => b[1] - a[1])[0];
@@ -427,6 +430,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
       car: r.car, delta: r.delta })),
     leagues: leagues.results.filter((l) => l.public || mine).map((l) => ({ id: l.id, name: l.name, role: l.role, public: !!l.public })),
     cups: cups.results.map((c) => ({ id: c.id, name: c.name, status: c.status, place: c.place, drivers: c.drivers, starts: c.starts })),
+    ranked,
     me: mine ? { customName: p.custom_name || null, steamName: p.steam_name || p.name, steamAvatar: p.steam_avatar || null,
       ownAvatar: !!p.avatar_set, nameSet: p.name_set || null, countrySet: !!p.country_set,
       nextNameChange: p.name_set ? p.name_set + NAME.everyDays * 86400000 : null } : null,

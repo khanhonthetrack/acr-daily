@@ -250,16 +250,47 @@ class InGameApp:
         self.drives = Drives()       # DRIVE done in the running game (ingamedrive.py): its answers
         self.nav = None              # the game's menu buttons on the wheel / pad (ingamenav.py), once the pages show
         self._front_at, self._front = -1e9, False
+        self._stage_n, self._was_on_stage, self._down_since = 0, False, None   # (_dialog_upkeep)
 
     # ---- what a page has to hand
     def mem(self, tab):
         """A page's own state (a sub-tab picked, a draft...): kept while the app runs."""
         return self._mem.setdefault(tab, {})
 
-    def ask(self, title, lines, go_label, fn, cancel=None):
-        """A question over the page: go_label does fn."""
+    def ask(self, title, lines, go_label, fn, cancel=None, safe=False, expires_s=None):
+        """A question over the page: go_label does fn. safe: the keyboard / wheel starts on CANCEL, not on go_label (a
+        question that closes the game: one Enter or wheel press meant for something else never does it); expires_s:
+        dropped after that long unanswered. Any question that does something goes once the game has been on a stage
+        since it was asked, or has been closed (_dialog_upkeep)."""
         self.dialog = {'title': title, 'lines': [str(x) for x in lines], 'go': (go_label, fn),
-                       'cancel': cancel or _('CANCEL')}
+                       'cancel': cancel or _('CANCEL'), 'safe': bool(safe), 'stage_n': self._stage_n,
+                       'until': (time.monotonic() + expires_s) if expires_s else None}
+
+    STALE_DOWN_S = 5.0               # the game gone this long: a question that does something is dropped
+
+    def _dialog_upkeep(self, now=None):
+        """A question that does something, left unanswered, never outlives what it was about: dropped (with the pages'
+        call to open for it) once the game has been on a stage since it was asked, has been closed (or crashed) a while,
+        or its time is up. (24 Nov 2026: a DRIVE that failed asked RESTART THE GAME, its button focused; the question
+        waited through the stage and came up on the next main menu, where the Enter / wheel press meant for the game's
+        menu restarted the game into the same daily: "clicking main menu, a user ended up on the same daily".)"""
+        now = time.monotonic() if now is None else now
+        on_stage = self._on_a_stage()
+        if on_stage and not self._was_on_stage:
+            self._stage_n += 1
+        self._was_on_stage = on_stage
+        up = self.game_up()
+        if up:
+            self._down_since = None
+        elif self._down_since is None:
+            self._down_since = now
+        d = self.dialog
+        if not d or not d.get('go'):
+            return
+        gone = self._down_since is not None and now - self._down_since > self.STALE_DOWN_S
+        if d.get('stage_n', self._stage_n) != self._stage_n or gone or (d.get('until') and now > d['until']):
+            self.dialog = None
+            self.ask_open = False
 
     def say(self, title, lines):
         self.dialog = {'title': title, 'lines': [str(x) for x in lines], 'cancel': _('OK')}
@@ -315,6 +346,7 @@ class InGameApp:
         for what, rest in self.events.poll():
             self.event(what, rest)
         self.drives.check(now)
+        self._dialog_upkeep()
         if self.shown and not self.game_up():
             # the game gone (closed for a restart, crashed) with the pages on: they are not, and the app's questions go
             # to its window again (a review, 21 Nov 2026: they went to pages nobody saw and the set-up stopped)
@@ -703,7 +735,8 @@ class InGameApp:
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
-                          'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
+                          'go' if self.dialog and self.dialog.get('go') and not self.dialog.get('safe') else
+                          'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
                 'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.stage_overlay(),
                 'chat': self._chat_on_stage,       # (RANKED's chat over the stage: T opens the mod's box to write)
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)

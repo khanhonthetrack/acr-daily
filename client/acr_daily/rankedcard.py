@@ -15,7 +15,7 @@ import time
 import tkinter as tk
 
 from .nextcard import ACC, ACC_TEXT, BG, FG2, FONT, FONT_C, PANEL2, WHITE, NextCard, px
-from .widgets import ON_TOP_S, fit_on_screen, keep_on_top
+from .widgets import ON_TOP_S, fit_on_screen, keep_on_top, born
 from .i18n import _
 
 STEP_MS = 250
@@ -34,6 +34,7 @@ class RankedCard:
         self.deadline = deadline
         self._span = max(1.0, (deadline - time.monotonic())) if deadline else None
         self.win = w = tk.Toplevel(root)
+        born(w)                                        # (never over the game in front filling its screen)
         w.overrideredirect(True)
         w.attributes('-topmost', True)
         w.configure(bg=BG, highlightthickness=2, highlightbackground=colour)

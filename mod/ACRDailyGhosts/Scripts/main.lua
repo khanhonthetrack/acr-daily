@@ -711,7 +711,7 @@ local function destroy(c)
 end
 
 local function park(c, t)
-    if pooled >= POOL_MAX or not c.actor:IsValid() then
+    if pooled >= POOL_MAX or c.painted or not c.actor:IsValid() then
         destroy(c)
         return
     end
@@ -1241,17 +1241,13 @@ local function mesh_comps(a)
     else list:ForEach(function(_, e) add(e:get()) end) end
     return out
 end
+-- The ghost's own paint is NOT put back: once swapped for yours nothing in the game holds its old materials (a Lua
+-- reference doesn't keep a UObject alive), the game frees them, and SetMaterial with one CRASHED the game (null + 0x38
+-- in SetMaterial, the user's game 22 Nov 22:28 and 24 Nov 08:47, both as the car followed finished: WATCH off put the
+-- paint back). A painted ghost keeps that paint and is never kept for another driver (park: removed when it goes);
+-- not removed here either: the game's pace notes may still point at it (notes_follow), and a removed car there is the
+-- same kind of crash.
 local function livery_restore()
-    local g, saved = LIV.ghost, LIV.saved
-    if g and saved and g.actor and g.actor:IsValid() then
-        local comps = mesh_comps(g.actor)
-        for name, mats in pairs(saved) do
-            local mc = comps[name]
-            if mc then
-                for i, m in pairs(mats) do pcall(function() mc:SetMaterial(i, m) end) end
-            end
-        end
-    end
     LIV.ghost, LIV.saved, LIV.copy_at = nil, nil, nil
 end
 local function livery_tick(c, me, t)
@@ -1285,8 +1281,7 @@ local function livery_tick(c, me, t)
                     pcall(function()
                         local m = mc:GetMaterial(i)
                         if m and m:IsValid() then
-                            saved[cname] = saved[cname] or {}
-                            saved[cname][i] = gc:GetMaterial(i)
+                            saved[cname] = true          -- (painted: never pooled, park)
                             gc:SetMaterial(i, m)
                             n = n + 1
                         end
@@ -1294,7 +1289,8 @@ local function livery_tick(c, me, t)
                 end
             end
         end
-        LIV.saved = saved
+        LIV.saved = n > 0 and saved or nil
+        if n > 0 then c.painted = true end                -- (never kept for another driver: park)
         log("watch: livery on the car followed (%d paints)", n)
     end
 end

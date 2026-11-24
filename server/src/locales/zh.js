@@ -186,6 +186,8 @@ export default {
  "member": "成员",
  "private": "私密",
  "No cups yet.": "还没有杯赛。",
+ "Series": "系列赛",
+ "No ranked rallies yet.": "还没有排位拉力赛。",
  "{0} drivers": [
   "{0} 名车手"
  ],

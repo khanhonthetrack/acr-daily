@@ -49,6 +49,14 @@ WORK = 'ACRDaily-build'
 _STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)$', re.I)
 
 
+def _game_running():
+    try:
+        from .saveslot import game_running
+        return game_running()
+    except Exception:
+        return False
+
+
 class ListError(Exception):
     """kind: 'tools' (Sando's tools aren't on this PC), 'build' (a step failed: its words)."""
 
@@ -426,6 +434,8 @@ def build(game, tool=None, run=None):
     taken out). -> {set: number of rows it brought}. Raises ListError ('tools', 'build'): then no list of ours is
     left in the game."""
     run = run or _run
+    if run is _run and _game_running():                  # (never under a running game: it read the old list as it
+        raise ListError('running', 'the game is running')   # started, and runs with it; the tests' run fakes skip this)
     remove(game)                                         # (ours out first: the sets' copies are read as they are)
     found = carriers(game)
     if not needed(game, found):
@@ -484,6 +494,8 @@ def build(game, tool=None, run=None):
         run([t['retoc'], 'to-zen', '--no-parallel', '--version', 'UE5_6', mod, os.path.join(out, NAME + '.utoc')], 'packing')
         mods = os.path.join(_paks(game), '~mods')
         os.makedirs(mods, exist_ok=True)
+        if run is _run and _game_running():              # (the game started meanwhile: the list left out, made again
+            raise ListError('running', 'the game started')   # with the game closed; it never changes under the game)
         for x in EXTS:
             shutil.move(os.path.join(out, NAME + '.' + x), os.path.join(mods, NAME + '.' + x))
         s = settings.load()

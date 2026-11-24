@@ -90,7 +90,9 @@ const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGI
 const RALLY = 'event';
 const DAY = 86400000;
 /** May someone see a league's events at all (a private rally without its code: only what it races, `locked`)? */
-const canSee = (l, role) => !!(l.public || role || l.kind === 'league');
+// (a ranked session's holder, kind 'live', is not public but its rallies' results are everyone's: the /ranked page
+// links each to /e/<id>, which said "No such event" to all but its drivers, 24 Nov 2026)
+const canSee = (l, role) => !!(l.public || role || l.kind === 'league' || l.kind === 'live');
 const lockedRally = (l, role) => l.kind === RALLY && !l.public && !role;
 // apps that list private rallies with a lock and ask for their code (client api.py sends it from 0.1.6): older ones
 // list only the public ones, as before

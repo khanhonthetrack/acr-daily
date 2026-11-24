@@ -162,8 +162,27 @@ def part_profile(ig, d):
                panel(_('Driver rating'), rating(d), pad=[0, 16, 0, 0]),
                leagues(d))
     right = col(panel(_('Career'), career_grid(d)),
-                panel(_('Last dailies'), last_dailies(d), pad=[0, 16, 0, 0]))
+                panel(_('Last dailies'), last_dailies(d), pad=[0, 16, 0, 0]),
+                ranked(d))
     return row(size(left, w=HALF), sp(GAP), size(right, w=HALF))
+
+
+def ranked(d):
+    """The ranked rallies driven (the last 6; the server's /api/drivers 'ranked', newest first): when, the series and
+    the rally, where they came; each opens its results on the website."""
+    rows = (d.get('ranked') or [])[:6]
+    if not rows:
+        return None
+    out = []
+    for r in rows:
+        when = i18n.strftime(_('%a %d %b %H:%M'), dt.datetime.fromtimestamp((r.get('starts') or 0) / 1000).timetuple())
+        place = ('P%d / %d' % (r['rank'], r.get('drivers') or 0)) if r.get('rank') else _('DNF')
+        fg = BAD if not r.get('rank') else WHITE if r['rank'] == 1 else SOFT
+        what = '  ·  '.join(x for x in (r.get('seriesName') or r.get('series'), r.get('rally')) if x)
+        out.append(row(size(txt(when, 17, 'medium', MUTED), w=150),
+                       link(tab_id(TAB, 'ranked', r.get('eventId')), what + '  ›', sz=17, fill=1),
+                       size(txt(place, 17, 'bold', fg, j=2), w=110), pad=[0, 4, 0, 0]))
+    return panel(_('Ranked'), *out, pad=[0, 16, 0, 0])
 
 
 def who(ig, d):
@@ -525,6 +544,9 @@ def click(ig, action, arg):
         ig.browser()
     elif action == 'cup' and arg:
         a.open_page('/cup/%s' % arg)
+        ig.browser()
+    elif action == 'ranked' and arg and str(arg).isdigit():   # (a ranked rally's results: the website's /e/<id>)
+        a.open_page('/e/%s' % arg)
         ig.browser()
     elif action == 'shop':
         m['shop'] = arg if arg in dict(SHOP_PARTS) else 'looks'

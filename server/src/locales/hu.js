@@ -186,6 +186,8 @@ export default {
  "member": "tag",
  "private": "privát",
  "No cups yet.": "Még nincsenek kupák.",
+ "Series": "Sorozat",
+ "No ranked rallies yet.": "Még nincs rangsorolt rali.",
  "{0} drivers": [
   "{0} versenyző"
  ],

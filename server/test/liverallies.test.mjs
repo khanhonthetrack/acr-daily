@@ -6,7 +6,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
+import { driverRanked, driverRankedStmt, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
 import { leaguesApi } from '../src/leaguesapi.js';
 import { MENU_NAMES } from '../src/stages.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -342,6 +342,17 @@ test('the results are out when every driver is done', async () => {
   assert.deepEqual(o.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.winner, r.me && r.me.status, r.me && r.me.rank]),
     [['rally2', H, 2, true, null, 'dnf', null]]);
   assert.equal((await live(f, '/api/liverallies', DAN, H + 3 * 3600000)).body.recent[0].me, null);    // (not in it)
+  // its results page (/e/<id>, linked from /ranked): open to anyone, not only its drivers (it said "No such event")
+  for (const who of [DAN, null]) {
+    const e = await league(f, `/api/events/${id}`, who, H + 3 * 3600000);
+    assert.equal(e.status, 200, String(who));
+    assert.equal(e.body.league.kind, 'live');
+  }
+  // and on its drivers' own pages: their ranked rallies (src/drivers.js)
+  const rows = (await driverRankedStmt(f.env, CAT, H + 3 * 3600000).all()).results;
+  assert.deepEqual((await driverRanked(f.env, CAT, rows, H + 3 * 3600000)).map((r) => [r.series, r.starts, r.eventId, r.drivers,
+    r.status, r.rank]), [['rally2', H, id, 2, 'dnf', null]]);
+  assert.deepEqual((await driverRankedStmt(f.env, DAN, H + 3 * 3600000).all()).results, []);
 });
 
 test('the overview: the series, their sessions with sign-ups; off without LIVE_FROM', async () => {

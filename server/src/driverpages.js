@@ -115,6 +115,7 @@ export function driverPage(sid, env, meta = {}) {
   <h2 id="achievements">${t('Achievements')} <span class="achn" id="achn"></span></h2><div class="achgrid" id="ach"></div>
   <h2>${t('Career')}</h2><div class="statgrid" id="stats"></div>
   <h2>${t('Recent dailies')}</h2><div class="tablewrap"><table id="recent"></table></div>
+  <h2>${t('Ranked')}</h2><div class="tablewrap"><table id="ranked"></table></div>
   <h2>${t('Championships')}</h2><div id="leagues"></div>
   <h2>${t('Cups')}</h2><div id="cups"></div>`, `${DRV_JS()}${COUNTRY_JS()}
   var SID=${JSON.stringify(sid)},D=null;
@@ -143,7 +144,7 @@ export function driverPage(sid, env, meta = {}) {
     if(!d.me&&d.signedIn){var mg=el('a','btn ghost',${tq('Message')});mg.href='/inbox?with='+d.steamId;
       var ch=el('a','btn',${tq('Challenge to a 1V1')});ch.href='/1v1?to='+d.steamId+'&name='+encodeURIComponent(d.name);add(a,mg,ch)}
     var sp=el('a','btn ghost small',${tq('Steam profile')});sp.href='https://steamcommunity.com/profiles/'+d.steamId;sp.target='_blank';sp.rel='noopener';a.appendChild(sp);
-    if(d.me)edit(d);rating(d);achievements(d);stats(d);recent(d);leagues(d);cups(d);if(location.hash==='#achievements'&&!SCROLLED){SCROLLED=true;$('achievements').scrollIntoView()}}
+    if(d.me)edit(d);rating(d);achievements(d);stats(d);recent(d);ranked(d);leagues(d);cups(d);if(location.hash==='#achievements'&&!SCROLLED){SCROLLED=true;$('achievements').scrollIntoView()}}
 
   // ---- achievements, as Steam shows them: the unlocked ones first (newest first), each its tile, name, what it takes,
   // when, and how many drivers have it; the rest greyed with a lock
@@ -207,6 +208,17 @@ export function driverPage(sid, env, meta = {}) {
       tr.appendChild(el('td','r'+(r.place===1?' tot':''),r.place?nth(r.place)+' / '+r.field:${tq('DNF')}));
       var tt=el('td','r t');if(r.totalMs!=null&&r.runId){var ta=el('a',null,ms(r.totalMs));ta.href='/run/'+r.runId;tt.appendChild(ta)}tr.appendChild(tt);
       tr.appendChild(el('td','r '+(r.delta>0?'up':r.delta<0?'down':'muted'),delta(r.delta)));t.appendChild(tr)})}
+
+  // ---- the ranked rallies they drove (the last 15): when, the series, the rally, where they came, their time; each to
+  // its results (/e/<id>)
+  function ranked(d){var t=$('ranked');t.innerHTML='';var h=el('tr'),L=d.ranked||[];
+    [${tq('Day')},${tq('Series')},${tq('Rally')},${tq('Place')},${tq('Time')}].forEach(function(x,i){h.appendChild(el('th',i>=3?'r':null,x))});t.appendChild(h);
+    if(!L.length){var tr=el('tr'),td=el('td','empty',${tq('No ranked rallies yet.')});td.colSpan=5;tr.appendChild(td);t.appendChild(tr);return}
+    L.forEach(function(r){var tr=el('tr',r.rank===1?'p1':'');
+      var dl=el('a',null,FDATE(r.starts)+' '+new Date(r.starts).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'}));dl.href='/e/'+r.eventId;
+      add(tr,add(el('td'),dl),el('td',null,r.seriesName||r.series),el('td','muted',TD(r.rally)||''));
+      tr.appendChild(el('td','r'+(r.rank===1?' tot':''),r.rank?nth(r.rank)+' / '+r.drivers:${tq('DNF')}));
+      tr.appendChild(el('td','r t',r.totalMs!=null&&r.rank?ms(r.totalMs):''));t.appendChild(tr)})}
 
   var ROLES={owner:${tq('owner')},admin:${tq('admin')},member:${tq('member')}};
   function leagues(d){var b=$('leagues');b.innerHTML='';

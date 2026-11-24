@@ -244,7 +244,9 @@ class Relay(unittest.TestCase):
             self.assertAlmostEqual(d.pose(time.monotonic())[2], (time.monotonic() - t0 - d.delay_ms() / 1000.0) * 20,
                                    delta=4.0)                               # (played back a little behind)
             self.assertEqual(c.others(), [])                                # another stage hears nothing
-            self.assertEqual(a.others(), [])                                # nor does she hear herself
+            # nor does she hear herself; Bob, waiting at the start (his clock at 0), is a car standing there
+            self.assertTrue(wait(lambda: [(x.name, x.standing) for x in a.others()] == [('Bob', True)]))
+            self.assertFalse(d.standing)
             a.feed(frame(0, 0, 0, track=''))                          # Alice leaves the stage
             self.assertTrue(wait(lambda: b.others() == []))
         finally:
@@ -272,7 +274,8 @@ class Relay(unittest.TestCase):
             self.assertTrue(wait(lambda: len(b.others()) == 1))
             self.assertEqual(b.others()[0].name, 'Session driver')
             self.assertEqual(c.others(), [])                     # the daily's driver sees no one of the session
-            self.assertEqual(a.others(), [])                     # and the session no one of the dailies
+            # and the session no one of the dailies (Bob, waiting in the session: a car standing at its start)
+            self.assertEqual([(d.name, d.standing) for d in a.others()], [('Session, waiting', True)])
             b.room = None                                        # Bob leaves the session's room: the stage's own
             t1 = time.monotonic()
 
@@ -332,9 +335,50 @@ class Relay(unittest.TestCase):
             self.assertTrue(wait(lambda: len(c.others()) == 1))
             self.assertEqual(c.others()[0].name, 'Munster driver')       # the one on its stage, not the other Forêt
             self.assertEqual([d.name for d in b.others()], [])
-            self.assertEqual([d.name for d in a.others()], [])
+            # (the one waiting at Munster's start: a car standing there, for Munster's driver only)
+            self.assertTrue(wait(lambda: [(d.name, d.standing) for d in a.others()] == [('Munster, waiting', True)]))
         finally:
             for x in (a, b, c):
+                x.close()
+
+    def test_after_the_finish_the_car_rolls_on_then_stands(self):
+        """The stage clock stops at the finish: the car rolling on is still sent in its run (a clock that keeps
+        counting), and once stopped it stands there (a run below 0): the others keep it, its run kept, standing."""
+        a = livelink.LiveLink(self.url, 'Finisher')
+        b = livelink.LiveLink(self.url, 'Watcher')
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == 'live'))
+            a.feed(frame(0, 0, 0))
+            b.feed(frame(0, 0, 0))
+            time.sleep(0.3)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 0.6:                       # driving
+                ms = int((time.monotonic() - t0) * 1000) + 1
+                a.feed(frame(ms, 0.0, ms / 50.0))
+                b.feed(frame(0, 0, 0))
+                time.sleep(0.02)
+            end = ms
+            t1 = time.monotonic()
+            while time.monotonic() - t1 < 1.5:                       # the clock stopped, the car rolling on
+                z = end / 50.0 + (time.monotonic() - t1) * 10.0
+                a.feed(frame(end, 0.0, z))
+                b.feed(frame(0, 0, 0))
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: b.others() and b.others()[0].trace.ms[-1] > end + 500))
+            d = b.others()[0]
+            self.assertGreater(d.run, 0)
+            self.assertGreater(d.trace.s[-1][3], end / 50.0 + 5.0)  # (its samples went on past the line)
+            still = d.trace.s[-1][3] + 0.0
+            t2 = time.monotonic()
+            while time.monotonic() - t2 < 2.0:                       # stopped there
+                a.feed(frame(end, 0.0, z))
+                b.feed(frame(0, 0, 0))
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: b.others() and b.others()[0].standing))
+            self.assertIs(b.others()[0], d)                          # (the same run: played to its end, then held)
+            self.assertGreaterEqual(d.trace.s[-1][3], still)
+        finally:
+            for x in (a, b):
                 x.close()
 
     def test_senders_only_get_nothing(self):
@@ -409,6 +453,9 @@ class CheckedNames(Relay):
 
     def test_the_others_on_your_stage_and_nobody_else(self):
         pass
+
+    def test_after_the_finish_the_car_rolls_on_then_stands(self):
+        pass                                     # (the same with tickets: Relay's)
 
     def test_two_stages_of_the_same_name(self):
         pass

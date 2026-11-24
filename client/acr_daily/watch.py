@@ -24,6 +24,7 @@ CAM_NAMES = {'auto': _('AUTO'), 'tv': _('TV'), 'incar': _('IN-CAR'), 'cockpit': 
 GRAPHICS = ('full', 'clean', 'off')        # all of the broadcast / the driver bar and dash only / nothing
 GRAPHICS_NAMES = {'full': _('FULL'), 'clean': _('CLEAN'), 'off': _('OFF')}
 FALLBACK_S = 3.0                  # the followed driver gone from the relay this long: the next one
+STANDING_NEXT_S = 12.0            # the followed car standing (its finish played back: 5 s late) this long: one driving
 ROUTE_AHEAD_M, ROUTE_STEP_M = 520.0, 10.0  # the road ahead of the followed car the mod is told (its TV cameras)
 AUTO_DRIVER_S = 40.0              # AUTO driver: another driver at most this often
 # the spectator menu's lines (Up / Down between them, Left / Right change them, Select / Back close it)
@@ -40,6 +41,7 @@ class Watch:
         self.cam = 0
         self.since = None
         self._lost_at = None
+        self._standing_at = None              # (the followed car standing since: followed())
         self.on_stage = False                 # (been on the stage since WATCH began: back in the menus ends it)
         self.menu = None                      # the spectator menu: None (closed) or the line on (MENU's index)
         self.graphics = 'full'
@@ -90,7 +92,8 @@ class Watch:
         for d in out:                                # (a broadcast's steady delay: livelink.WATCH_DELAY_MS)
             d.floor_ms = WATCH_DELAY_MS if self.on else 0
         rows = [(self.where(d), d) for d in out]
-        rows.sort(key=lambda x: -(x[0]['progress'] if x[0] else -1))
+        # (the cars driving first, furthest on first; then the ones standing: at the start, or after their finish)
+        rows.sort(key=lambda x: (bool(getattr(x[1], 'standing', False)), -(x[0]['progress'] if x[0] else -1)))
         return [d for _w, d in rows]
 
     def held(self):
@@ -178,6 +181,8 @@ class Watch:
             self._auto_at = now
             best = None
             for d in ds:
+                if getattr(d, 'standing', False):
+                    continue                         # (standing at the start / after the finish: not a fight to watch)
                 g = (self.where(d, now) or {}).get('gap')
                 if g is not None and (best is None or g < best[0]):
                     best = (g, d.id)
@@ -194,7 +199,19 @@ class Watch:
                 self.prefer = None
         if self.target in ids:
             self._lost_at = None
-            return next(d for d in ds if d.id == self.target)
+            d = next(d for d in ds if d.id == self.target)
+            # (a car standing: their finish shown, then on to one driving, if any: the cars stay on the stage now,
+            # standing at the start and after the finish, 24 Nov 2026)
+            if getattr(d, 'standing', False):
+                if self._standing_at is None:
+                    self._standing_at = now
+                moving = [x for x in ds if not getattr(x, 'standing', False)]
+                if moving and now - self._standing_at >= STANDING_NEXT_S:
+                    self.target, self._standing_at = moving[0].id, None
+                    return moving[0]
+            else:
+                self._standing_at = None
+            return d
         if self.target is not None and self._lost_at is None:
             self._lost_at = now
         if ds and (self.target is None or now - (self._lost_at or now) >= FALLBACK_S):

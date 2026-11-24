@@ -17,7 +17,7 @@ import tkinter as tk
 from . import i18n
 from .api import ApiError
 from .i18n import _
-from .widgets import fit_on_screen, keep_on_top, ON_TOP_S
+from .widgets import fit_on_screen, keep_on_top, ON_TOP_S, born, show_window, hide_window
 
 MAX = 200          # characters (the server's COMMENT.maxLen)
 CELL = 44          # characters of it on the app's timing sheet, in the driver's cell
@@ -90,6 +90,7 @@ class CommentCard:
         self._said = {'title': title, 'title_c': title_fg, 'what': what, 'note': note}   # (for the game: snapshot)
         self._msg = None
         self.win = w = tk.Toplevel(root)
+        born(w)                          # (never over the game in front filling its screen: widgets.game_in_front)
         w.overrideredirect(True)
         w.attributes('-topmost', True)
         w.configure(bg=BG, highlightthickness=1, highlightbackground=ACC)
@@ -285,13 +286,12 @@ class CommentCard:
 
     def in_game(self, on):
         """The game draws it (on): its window put away, the card itself goes on (its time, its buttons' keys)."""
-        try:
-            if on and self.win.state() != 'withdrawn':
-                self.win.withdraw()
-            elif not on and self.win.state() == 'withdrawn':
-                self.win.deiconify()
-        except tk.TclError:
-            pass
+        if not self.alive:
+            return
+        if on:
+            hide_window(self.win)
+        elif self.win.state() == 'withdrawn':
+            show_window(self.win)            # (not over the game in front filling its screen: kept back then)
 
 
 class CommentUI:

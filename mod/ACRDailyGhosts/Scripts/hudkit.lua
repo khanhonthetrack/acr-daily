@@ -225,35 +225,78 @@ local KRL = nil
 -- stage picker shows; a community stage's too), "ue:loc:<location row>" its location's (DT_TracksLocationsBackgrounds),
 -- "ue:/Game/..." a texture by path. Its asset path found once in the game's tables (probed 21 Nov 2026).
 local game_paths = nil
+-- The pictures' asset paths are read as each table's own text (DataTableFunctionLibrary:GetDataTableColumnAsString),
+-- never as soft references from Lua: UE4SS copying a soft reference CRASHED the game (null read in its FSoftObjectPath
+-- copy, push_softobjectproperty; the user's game 22 Nov 2026 10:24), no pcall catches that, and the tables hold rows the
+-- game didn't ship (community stages, a player's own liveries) whose references we never checked. (24 Nov 2026)
+local DTFL = nil
+local function rows(path, fn)
+    local dt = StaticFindObject(path)
+    if not (dt and dt:IsValid()) then return end
+    pcall(function()
+        dt:ForEachRow(function(name, data)
+            local nm = type(name) == "string" and name or nil
+            if not nm then pcall(function() nm = name:ToString() end) end
+            if nm then pcall(fn, nm, data) end
+        end)
+    end)
+end
+local function path_of(s)
+    -- a column's text -> the asset path: "/Game/X/T.T", "Texture2D'/Game/X/T.T'" or quoted; "None" / "": nil
+    s = tostring(s or ""):gsub('^%s*"', ""):gsub('"%s*$', "")
+    local inner = s:match("'(.-)'")
+    if inner then s = inner end
+    if s == "" or s == "None" or s:sub(1, 1) ~= "/" then return nil end
+    return s
+end
+local function column(path, prop)
+    -- {row name: asset path} of a table's column of soft references, from its own text
+    local out = {}
+    local dt = StaticFindObject(path)
+    if not (dt and dt:IsValid()) then return out end
+    DTFL = DTFL or StaticFindObject("/Script/Engine.Default__DataTableFunctionLibrary")
+    if not (DTFL and DTFL:IsValid()) then return out end
+    local names = {}
+    pcall(function()
+        dt:ForEachRow(function(name, _data)
+            local nm = type(name) == "string" and name or nil
+            if not nm then pcall(function() nm = name:ToString() end) end
+            names[#names + 1] = nm or false
+        end)
+    end)
+    pcall(function()
+        local vals = DTFL:GetDataTableColumnAsString(dt, FName(prop))
+        local i = 0
+        local function one(s)
+            i = i + 1
+            local nm = names[i]
+            if nm then out[nm] = path_of(s) end
+        end
+        if type(vals) == "table" then                 -- (UE4SS: a table of RemoteUnrealParam, each :get() an FString)
+            for _, v in ipairs(vals) do
+                local okv, s = pcall(function() return type(v) == "string" and v or v:get():ToString() end)
+                one(okv and s or nil)
+            end
+        else
+            vals:ForEach(function(_, e) one(e:get():ToString()) end)
+        end
+    end)
+    return out
+end
+
 local function game_tables()
     if game_paths then return game_paths end
-    local KSL = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary")
-    local function soft(v)
-        local s = nil
-        pcall(function() s = KSL:Conv_SoftObjectReferenceToString(v):ToString() end)
-        return s
-    end
-    local function rows(path, fn)
-        local dt = StaticFindObject(path)
-        if not (dt and dt:IsValid()) then return end
-        pcall(function()
-            dt:ForEachRow(function(name, data)
-                local nm = type(name) == "string" and name or nil
-                if not nm then pcall(function() nm = name:ToString() end) end
-                if nm then pcall(fn, nm, data) end
-            end)
-        end)
-    end
-    local tex, out = {}, {stage = {}, loc = {}}
-    rows("/Game/Data/Database/Main/TrackSelection/DT_TracksTextures.DT_TracksTextures",
-         function(nm, d) tex[nm] = soft(d.Value) end)
+    local out = {stage = {}, loc = {}}
+    local tex = column("/Game/Data/Database/Main/TrackSelection/DT_TracksTextures.DT_TracksTextures", "Value")
     rows("/Game/Data/Database/Main/TrackSelection/DT_TracksVariants.DT_TracksVariants",
          function(nm, d) out.stage[nm:lower()] = tex[d.VariantImage.Row:ToString()] end)
-    rows("/Game/Data/Database/Main/TrackSelection/DT_TracksLocationsBackgrounds.DT_TracksLocationsBackgrounds",
-         function(nm, d) out.loc[nm:lower()] = soft(d.Value) end)
+    for nm, p in pairs(column("/Game/Data/Database/Main/TrackSelection/DT_TracksLocationsBackgrounds.DT_TracksLocationsBackgrounds", "Value")) do
+        out.loc[nm:lower()] = p
+    end
     out.livery = {}                                       -- (a livery's preview, as the garage shows it: "ue:livery:")
-    rows("/Game/Data/Database/Main/Customization/DT_Liveries.DT_Liveries",
-         function(nm, d) out.livery[nm:lower()] = soft(d.Icon) end)
+    for nm, p in pairs(column("/Game/Data/Database/Main/Customization/DT_Liveries.DT_Liveries", "Icon")) do
+        out.livery[nm:lower()] = p
+    end
     -- a car's picture, as CHANGE CAR shows it ("ue:car:<car id>": DT_Cars' CarTexture, a row of DT_CarsTextures)
     out.car = {}
     local by = {}
@@ -261,15 +304,14 @@ local function game_tables()
         local ok, nm = pcall(function() return dt:GetFName():ToString() end)
         if ok and (nm == "DT_Cars" or nm == "DT_CarsTextures") then by[nm] = dt:GetFullName():match("^%S+%s+(.+)$") end
     end
-    local ctex = {}
-    if by.DT_CarsTextures then rows(by.DT_CarsTextures, function(nm, d) ctex[nm] = soft(d.Value) end) end
+    local ctex = by.DT_CarsTextures and column(by.DT_CarsTextures, "Value") or {}
     -- its maker's logo ("ue:brand:<car id>", WATCH's driver bar: the user, 22 Nov 2026 "the logo of the car"): DT_Cars'
     -- Manufacturer -> DT_Manufacturers' Logo -> DT_Textures' Value (probed 22 Nov 2026; reading a manufacturer row's
     -- other fields crashed the game: only these two references are read)
     local maker_logo, logo_tex = {}, {}
-    rows("/Game/Data/Database/Main/Common/DT_Textures.DT_Textures", function(nm, d)
-        if nm:find("Logo$") then logo_tex[nm] = soft(d.Value) end
-    end)
+    for nm, p in pairs(column("/Game/Data/Database/Main/Common/DT_Textures.DT_Textures", "Value")) do
+        if nm:find("Logo$") then logo_tex[nm] = p end
+    end
     rows("/Game/Data/Database/Main/Common/DT_Manufacturers.DT_Manufacturers",
          function(nm, d) maker_logo[nm] = logo_tex[d.Logo.Row:ToString()] end)
     out.brand = {}

@@ -186,6 +186,8 @@ export default {
  "member": "メンバー",
  "private": "非公開",
  "No cups yet.": "まだカップがありません。",
+ "Series": "シリーズ",
+ "No ranked rallies yet.": "ランク戦のラリーはまだありません。",
  "{0} drivers": [
   "{0} 人"
  ],
