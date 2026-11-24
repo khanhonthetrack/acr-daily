@@ -212,7 +212,7 @@ THR_A = (214.0, 146.0)
 LINE_Y = 176                               # the Km/h line
 PEDAL_N, PEDAL_SEG, PEDAL_GAP, PEDAL_H = 12, 9, 3, 20   # the brake / throttle bars: segments, each one's width, gap, height
 PEDAL_Y = 166                              # (their top, in the dial's square: level with the Km/h line)
-GEAR_W, GEAR_H = 92, 78                    # the gear's plate
+GEAR_W, GEAR_H = 88, 86                    # the gear's plate
 DIAL_V = 'v6'
 
 
@@ -311,12 +311,12 @@ def _pedal(value, on, off, outward_left, label):
     return col(sp(h=PEDAL_Y), bar, sp(h=4), size(word, w=PEDAL_N * (PEDAL_SEG + PEDAL_GAP)), al='r' if outward_left else 'l')
 
 
-def _gear_plate(cur, lo):
-    """The gear on a plate of its own under the speed: big, the one before it small and grey beside it."""
-    return size(box(col(txt(_('GEAR'), 10, 'bold', SOFT, sp=160, j=1),
-                        row(sp(fill=1), txt(lo, 18, 'bold', GREY, va='b', pad=[0, 0, 6, 6]),
-                            txt(cur, 46, 'bold', WHITE, va='b'), sp(fill=1))),
-                    bg=NAVY3, a=0.96, r=8, ol='3A4F78', olw=2, p=[6, 4, 6, 2], al='c'),
+def _gear_plate(cur, lo=None):
+    """The gear on a plate of its own under the speed, the digit in a fixed area inside it (a 46-size digit with the gear
+    before it beside it ran out of the plate's bottom, the user 24 Nov 2026: "the gear is not in the box")."""
+    return size(box(col(size(txt(_('GEAR'), 10, 'bold', SOFT, sp=160, j=1, va='c'), w=GEAR_W - 8, h=14),
+                        size(txt(cur, 34, 'bold', WHITE, j=1, va='c'), w=GEAR_W - 8, h=GEAR_H - 26)),
+                    bg=NAVY3, a=0.96, r=8, ol='3A4F78', olw=2, p=[4, 4, 4, 4], al='c', va='c'),
                 w=GEAR_W, h=GEAR_H)
 
 
@@ -343,7 +343,7 @@ def _dash(dash, car_id=None):
     layers += [
         _at(50, 74, txt('%d' % round(kmh) if kmh is not None else '–', 66, 'bold', WHITE, j=1), w=200, h=90),
         _at(116, LINE_Y - 11, txt('Km/h', 14, 'bold', WHITE, j=1), w=68, h=22),
-        _at((GD - GEAR_W) // 2, LINE_Y + 18, _gear_plate(cur, lo), w=GEAR_W, h=GEAR_H),
+        _at((GD - GEAR_W) // 2, LINE_Y + 12, _gear_plate(cur), w=GEAR_W, h=GEAR_H),
     ]
     dial = size(stack(*layers), w=GD, h=GD)
     return row(_pedal(brake, BRAKE_ON, BRAKE_OFF, True, _('BRAKE')), sp(6), dial, sp(6),
@@ -501,6 +501,83 @@ def _menu(w, fol):
     return size(col(*lines), w=460)
 
 
+# ---------------------------------------------------------------------- the stage's map (the studio's stage page)
+MAP_W, MAP_H = 440, 330
+
+
+def stage_map_png(points, splits_km=(), w=MAP_W, h=MAP_H):
+    """The stage's route as a picture (the website's stage map: the line turned to fill the box, start green, finish
+    white, the splits as dots), drawn once with PIL and kept -> its path, or None (no route, no PIL). The game's own
+    widgets draw no lines (the user, 24 Nov 2026: "the stage tab of overlay should have a map of the track")."""
+    if not points or len(points) < 2:
+        return None
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return None
+    import hashlib
+    import json
+    import math
+    from . import settings
+    key = hashlib.sha1(json.dumps([points[0], points[-1], len(points), list(splits_km), w, h, 'v1']).encode()).hexdigest()[:16]
+    d0 = os.path.join(settings.DIR, 'hud', 'app', 'maps')
+    path = os.path.join(d0, key + '.png')
+    if os.path.exists(path):
+        return path
+    os.makedirs(d0, exist_ok=True)
+    pts = [(float(p[0]), float(p[1])) for p in points]
+    n = len(pts)
+    mx, mz = sum(p[0] for p in pts) / n, sum(p[1] for p in pts) / n
+    sxx = sum((p[0] - mx) ** 2 for p in pts)
+    szz = sum((p[1] - mz) ** 2 for p in pts)
+    sxz = sum((p[0] - mx) * (p[1] - mz) for p in pts)
+    an = -0.5 * math.atan2(2 * sxz, sxx - szz)            # (its long side across, as the website's map)
+    c, s = math.cos(an), math.sin(an)
+    rot = [(-(x - mx) * c + (z - mz) * s, (x - mx) * s + (z - mz) * c) for x, z in pts]   # (x mirrored: the game's)
+    x0, x1 = min(p[0] for p in rot), max(p[0] for p in rot)
+    y0, y1 = min(p[1] for p in rot), max(p[1] for p in rot)
+    k = 3
+    W, H, pad = w * k, h * k, 26 * k
+    sc = min((W - 2 * pad) / ((x1 - x0) or 1), (H - 2 * pad) / ((y1 - y0) or 1))
+    ox, oy = (W - (x1 - x0) * sc) / 2 - x0 * sc, (H - (y1 - y0) * sc) / 2 - y0 * sc
+    xy = [(p[0] * sc + ox, p[1] * sc + oy) for p in rot]
+    im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    g = ImageDraw.Draw(im)
+    g.line(xy, fill=(8, 14, 28, 255), width=13 * k, joint='curve')          # (a dark edge under the line)
+    g.line(xy, fill=(201, 209, 224, 255), width=6 * k, joint='curve')
+    cum = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        cum.append(cum[-1] + math.dist(a, b))
+    for km in splits_km[:-1]:
+        i = next((j for j, v in enumerate(cum) if v >= km * 1000), len(cum) - 1)
+        x, y = xy[i]
+        g.ellipse([x - 9 * k, y - 9 * k, x + 9 * k, y + 9 * k], fill=(227, 6, 19, 255), outline=(255, 255, 255, 255), width=2 * k)
+    for (x, y), col in ((xy[0], (43, 217, 107, 255)), (xy[-1], (255, 255, 255, 255))):
+        g.ellipse([x - 12 * k, y - 12 * k, x + 12 * k, y + 12 * k], fill=col, outline=(8, 14, 28, 255), width=3 * k)
+    im.resize((w, h), Image.LANCZOS).save(path + '.tmp', 'PNG')
+    os.replace(path + '.tmp', path)
+    return path
+
+
+def _stage_map(w):
+    """The watched stage's map with its legend, or None (its route not known)."""
+    j = w.judge()
+    r = getattr(j, 'route', None) if j is not None else None
+    if r is None or not getattr(r, 'points', None):
+        return None
+    try:
+        pic = stage_map_png(r.points, [km for _i, km in w.split_marks()])
+    except Exception:
+        pic = None
+    if not pic:
+        return None
+    dot = lambda c: size(box(None, bg=c, r=5), w=10, h=10, va='c')
+    legend = row(dot('2BD96B'), sp(6), txt(_('START'), 12, 'bold', SOFT, sp=120, va='c'), sp(16),
+                 dot(RED), sp(6), txt(_('SPLITS'), 12, 'bold', SOFT, sp=120, va='c'), sp(16),
+                 dot(WHITE), sp(6), txt(_('FINISH'), 12, 'bold', SOFT, sp=120, va='c'), pad=[0, 8, 0, 0])
+    return box(col(img(pic, MAP_W, MAP_H), legend), bg=NAVY, a=NA, p=[14, 12, 14, 12])
+
+
 # ---------------------------------------------------------------------- nobody on the stage: the studio
 STUDIO_PAGE_S = 10.0               # the studio's pages: each this long, in turn
 STUDIO_W = 1040
@@ -559,11 +636,14 @@ def _studio(w, entries, now, why=None):
                  (_('DRIVERS'), '%d' % len(entries) if entries else _('nobody yet')),
                  (_('BEST'), ('%s  ·  %s' % (fmt_ms(entries[0]['totalMs'], 1), entries[0].get('name') or ''))
                   if entries else '–')]
-        lines = []
+        rows_ = []
         for i, (k, v) in enumerate(f for f in facts if f[1]):
-            lines.append(box(row(size(txt(k, 15, 'bold', SOFT, sp=160, va='c'), w=220),
-                                 txt(v, 22, 'bold', WHITE, va='c', fill=1)),
+            rows_.append(box(row(size(txt(k, 15, 'bold', SOFT, sp=160, va='c'), w=180),
+                                 txt(v, 21, 'bold', WHITE, va='c', fill=1)),
                              bg=NAVY2 if i % 2 else NAVY, a=NA, p=[20, 9, 20, 9]))
+        # (the stage's map beside its facts, as the website's stage map: the user, 24 Nov 2026)
+        m = _stage_map(w)
+        lines = [row(col(*rows_, fill=1), m, va='t')] if m else rows_
         foot = why or _('The broadcast picks up the next driver on the stage by itself.')
     bottom = box(row(size(box(None, bg=RED), w=4, h=16, va='c'), sp(10), txt(foot, 15, 'semi', SOFT, va='c')),
                  bg=NAVY, a=NA, p=[20, 8, 20, 8])

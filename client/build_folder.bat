@@ -38,6 +38,18 @@ powershell -NoProfile -Command ^
   "$z = 'dist\ACR-Daily-%VER%.zip'; if (Test-Path $z) { Remove-Item $z };" ^
   "Compress-Archive -Path 'dist\ACR-Daily\*' -DestinationPath $z -CompressionLevel Optimal"
 python -c "import hashlib,sys;[(open(f+'.sha256','w').write(h),print(h+'  '+f)) for f in sys.argv[1:] for h in [hashlib.sha256(open(f,'rb').read()).hexdigest()]]" dist\ACR-Daily\ACR-Daily.exe dist\ACR-Daily-%VER%.zip
+rem The installer (installer.iss) when Inno Setup 6 is on this PC: dist\ACR-Daily-Setup.exe
+set ISCC=
+if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC goto noiscc
+%ISCC% /Q /DMyAppVersion=%VER% installer.iss
+if errorlevel 1 exit /b 1
+python -c "import hashlib;f='dist/ACR-Daily-Setup.exe';h=hashlib.sha256(open(f,'rb').read()).hexdigest();open(f+'.sha256','w').write(h);print(h+'  '+f)"
+goto built
+:noiscc
+echo No Inno Setup 6 on this PC: no installer made.
+:built
 echo.
 echo Built dist\ACR-Daily\ and dist\ACR-Daily-%VER%.zip for server:
 type acr_daily\_server.txt

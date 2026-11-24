@@ -1271,10 +1271,13 @@ class LeaguesUI:
         if not run or run.get('wait') or run.get('over'):
             return
         j = run['judge']
+        if self._league_restarted(run, f):
+            return
         evs = j.feed(f, unloaded)
         evs = evs + self._watch_run(run, j, evs, run['ev'].get('rules'))   # (not allowed, during it: DNF, app.py)
         for e in evs:
             if e == 'start':
+                run['sent'] = None                 # (the next stage under way: the last one's results left behind)
                 self._league_started(run)
                 self._league_live(run, f, 'live', force=True)
             elif e == 'finished':
@@ -1285,6 +1288,29 @@ class LeaguesUI:
                 self._league_failed(run, (j.result or {}).get('reason') or e)
         if j.state == 'running':
             self._league_live(run, f, 'live')
+
+    def _league_restarted(self, run, f):
+        """The stage whose time was just sent (at its finish line: app.FINISH_SETTLE_S) started again from its results
+        screen, before the next one: in a rally of several stages that throws its damage away, a cheat the game itself
+        punished by saving no time (the user, 24 Nov 2026: "if someone wants to cheat - i.e. restart the stage after
+        crossing the line ... in order to avoid heavy damage, then the time turns into a DNF"). -> True: the entry ended."""
+        s = run.get('sent')
+        if not s or f is None or not f.track or not s.get('track'):
+            return False
+        from .names import same_track
+        if not same_track(f.track, {'track': s['track']}):
+            if f.clock_ms > 0:
+                run['sent'] = None                 # (another stage driven: the results were left)
+            return False
+        if s.get('next') and same_track(f.track, {'track': s['next']}):
+            return False                           # (the next stage is the same road: a start of it is the next one)
+        if not (0 < f.clock_ms < s['clock'] - 2000):
+            return False                           # (still on its results screen: the clock stopped at the finish)
+        run['sent'] = None
+        run['no'] = s['k']                         # (the DNF on the stage restarted)
+        waiting.note('%s: SS%d started again after its time was sent: DNF' % (run['ev'].get('name'), s['k'] + 1))
+        self._league_failed(run, said("SS%d restarted after its finish: a restart doesn't count, the entry ends", s['k'] + 1))
+        return True
 
     def _league_live(self, run, f, state, force=False):
         """Where we are on the event's stage, for the website (a cup match followed live on its map): every liveSendS
@@ -1653,6 +1679,10 @@ class LeaguesUI:
         else:
             run['no'] = k + 1
             run['judge'] = Judge(leagues.stage_ch(ev, k + 1, run['car']))
+            # (its time sent at the finish line: the stage started again from its results screen before the next is a
+            # restart to leave its damage behind, a DNF: _league_restarted)
+            run['sent'] = {'k': k, 'track': ev['stages'][k].get('track'), 'clock': r.get('clockMs') or 0,
+                           'next': ev['stages'][k + 1].get('track')}
             if leagues.leg_starts(ev, k + 1):      # a long event: its leg over in the game, the next one set up by CONTINUE
                 leg = leagues.leg_of(ev, k + 1) + 1
                 run['new_leg'] = leg
