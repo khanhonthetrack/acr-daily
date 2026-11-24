@@ -366,7 +366,18 @@ class Api:
         return self._req('POST', '/api/copilot/lobbies', {'role': role, 'private': bool(private)}, auth=True)
 
     def copilot_join(self, lobby_id=None, code=None):
-        return self._req('POST', '/api/copilot/join', {'code': code} if code else {'id': int(lobby_id)}, auth=True)
+        """Join a lobby: from the list (lobby_id; a private one with its code too), or by its code alone."""
+        body = {}
+        if lobby_id:
+            body['id'] = int(lobby_id)
+        if code:
+            body['code'] = code
+        return self._req('POST', '/api/copilot/join', body, auth=True)
+
+    def copilot_ranking(self, month=None):
+        """A month's ranking (this one's by default): {month, drivers: [{rank, name, points, days, wins, best}],
+        codrivers: [...]}."""
+        return self._req('GET', '/api/copilot/ranking' + ('?month=' + month if month else ''), timeout=8)
 
     def copilot_lobby(self, lobby_id):
         """My lobby: its state, the other's link details; once started its stage (ch) and, for the co-driver, notes."""

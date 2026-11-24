@@ -68,7 +68,8 @@ def page(ig):
     o = a.s.get('overlay') or {}
     # (0.2: no window to size, no AUTO, no Windows sound: DRIVE goes straight to the Service Park, the app sits in the
     # game; the user, 20 Nov 2026: "most settings are outdated")
-    left = col(language_panel(a), timer_panel(a, o), fill=1)
+    from . import ig_copilot
+    left = col(language_panel(a), timer_panel(a, o), ig_copilot.settings_panel(ig), fill=1)   # (COPILOT's voice)
     right = col(displays_panel(a), account_panel(a), save_panel(), about_panel(a, m), admin_panel(a), fill=1)
     return row(left, sp(GAP), right)
 

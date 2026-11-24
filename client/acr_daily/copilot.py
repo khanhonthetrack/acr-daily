@@ -27,7 +27,8 @@ CP_SLOT = 90                     # the crew's stage in the app's tt (ttui.py: ne
 POLL_S = 1.5                     # my lobby asked for this often while it is open or started
 DAY_S = 20.0                     # the day (its open lobbies) this often while the page is on screen
 RESUME_S = 15 * 60               # a lobby started this long ago: its stage set up again only by hand (an app restart)
-CODRIVER_ON_DNF_S = 3.0          # the game's own co-driver on this long during the stage: a DNF
+CODRIVER_ON_DNF_S = 3.0          # the game's own co-driver on this long during the stage: a DNF (mine or the partner's)
+STATUS_S = 1.0                   # my game's own co-driver told to the partner this often
 TALK_MODES = ('ptt', 'open', 'off')
 TALK_NAMES = {'ptt': _('PUSH TO TALK'), 'open': _('OPEN MIC'), 'off': _('VOICE OFF')}
 ROLE_NAMES = {'driver': _('DRIVER'), 'codriver': _('CO-DRIVER')}
@@ -57,6 +58,10 @@ class Copilot:
         self.app = app
         self.day = None              # GET /api/copilot (None: not in yet)
         self.board = None
+        self.ranking = None          # this month's drivers and co-drivers (GET /api/copilot/ranking)
+        self.partner_off = None      # the partner's game's own co-driver as their app says (True off / False on / None)
+        self._partner_on_at = None   # (seen on, during my stage, since)
+        self._status_at = -1e9       # (mine told to the partner last)
         self.lobby = None            # my lobby, as the server has it
         self.msg = ''
         self.busy = False
@@ -129,19 +134,25 @@ class Copilot:
             try:
                 d = a.api.copilot()
                 b = a.api.copilot_board() if d.get('on') else None
+                try:
+                    r = a.api.copilot_ranking() if d.get('on') else None
+                except Exception:                     # (the ranking missing: the rest of the page still)
+                    r = None
             except Exception as e:
                 a.root.after(0, self._day_failed, e)
                 return
-            a.root.after(0, self._take_day, d, b)
+            a.root.after(0, self._take_day, d, b, r)
         threading.Thread(target=go, daemon=True).start()
 
     def _day_failed(self, e):
         self._polling = False
         self.msg = str(e)
 
-    def _take_day(self, d, b):
+    def _take_day(self, d, b, r=None):
         self._polling = False
         self.day, self.board = d, b
+        if r is not None:
+            self.ranking = r
         if d.get('lobby') is not None or self.lobby is None:
             self._take_lobby(d.get('lobby'))
 
@@ -167,8 +178,23 @@ class Copilot:
         elif link is not None and self.room() and getattr(link, 'room', None) != self.room():
             link.room = self.room()                    # (without live rallies on: liverallyui._lr_room does it too)
         self._wire()
+        if self.link is not None and now - self._status_at >= STATUS_S:
+            self._status_at = now                      # (my game's own co-driver, to the partner: the driver's check)
+            off = self.game_codriver_off()
+            self.link.send_status({True: '1', False: '0', None: '-'}[off])
         if self.capturing:
             self._capture_tick(now)
+
+    def game_codriver_off(self):
+        """My game's own co-driver as the mod keeps it (True off, False on, None: can't be told)."""
+        try:
+            return self.app._pulse().codriver_off()
+        except Exception:
+            return None
+
+    def _status_in(self, s):
+        """The partner's word on their game's own co-driver ('1' off, '0' on, '-' can't be told)."""
+        self.partner_off = {'1': True, '0': False}.get(s[:1] if isinstance(s, str) else s.decode('ascii', 'replace')[:1])
 
     def _lobby_in(self, l):
         self._polling = False
@@ -314,7 +340,7 @@ class Copilot:
             if r is not None:
                 r.take_direct(m)
 
-        self.link = Link(publish, samples, lambda p: self.voice and self.voice.heard(p), relay)
+        self.link = Link(publish, samples, lambda p: self.voice and self.voice.heard(p), relay, on_status=self._status_in)
         if l.get('signal'):
             self.link.peer(l['signal'], (self.partner() or {}).get('steamId'))
         c = settings_of(a.s)
@@ -420,18 +446,20 @@ class Copilot:
                 from . import waiting
                 waiting.note('copilot: the game mod says nothing of the game\'s co-driver: the driver told to keep it off')
             return []
-        if j.state != 'running' or off is not False:
-            self._codriver_on_at = None
-            return []
         now = time.monotonic()
-        if self._codriver_on_at is None:
-            self._codriver_on_at = now
-        if now - self._codriver_on_at < CODRIVER_ON_DNF_S:
-            return []
+        running = j.state == 'running'
+        # mine, and my co-driver's (their app tells it over the link: their game calling the notes to them is as bad)
+        self._codriver_on_at = (self._codriver_on_at or now) if running and off is False else None
+        self._partner_on_at = (self._partner_on_at or now) if running and self.partner_off is False else None
         from . import waiting
         from .i18n import said
-        waiting.note('%s: the game\'s own co-driver on during the stage (DNF)' % (j.ch.get('id') or 'copilot'))
-        return j.disqualify(said("the game's own co-driver was on during the stage"))
+        if self._codriver_on_at is not None and now - self._codriver_on_at >= CODRIVER_ON_DNF_S:
+            waiting.note('%s: the game\'s own co-driver on during the stage (DNF)' % (j.ch.get('id') or 'copilot'))
+            return j.disqualify(said("the game's own co-driver was on during the stage"))
+        if self._partner_on_at is not None and now - self._partner_on_at >= CODRIVER_ON_DNF_S:
+            waiting.note('%s: the co-driver\'s game had its own co-driver on (DNF)' % (j.ch.get('id') or 'copilot'))
+            return j.disqualify(said("your co-driver's game had its own co-driver on"))
+        return []
 
     def on_result(self, result):
         """The driver's run with the game's official result (or a DNF): to the server, as the crew's."""

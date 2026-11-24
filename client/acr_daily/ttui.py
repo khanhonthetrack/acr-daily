@@ -869,6 +869,18 @@ class TimeTrialUI:
             problems = self.settings_changed((t.get('ch') or {}).get('weekend'))
             if problems:
                 return self.problems_alert(problems)
+            cp = getattr(self, 'copilot', None) if slot == CP_SLOT else None
+            if cp is not None:                     # (COPILOT: one go; the game's own co-driver must be off)
+                if cp.game_codriver_off() is False:
+                    return (_("THE GAME'S CO-DRIVER IS ON"),
+                            (_("Switch it off in the game's settings (Co-driver), or this run won't count."),
+                             _('Your co-driver reads the notes: the game must not.')), 'stop')
+                if cp.partner_off is False:
+                    return (_("YOUR CO-DRIVER'S GAME CALLS THE NOTES"),
+                            (_("Their game's own co-driver is on: it must be off, or it's a DNF for the crew."),), 'stop')
+                return (_('COPILOT · ONE GO'),
+                        (_('Your co-driver reads the notes: the game\'s own co-driver is off.'),
+                         _('Changing settings, driving aids, the co-driver or pacenotes on the stage is a DNF.')), 'warn')
         return None
 
     def _tt_overlay_state(self, f):
@@ -879,7 +891,7 @@ class TimeTrialUI:
         c = _c()
         t = self.tt[slot]
         j, ch = t.get('judge'), t['ch']
-        stage = 'TT%d · %s' % (slot, c.stage_name(ch, short=True).upper())
+        stage = 'COPILOT' if slot == CP_SLOT else 'TT%d · %s' % (slot, c.stage_name(ch, short=True).upper())
         if not j:
             return _('TT%d has no route yet') % slot, '', ('offline', stage, 0, 0, _('No route for this stage yet'), c.MUTED)
         signed = bool(self.s.get('token'))
@@ -891,7 +903,7 @@ class TimeTrialUI:
                 line = _('vs %s  %s%.2f') % (t.get('ghost_name') or 'P1', '+' if gap >= 0 else '−', abs(gap) / 1000)
                 lc = c.SLOW if gap > 0 else c.GOOD
             else:
-                line, lc = _('Time trial · %d%%') % round(j.progress * 100), c.SOFT
+                line, lc = (_('COPILOT · %d%%') if slot == CP_SLOT else _('Time trial · %d%%')) % round(j.progress * 100), c.SOFT
             if not t.get('counts', True):
                 line, lc = _('NOT ENTERED · this run does not count'), c.BAD
             elif t.get('changed'):
@@ -914,7 +926,8 @@ class TimeTrialUI:
         if j.state in ('dnf', 'invalid'):
             r = j.result or {}
             return j.message, '', (j.state, stage, r.get('clockMs', 0), r.get('resets', 0),
-                                   _('%s · not sent') % i18n.cap(local(r.get('reason') or j.state)), c.BAD)
+                                   (_('%s · the crew\'s DNF') if slot == CP_SLOT else _('%s · not sent'))
+                                   % i18n.cap(local(r.get('reason') or j.state)), c.BAD)
         if j.state == 'armed':
             if not self._tt_entered(slot):
                 return j.message, '', ('ready', stage, 0, 0, _('NOT ENTERED · click DRIVE on TT%d to enter') % slot, c.BAD)
@@ -923,6 +936,8 @@ class TimeTrialUI:
             problems = self.settings_changed(ch.get('weekend')) if self.mode_rw() is not False else None
             if problems:                           # (changed in the game's menu, or aids it doesn't allow)
                 return j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems)
+            if slot == CP_SLOT:                    # (COPILOT: one go, and what ends it)
+                return j.message, '', ('ready', stage, 0, 0, _('ONE GO · settings changed = DNF'), c.SLOW)
             best = (ch.get('me') or {}).get('bestMs')
             mine = next((e for e in (t.get('board') or {}).get('entries', []) if e.get('steamId') == self.s.get('steamId')), None)
             best = mine['totalMs'] if mine else best
@@ -933,6 +948,8 @@ class TimeTrialUI:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', _('TIME TRIAL · TT%d') % slot, 0, 0, _('Waiting for the game'), c.MUTED)
         if j.approaching:
             return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), c.SOFT)
+        if slot == CP_SLOT:
+            return j.message, '', ('standby', stage, 0, 0, _('At the Service Park: START STAGE'), c.MUTED)
         return (j.message, '', ('standby', stage, 0, 0, _('TT%d: Rally Weekend › START RALLY') % slot, c.MUTED))
 
     def _tt_widget_view(self, f):

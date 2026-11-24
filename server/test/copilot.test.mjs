@@ -3,7 +3,8 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COPILOT_RULES, CP, copilotApi, copilotTick, crewOf, noteText, notesOf, parseCpId, pickCopilot, tokenWord } from '../src/copilot.js';
+import { COPILOT_RULES, CP, copilotApi, copilotTick, crewOf, noteText, notesOf, parseCpId, pickCopilot, pointsFor,
+  tokenWord } from '../src/copilot.js';
 import { PACENOTES } from '../src/pacenotes.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -119,7 +120,9 @@ test('a day: a lobby, its partner, READY, the stage for both (the notes for the 
   const joined = await w.call('POST', '/api/copilot/join', { who: 2, body: { id } });
   assert.equal(joined.data.lobby.myRole, 'codriver');
   assert.equal((await w.call('POST', '/api/copilot/join', { who: 3, body: { id } })).status, 409, 'full');
-  assert.equal((await w.call('GET', '/api/copilot', { who: 3 })).data.lobbies.length, 0, 'a full lobby is not listed');
+  const full = (await w.call('GET', '/api/copilot', { who: 3 })).data.lobbies;
+  assert.deepEqual(full.map((l) => [l.id, l.guest && l.guest.name, l.wants]), [[id, 'Driver 2', null]], 'listed, full');
+  assert.equal((await w.call('GET', '/api/copilot', { who: 1 })).data.lobbies[0].mine, true);
 
   // the link details: each side's, the other's given back
   await w.call('POST', `/api/copilot/lobbies/${id}/signal`, { who: 1, body: { data: { addr: ['1.2.3.4:5000'] } } });
@@ -168,10 +171,17 @@ test('a day: a lobby, its partner, READY, the stage for both (the notes for the 
   const second = await w.call('POST', '/api/copilot/lobbies', { who: 2, body: { role: 'driver', private: true } });
   assert.equal(second.status, 200);
   assert.match(second.data.lobby.code, /^[A-Z2-9]{6}$/);
-  assert.equal((await w.call('GET', '/api/copilot', { who: 1 })).data.lobbies.length, 0, 'a private lobby is never listed');
-  assert.equal((await w.call('POST', '/api/copilot/join', { who: 1, body: { id: second.data.lobby.id } })).status, 403, 'only with its code');
-  const j = await w.call('POST', '/api/copilot/join', { who: 1, body: { code: second.data.lobby.code.toLowerCase() } });
+  const listed = (await w.call('GET', '/api/copilot', { who: 1 })).data.lobbies.find((l) => l.id === second.data.lobby.id);
+  assert.equal(listed.private, true, 'a private lobby is listed, locked');
+  assert.equal(listed.code, undefined, 'its code never shown');
+  const sid2 = second.data.lobby.id;
+  assert.equal((await w.call('POST', '/api/copilot/join', { who: 1, body: { id: sid2 } })).status, 403, 'only with its code');
+  assert.equal((await w.call('POST', '/api/copilot/join', { who: 1, body: { id: sid2, code: 'ZZZZZZ' } })).status, 403, 'wrong code');
+  const j = await w.call('POST', '/api/copilot/join', { who: 1, body: { id: sid2, code: second.data.lobby.code.toLowerCase() } });
   assert.equal(j.data.lobby.myRole, 'codriver');
+  await w.call('POST', `/api/copilot/lobbies/${sid2}/leave`, { who: 1 });
+  const k = await w.call('POST', '/api/copilot/join', { who: 1, body: { code: second.data.lobby.code } });
+  assert.equal(k.data.lobby.id, sid2, 'or by its code alone');
 });
 
 test('a try is used as the lobby starts: a driver who leaves is a DNF, a start with no run a DNF later', async () => {
@@ -205,6 +215,27 @@ test('a try is used as the lobby starts: a driver who leaves is a DNF, a start w
   assert.equal(w.db.prepare('SELECT guest FROM copilot_lobbies WHERE id = ?').get(c).guest, null);
   await copilotTick(w.env, T0 + 10 * H + CP.openMs + 1000, w.deps);
   assert.equal(w.db.prepare('SELECT state FROM copilot_lobbies WHERE id = ?').get(c).state, 'closed');
+});
+
+test('the month\'s ranking: points for each day\'s place, drivers and co-drivers apart', async () => {
+  assert.deepEqual([1, 2, 3, 10, 11, 40].map(pointsFor), [25, 18, 15, 1, 1, 1]);
+  const w = world();
+  const add = (date, lobby, driver, codriver, totalMs, status = 'finished') => w.db.prepare(`INSERT INTO copilot_runs
+      (date, lobby_id, driver, codriver, status, total_ms, created) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(date, lobby, sid(driver), sid(codriver), status, totalMs, lobby);
+  add('2026-11-24', 1, 1, 2, 200000);           // day 1: crew 1+2 wins, 3+4 second, 5+6 a DNF
+  add('2026-11-24', 2, 3, 4, 210000);
+  add('2026-11-24', 3, 5, 6, null, 'dnf');
+  add('2026-11-25', 4, 3, 1, 190000);           // day 2: 3 drives again (wins), 1 as the co-driver
+  add('2026-11-25', 5, 2, 5, 195000);
+  add('2026-10-30', 6, 6, 5, 100000);           // another month: not counted
+  const r = (await w.call('GET', '/api/copilot/ranking', { query: '?month=2026-11', now: T0 + 30 * H })).data;
+  assert.deepEqual(r.drivers.map((x) => [x.name, x.points, x.days, x.wins, x.best]),
+    [['Driver 3', 43, 2, 1, 1], ['Driver 1', 25, 1, 1, 1], ['Driver 2', 18, 1, 0, 2]]);
+  assert.deepEqual(r.codrivers.map((x) => [x.name, x.points]), [['Driver 2', 25], ['Driver 1', 25], ['Driver 4', 18], ['Driver 5', 18]],
+    'all even: who scored first ahead');
+  assert.deepEqual(r.drivers.map((x) => x.rank), [1, 2, 3]);
+  assert.equal((await w.call('GET', '/api/copilot/ranking', { query: '?month=2026-13' })).status, 400);
 });
 
 test('off on a server without COPILOT_FROM', async () => {

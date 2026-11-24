@@ -16,6 +16,7 @@
 // API:  GET  /api/copilot?date=           the day: on, date, revealed (the stage, car, weather: only once you have
 //                                         driven it, or the day is over), my tries, my lobby, the open lobbies
 //       GET  /api/copilot/board?date=     the day's crews: finished ones by time, then the DNFs
+//       GET  /api/copilot/ranking?month=  the month's drivers and co-drivers, apart: points for each day's place
 //       POST /api/copilot/lobbies         {role: 'driver'|'codriver', private} -> a new lobby (its code if private)
 //       POST /api/copilot/join            {id} or {code} -> joined
 //       GET  /api/copilot/lobbies/:id     a lobby, for its two: once started, the stage (and the notes, for the
@@ -265,10 +266,12 @@ async function joinLobby(env, me, b, now, deps) {
   const date = dayOf(now);
   await tidy(env, now);
   const code = typeof b.code === 'string' ? b.code.trim().toUpperCase() : '';
-  const l = code ? await env.DB.prepare(`SELECT * FROM copilot_lobbies WHERE code = ? AND date = ? AND state = 'open'`).bind(code, date).first()
-    : await env.DB.prepare(`SELECT * FROM copilot_lobbies WHERE id = ? AND state = 'open'`).bind(+b.id || 0).first();
-  if (!l) return err(code ? 'no open lobby with that code' : 'that lobby is gone', 404);
-  if (l.code && !code) return err('a private lobby: join it with its code', 403);
+  // (by its id from the list, a private one with its code too; or by the code alone)
+  const l = b.id ? await env.DB.prepare(`SELECT * FROM copilot_lobbies WHERE id = ? AND state = 'open'`).bind(+b.id || 0).first()
+    : code ? await env.DB.prepare(`SELECT * FROM copilot_lobbies WHERE code = ? AND date = ? AND state = 'open'`).bind(code, date).first()
+      : null;
+  if (!l) return err(code && !b.id ? 'no open lobby with that code' : 'that lobby is gone', 404);
+  if (l.code && l.code !== code) return err(code ? 'wrong code' : 'a private lobby: join it with its code', 403);
   if (l.date !== date) return err('that lobby was for another day', 409);
   if (l.host === me.steam_id) return json({ ok: true, lobby: lobbyOut(await lobbyRow(env, l.id), me.steam_id) });
   if (l.guest && l.guest !== me.steam_id) return err('that lobby is full', 409);
@@ -395,6 +398,58 @@ export async function buildBoard(env, date) {
 export const board = (env, date, now = Date.now()) =>
   cached(env, boardKey(date), now - dayStart(date) < DAY + 2 * 3600000 ? 2 * 60000 : 30 * DAY, () => buildBoard(env, date));
 
+// ------------------------------------------------------------------ the ranking
+
+/** Points for a day's place among the crews that finished (a rally's: 25, 18, 15...); any other finish 1. */
+export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+export const pointsFor = (place) => (place >= 1 && place <= POINTS.length ? POINTS[place - 1] : place > 0 ? 1 : 0);
+export const rankingKey = (month) => `cprank:${month}`;
+const isMonth = (m) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m));
+
+/** A month's ranking (YYYY-MM): each day's finished crews placed by time, points for each place, summed for each
+ *  driver (as the driver) and each co-driver (as the co-driver), apart. -> {month, drivers: [{rank, steamId, name,
+ *  avatar, country, points, days, wins, best}], codrivers: [...]} (best: their best place). */
+export async function buildRanking(env, month) {
+  const { results } = await env.DB.prepare(`SELECT r.date, r.driver, r.codriver,
+      ROW_NUMBER() OVER (PARTITION BY r.date ORDER BY r.total_ms, r.created, r.id) AS place
+    FROM copilot_runs r JOIN players d ON d.steam_id = r.driver JOIN players c ON c.steam_id = r.codriver
+    WHERE r.date BETWEEN ? AND ? AND r.status = 'finished' AND d.banned = 0 AND c.banned = 0`)
+    .bind(month + '-01', month + '-31').all();
+  const tally = (role) => {
+    const by = new Map();
+    for (const r of results) {
+      const sid = r[role];
+      const t = by.get(sid) || { steamId: sid, points: 0, days: 0, wins: 0, best: null, first: r.date };
+      if (r.date < t.first) t.first = r.date;
+      t.points += pointsFor(r.place);
+      t.days += 1;
+      if (r.place === 1) t.wins += 1;
+      t.best = t.best == null ? r.place : Math.min(t.best, r.place);
+      by.set(sid, t);
+    }
+    // (all even: whoever scored first, then the Steam id: never an order that changes from one look to the next)
+    return [...by.values()].sort((a, b) => b.points - a.points || b.wins - a.wins || a.best - b.best || b.days - a.days ||
+      a.first.localeCompare(b.first) || a.steamId.localeCompare(b.steamId)).map(({ first, ...x }) => x);
+  };
+  const drivers = tally('driver'), codrivers = tally('codriver');
+  const ids = [...new Set([...drivers, ...codrivers].map((x) => x.steamId))];
+  const who = new Map();
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90);
+    const { results: ps } = await env.DB.prepare(`SELECT steam_id, name, avatar, country FROM players
+      WHERE steam_id IN (${part.map(() => '?').join(',')})`).bind(...part).all();
+    for (const p of ps) who.set(p.steam_id, p);
+  }
+  const out = (list) => list.map((x, i) => {
+    const p = who.get(x.steamId) || {};
+    return { rank: i + 1, ...x, name: p.name || '?', avatar: p.avatar || null, country: p.country || null };
+  });
+  return { month, drivers: out(drivers), codrivers: out(codrivers) };
+}
+
+export const ranking = (env, month, now = Date.now()) =>
+  cached(env, rankingKey(month), month >= dayOf(now - DAY).slice(0, 7) ? 2 * 60000 : 30 * DAY, () => buildRanking(env, month));
+
 /** A started lobby's run in: on the board (once: a lobby has one run), the lobby over. */
 async function endRun(env, l, v, splits, now, appVersion = '', startedAt = null) {
   const { driver, codriver } = crewOf(l);
@@ -406,7 +461,7 @@ async function endRun(env, l, v, splits, now, appVersion = '', startedAt = null)
     env.DB.prepare(`UPDATE copilot_lobbies SET state = ?, updated = ? WHERE id = ? AND state = 'started'`)
       .bind(v.status === 'finished' ? 'finished' : 'dnf', now, l.id),
   ]);
-  await dropCached(env, [boardKey(l.date)]);
+  await dropCached(env, [boardKey(l.date), rankingKey(l.date.slice(0, 7))]);
   return res[0].meta.changes > 0;
 }
 
@@ -467,16 +522,20 @@ export async function copilotApi(req, env, path, url, me, sameOrigin, now, deps)
       revealed = !!ended;
     }
     const route = revealed && p ? await env.DB.prepare('SELECT length, stage_id FROM routes WHERE track = ?').bind(p.track).first() : null;
+    // the lobby browser: every lobby of the day still on (waiting, full, on the stage), private ones too (locked: joined
+    // with their code, never shown); the ones with room first
     const [open, mine] = await env.DB.batch([
-      env.DB.prepare(`SELECT ${LOBBY_COLS} FROM ${LOBBY_FROM} WHERE l.date = ? AND l.state = 'open' AND l.code IS NULL AND l.guest IS NULL
-        ORDER BY l.created DESC LIMIT ?`).bind(date, CP.listMax),
+      env.DB.prepare(`SELECT ${LOBBY_COLS} FROM ${LOBBY_FROM} WHERE l.date = ? AND l.state IN ('open', 'started')
+        ORDER BY CASE WHEN l.state = 'open' AND l.guest IS NULL THEN 0 WHEN l.state = 'open' THEN 1 ELSE 2 END, l.created DESC
+        LIMIT ?`).bind(date, CP.listMax),
       env.DB.prepare(`SELECT l.id FROM copilot_lobbies l WHERE l.date = ?1 AND (l.host = ?2 OR l.guest = ?2)
         AND l.state IN ('open', 'started') ORDER BY l.created DESC LIMIT 1`).bind(date, me ? me.steam_id : ''),
     ]);
     const myLobby = mine.results[0] ? await lobbyFor(env, mine.results[0].id, me, deps) : null;
     return json({ on: true, date, startsAt: dayStart(date), endsAt: dayStart(date) + DAY, signedIn: !!me, rules: COPILOT_RULES,
       ready: !!p, revealed, ...(revealed ? { stage: revealOut(p, route) } : {}), tries,
-      lobby: myLobby, lobbies: open.results.filter((l) => !me || l.host !== me.steam_id).map((l) => lobbyOut(l, null)) });
+      lobby: myLobby, lobbies: open.results.map((l) => ({ ...lobbyOut(l, null),
+        ...(me && (l.host === me.steam_id || l.guest === me.steam_id) ? { mine: true } : {}) })) });
   }
   if (path === '/api/copilot/board' && !post) {
     const date = url.searchParams.get('date') || today;
@@ -489,6 +548,11 @@ export async function copilotApi(req, env, path, url, me, sameOrigin, now, deps)
       return json({ ...b, stage: revealOut(p, route) });
     }
     return json(b);
+  }
+  if (path === '/api/copilot/ranking' && !post) {
+    const month = url.searchParams.get('month') || today.slice(0, 7);
+    if (!isMonth(month) || month > today.slice(0, 7)) return err('bad month: YYYY-MM');
+    return json(await ranking(env, month, now));
   }
   const lm = path.match(/^\/api\/copilot\/lobbies\/(\d+)(?:\/(ready|leave|signal))?$/);
   if (lm && !post && !lm[2]) {

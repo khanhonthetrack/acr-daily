@@ -12,7 +12,7 @@ When no address answers within DIRECT_WAIT_S (a router that doesn't allow it), t
 instead (its crew messages, livelink.send_crew: live/relay.py passes them on in the crew's room), and the car as it
 always does there.
 
-A packet: MAGIC, its kind (H hello / P its answer, S samples, V voice), the sender's key (8 bytes, made for this
+A packet: MAGIC, its kind (H hello / P its answer, S samples, V voice, C a status), the sender's key (8 bytes, made for this
 link, given only to the other through the lobby: packets with another key are not theirs), then its payload.
 """
 import base64
@@ -83,8 +83,9 @@ class Link:
     came from the other; relay(): the live relay's link (livelink.LiveLink) or None, for the voice when there is no
     direct way. stun: (host, port) servers (tests: none)."""
 
-    def __init__(self, publish, on_samples, on_voice, relay=lambda: None, stun=STUN, bind=('0.0.0.0', 0)):
+    def __init__(self, publish, on_samples, on_voice, relay=lambda: None, stun=STUN, bind=('0.0.0.0', 0), on_status=None):
         self.publish, self.on_samples, self.on_voice, self.relay = publish, on_samples, on_voice, relay
+        self.on_status = on_status        # the other's status line (copilot.py: their game's own co-driver), or None
         self.key = secrets.token_bytes(8)
         self.peer_key, self.cands, self.peer_sid = None, [], None
         self.addr = None                  # the other's address that answered (the direct way), or None
@@ -154,8 +155,27 @@ class Link:
             if r is not None:
                 r.send_crew('v' + base64.b64encode(packet).decode())
 
+    def send_status(self, s):
+        """A short status for the other (copilot.py: '1' / '0' / '-', my game's own co-driver off / on / not known)."""
+        s = str(s)[:16]
+        if self.direct:
+            self._send(self._packet(b'C', s.encode('ascii', 'replace')), self.addr)
+        else:
+            r = self.relay()
+            if r is not None:
+                r.send_crew('c' + s)
+
+    def _status(self, s):
+        fn = self.on_status
+        if fn is not None:
+            try:
+                fn(s)
+            except Exception:
+                pass
+
     def crew(self, sid, b):
-        """A crew message the relay passed on (livelink.on_crew): the other's voice when there is no direct way."""
+        """A crew message the relay passed on (livelink.on_crew): the other's voice (and status) when there is no
+        direct way."""
         if self.peer_sid and sid and sid != self.peer_sid:
             return
         if isinstance(b, str) and b.startswith('v'):
@@ -163,6 +183,8 @@ class Link:
                 self.on_voice(base64.b64decode(b[1:]))
             except (ValueError, TypeError):
                 pass
+        elif isinstance(b, str) and b.startswith('c'):
+            self._status(b[1:])
 
     def _send(self, data, addr):
         try:
@@ -259,6 +281,8 @@ class Link:
                 self.on_voice(body)
             except Exception:
                 pass
+        elif kind == b'C':
+            self._status(body.decode('ascii', 'replace'))
 
     def close(self):
         self.on = False

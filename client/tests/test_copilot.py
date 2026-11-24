@@ -124,9 +124,13 @@ class DirectLink(unittest.TestCase):
             self.assertTrue(wait(lambda: a.direct and b.direct), (a.state, b.state))
             self.assertTrue(wait(lambda: a.rtt_ms is not None))
             self.assertEqual(a.mode(), 'direct')
+            status = []
+            a.on_status = status.append
             a.send_samples({'t': 's', 'sid': 'sid-a', 's': [[1000, 1, 2, 3, 0, 0, 0]]})
             b.send_voice(b'\x01\x00abc')
-            self.assertTrue(wait(lambda: got['b'] and got['av']))
+            b.send_status('0')
+            self.assertTrue(wait(lambda: got['b'] and got['av'] and status))
+            self.assertEqual(status, ['0'])
             self.assertEqual(got['b'][0]['s'], [[1000, 1, 2, 3, 0, 0, 0]])
             self.assertEqual(got['av'][0], b'\x01\x00abc')
         finally:
@@ -289,6 +293,16 @@ class Crew(unittest.TestCase):
         self.assertEqual(cp.watch_run(t, j, []), [])
         cp._codriver_on_at -= copilot.CODRIVER_ON_DNF_S + 0.1
         self.assertEqual(cp.watch_run(t, j, []), ['dnf'])
+        # the co-driver's game calling the notes (their app says so over the link): as bad
+        a._pulse.return_value.codriver_off.return_value = True
+        cp._codriver_on_at = None
+        cp._status_in('0')
+        self.assertEqual(cp.watch_run(t, j, []), [])
+        cp._partner_on_at -= copilot.CODRIVER_ON_DNF_S + 0.1
+        self.assertEqual(cp.watch_run(t, j, []), ['dnf'])
+        self.assertIn("co-driver's game", j.disqualify.call_args[0][0])
+        cp._status_in('1')
+        self.assertEqual(cp.watch_run(t, j, []), [])
 
 
 class Pages(unittest.TestCase):
@@ -307,7 +321,15 @@ class Pages(unittest.TestCase):
         ig = self.ig(cp)
         self.assertEqual(check(ig_copilot.page(ig)), [], 'loading')
         cp.day = {'on': True, 'revealed': False, 'tries': {'driver': None, 'codriver': None},
-                  'lobbies': [{'id': 9, 'host': {'name': 'H', 'role': 'driver'}, 'wants': 'codriver'}]}
+                  'lobbies': [{'id': 9, 'state': 'open', 'host': {'name': 'H', 'role': 'driver'}, 'wants': 'codriver'},
+                              {'id': 10, 'state': 'open', 'private': True, 'host': {'name': 'P', 'role': 'codriver'},
+                               'wants': 'driver'},
+                              {'id': 11, 'state': 'open', 'host': {'name': 'F', 'role': 'driver'},
+                               'guest': {'name': 'G', 'role': 'codriver'}},
+                              {'id': 12, 'state': 'started', 'host': {'name': 'S', 'role': 'driver'},
+                               'guest': {'name': 'T', 'role': 'codriver'}}]}
+        cp.ranking = {'drivers': [{'rank': 1, 'steamId': '1', 'name': 'Me', 'points': 43, 'days': 2, 'wins': 1}],
+                      'codrivers': []}
         cp.board = {'entries': [{'rank': 1, 'totalMs': 200000, 'gapMs': 0, 'driver': {'name': 'A'}, 'codriver': {'name': 'B'}},
                                 {'rank': None, 'status': 'dnf', 'totalMs': None, 'driver': {'name': 'C'}, 'codriver': {'name': 'D'}}]}
         page = ig_copilot.page(ig)
@@ -315,10 +337,29 @@ class Pages(unittest.TestCase):
         words = json.dumps(page)
         self.assertIn('"?"', words, 'the stage hidden')
         self.assertIn('copilot.join:9', words)
+        self.assertIn('copilot.join:10', words, 'a private one: joined with its code')
+        self.assertNotIn('copilot.join:11', words, 'full')
+        self.assertIn('ON THE STAGE', words)
+        cp.join = mock.Mock()
+        ig_copilot.click(ig, 'join', '9')
+        cp.join.assert_called_with(lobby_id=9)
+        ig.dialog = None
+        ig_copilot.click(ig, 'join', '10')                  # (asked for its code in the game first)
+        self.assertEqual(ig.dialog['field'], '')
+        ig._dialog_words = ' abc 234 '
+        ig.dialog['go'][1]()
+        cp.join.assert_called_with(lobby_id=10, code='ABC234')
+        ig_copilot.click(ig, 'side', 'drivers')
+        words = json.dumps(ig_copilot.page(ig))
+        self.assertIn('43', words)
+        self.assertIn("THIS MONTH'S DRIVERS", words)
+        self.assertEqual(check(ig_copilot.page(ig)), [])
         cp.lobby = lobby(code='ABC234')
         self.assertIn('ABC234', json.dumps(ig_copilot.page(ig)))
         cp.lobby = lobby('started', ch=CH)
-        self.assertIn('copilot.go', json.dumps(ig_copilot.page(ig)))
+        page = ig_copilot.page(ig)
+        self.assertIn('copilot.go', json.dumps(page))
+        self.assertIn('DNF for the crew', json.dumps(page))
         cp.lobby = None
         cp.day.update(revealed=True, stage={'menuName': 'Afon Bidno', 'car': 'Car'}, tries={'driver': 4, 'codriver': 5})
         page = ig_copilot.page(ig)
@@ -341,8 +382,35 @@ class Pages(unittest.TestCase):
         self.assertIn('13 / 30', words)
         self.assertIn('RIGHT 1', words)
         self.assertEqual(words.count('"n"'), 0)
+        a._pulse.return_value.codriver_off.return_value = False      # (the game's own co-driver on: said in red)
+        self.assertIn("THE GAME'S CO-DRIVER IS ON", json.dumps(ig_copilot.overlay(ig)))
+        a._pulse.return_value.codriver_off.return_value = True
         cp.lobby = lobby('started', role='driver')
-        self.assertIsNone(ig_copilot.overlay(ig), 'nothing to say yet: no voice, no link')
+        a.tt = {}
+        ov = ig_copilot.overlay(ig)
+        self.assertEqual(check(ov), [])
+        self.assertIn('DNF for the crew', json.dumps(ov), 'the rules before the start')
+        a.tt = {copilot.CP_SLOT: {'judge': mock.Mock(state='running')}}
+        self.assertIsNone(ig_copilot.overlay(ig), 'driving, all fine, no voice yet: nothing in the way')
+        cp.partner_off = False
+        self.assertIn("co-driver's game", json.dumps(ig_copilot.overlay(ig)))
+
+    def test_the_voice_s_settings_in_settings(self):
+        a = app_stub()
+        cp = copilot.Copilot(a)
+        ig = self.ig(cp)
+        ig.app = a
+        a.copilot = cp
+        panel = ig_copilot.settings_panel(ig)
+        self.assertEqual(check(panel), [])
+        self.assertIn('copilot.talk:open', json.dumps(panel))
+        with mock.patch('acr_daily.settings.save'):
+            ig_copilot.click(ig, 'talk', 'open')
+            ig_copilot.click(ig, 'gain', '+')
+            ig_copilot.click(ig, 'key', 'next')
+        c = copilot.settings_of(a.s)
+        self.assertEqual((c['talk'], c['gain'], c['key']), ('open', 1.25, 'B'))
+        self.assertNotIn('copilot.key', json.dumps(ig_copilot.settings_panel(ig)), 'open mic: no key to set')
 
 
 if __name__ == '__main__':
