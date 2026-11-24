@@ -134,10 +134,7 @@ class Copilot:
             try:
                 d = a.api.copilot()
                 b = a.api.copilot_board() if d.get('on') else None
-                try:
-                    r = a.api.copilot_ranking() if d.get('on') else None
-                except Exception:                     # (the ranking missing: the rest of the page still)
-                    r = None
+                r = None                              # (no ranking on the page: today's results only, the user 25 Nov)
             except Exception as e:
                 a.root.after(0, self._day_failed, e)
                 return
@@ -290,7 +287,7 @@ class Copilot:
         from .judge import Judge
         driver = (self.partner() or {})
         held = {'ch': dict(ch, weekend=None), 'judge': Judge(ch) if ch.get('route') else None, 'live': [], 'board': None,
-                'name': 'COPILOT', 'eventId': int(self.lobby['id']), 'kind': 'copilot', 'cars': []}
+                'name': 'CODRIVER', 'eventId': int(self.lobby['id']), 'kind': 'copilot', 'cars': []}
         try:
             setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], None)
         except (saveslot.SaveError, KeyError, ValueError):
@@ -471,9 +468,9 @@ class Copilot:
         def go():
             try:
                 r = a.api._req('POST', '/api/copilot/runs', dict(result, appVersion=__version__), auth=True)
-                text = (_('COPILOT: P%s of %s crews. The stage is revealed.') % (r.get('rank'), r.get('drivers'))
-                        if r.get('status') == 'finished' and r.get('rank') else _('COPILOT: DNF. The stage is revealed.'))
+                text = (_('CODRIVER: P%s of %s crews. The stage is revealed.') % (r.get('rank'), r.get('drivers'))
+                        if r.get('status') == 'finished' and r.get('rank') else _('CODRIVER: DNF. The stage is revealed.'))
             except Exception as e:
-                text = _('COPILOT: not sent: %s') % e
+                text = _('CODRIVER: not sent: %s') % e
             a.root.after(0, lambda: (a.sub_l.configure(text=text), self.refresh(force=True)))
         threading.Thread(target=go, daemon=True).start()

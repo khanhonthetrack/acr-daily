@@ -1,20 +1,19 @@
-"""COPILOT in the game (EVENTS' third sub-tab; copilot.py says how it works): today's crew stage as a "?" until you
-have driven it; your lobby (or setting one up: driver or co-driver, public or private with a code); every lobby of the
-day (the lobby browser: public ones joined with a click, private ones with their code); today's crews and this month's
-ranking of drivers and of co-drivers. The voice's settings are in SETTINGS (settings_panel). Over the stage: the
-co-driver's notes to scroll, the rules (what is a DNF); for the driver, the co-driver's voice and the link."""
+"""COPILOT in the game, called CODRIVER on screen (the user, 25 Nov 2026; EVENTS' third sub-tab; copilot.py says how it
+works): today's crew stage as a "?" until you have driven it; your lobby (or setting one up: driver or co-driver,
+public or private with a code); every lobby of the day (the lobby browser: public ones joined with a click, private
+ones with their code); today's results, one table: place, driver, co-driver, time (the user: "4 columns"). The voice's
+settings are in SETTINGS (settings_panel). Over the stage: the co-driver's notes to scroll, the rules (what is a DNF);
+for the driver, the co-driver's voice and the link."""
 from .copilot import CP_SLOT, ROLE_NAMES, TALK_MODES, TALK_NAMES, settings_of
 from .i18n import _
-from .ingamekit import (ACC, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, box, btn, chip, col, edit,
-                        empty, fmt_ms, kicker, primary, quiet, row, size, sp, tab_id, tabs, txt)
+from .ingamekit import (ACC, ACC_TEXT, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, box, btn, chip,
+                        col, edit, empty, fmt_ms, kicker, line_row, primary, quiet, row, sheet, size, sp, tab_id, txt)
 
 TAB = 'copilot'
 COLOUR = 'FF9F0A'                        # COPILOT's colour (the pacenote book's orange)
 NOTES_SHOWN = 9                          # notes on screen over the stage (the one on in the middle)
 LOBBIES_SHOWN = 12
-RANK_SHOWN = 15
 NAVY = '0A1428'
-SIDES = (('board', _('TODAY')), ('drivers', _('DRIVERS')), ('codrivers', _('CO-DRIVERS')))
 RULES = _('Changing the game\'s settings, driving aids, its co-driver or pacenotes during the stage is a DNF for the crew.')
 
 
@@ -31,15 +30,15 @@ def opened(ig):
 def page(ig):
     cp = _cp(ig)
     if cp is None:
-        return empty(_('COPILOT is not in this version of the app.'))
+        return empty(_('CODRIVER is not in this version of the app.'))
     cp.refresh()
     d = cp.day
     if d is None:
-        return col(kicker(_('Copilot')), txt(cp.msg or _('Loading today\'s COPILOT…'), 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
+        return col(kicker(_('Codriver')), txt(cp.msg or _('Loading today\'s CODRIVER…'), 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
     if not d.get('on'):
-        return col(kicker(_('Copilot')), txt(_('No COPILOT on this server yet.'), 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
+        return col(kicker(_('Codriver')), txt(_('No CODRIVER on this server yet.'), 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
     if not ig.app.s.get('token'):
-        return col(_stage_card(d), txt(_('Sign in with Steam to drive COPILOT (PROFILE, or the app\'s window).'), 20,
+        return col(_stage_card(d), txt(_('Sign in with Steam to drive CODRIVER (PROFILE, or the app\'s window).'), 20,
                                        'medium', SOFT, pad=[0, 18, 0, 0]))
     left = col(_stage_card(d), sp(h=16), _lobby_part(ig, cp, d), sp(h=16), _browser(ig, cp, d), fill=1)
     right = size(_standings(ig, cp), w=640)
@@ -80,7 +79,7 @@ def _voice_line(ig, cp):
     c = settings_of(ig.app.s)
     how = TALK_NAMES[c['talk']] + ((' · %s' % c['key']) if c['talk'] == 'ptt' else '')
     out = [kicker(_('Voice'), va='c'), sp(10), txt(how, 16, 'bold', WHITE, va='c'), sp(10),
-           txt(_('(SETTINGS › COPILOT VOICE)'), 14, 'semi', MUTED, va='c'), sp(fill=1)]
+           txt(_('(SETTINGS › CODRIVER VOICE)'), 14, 'semi', MUTED, va='c'), sp(fill=1)]
     v = cp.voice
     if v is not None:
         out += [chip(_('TALKING'), bg=GOOD, fg=BG, va='c') if v.talking else None,
@@ -130,7 +129,7 @@ def _lobby_part(ig, cp, d):
     tries = d.get('tries') or {}
     both = tries.get('driver') and tries.get('codriver')
     if both:
-        return box(col(note, txt(_('You have driven today\'s COPILOT in both roles. Back tomorrow.'), 19, 'semi', GOOD,
+        return box(col(note, txt(_('You have driven today\'s CODRIVER in both roles. Back tomorrow.'), 19, 'semi', GOOD,
                                  wrap=True)), bg=PANEL, p=[24, 18, 24, 20])
     role = m.get('role') or ('codriver' if tries.get('driver') else 'driver')
     if tries.get(role):
@@ -187,60 +186,39 @@ def _browser(ig, cp, d):
                        va='c'), *rows), bg=PANEL, p=[24, 18, 24, 20])
 
 
+NAME_W = 220                             # the results' driver and co-driver columns
+
+
 def _standings(ig, cp):
-    m = ig.mem(TAB)
-    side = m.get('side') if m.get('side') in dict(SIDES) else 'board'
-    head = tabs(tab_id(TAB, 'side'), SIDES, side)
-    body = _board(cp) if side == 'board' else _ranking(cp, side)
-    return box(col(head, sp(h=10), body), bg=PANEL, p=[22, 16, 22, 20])
-
-
-def _board(cp):
-    b = cp.board or {}
-    out = [kicker(_('Today\'s crews'), fg=COLOUR)]
-    if b.get('stage'):
-        s = b['stage']
-        out.append(txt(' · '.join(x for x in (s.get('menuName') or s.get('stageName'), s.get('car')) if x), 16, 'semi', FG2,
-                       wrap=True, pad=[0, 4, 0, 0]))
+    """Today's results: one table, as the dailies' with a column more: place, driver, co-driver, time (mine stands
+    out; a DNF at the foot, its time 'DNF')."""
+    b = cp.board
+    me = ig.app.s.get('steamId')
+    title = _('Today\'s results')
+    if b is None:
+        body = txt(_('Loading…'), 17, 'medium', MUTED, pad=[0, 8, 0, 0])
+        return box(col(kicker(title, fg=COLOUR), body), bg=PANEL, p=[22, 16, 22, 20])
     entries = b.get('entries') or []
+    head = row(kicker(title, fg=COLOUR), sp(fill=1), kicker(_('%d crews') % len(entries) if entries else ''),
+               pad=[0, 0, 0, 8])
+    cols = row(size(kicker('#', j=2), w=40), sp(14), size(kicker(_('Driver')), w=NAME_W), sp(10),
+               kicker(_('Co-driver'), fill=1), kicker(_('Time'), j=2), pad=[8, 0, 8, 4])
     if not entries:
-        out.append(txt(_('No crew has driven it yet.'), 18, 'medium', MUTED, pad=[0, 10, 0, 0]))
-    for e in entries[:14]:
-        place = str(e['rank']) if e.get('rank') else 'DNF'
-        time_ = fmt_ms(e['totalMs']) if e.get('totalMs') is not None else ''
-        gap = '+%s' % fmt_ms(e['gapMs']) if e.get('gapMs') else ''
-        out.append(box(row(size(txt(place, 18, 'bold', WHITE if e.get('rank') else MUTED, va='c'), w=48), sp(4),
-                           col(txt((e.get('driver') or {}).get('name') or '?', 18, 'bold', WHITE),
-                               txt(_('with %s') % ((e.get('codriver') or {}).get('name') or '?'), 15, 'semi', FG2),
-                               fill=1),
-                           col(txt(time_, 18, 'bold', WHITE, j=2), txt(gap, 14, 'semi', MUTED, j=2)), va='c'),
-                       bg=PANEL2, p=[14, 6, 14, 6], pad=[0, 6, 0, 0]))
-    return col(*out)
-
-
-def _ranking(cp, side):
-    r = cp.ranking or {}
-    rows = r.get('drivers' if side == 'drivers' else 'codrivers') or []
-    title = _('This month\'s drivers') if side == 'drivers' else _('This month\'s co-drivers')
-    out = [kicker(title, fg=COLOUR),
-           txt(_('Each day: 25 points for the fastest crew, then 18, 15, 12, 10, 8, 6, 4, 2, 1; any other finish 1.'), 14,
-               'semi', MUTED, wrap=True, pad=[0, 4, 0, 0])]
-    me = getattr(getattr(cp, 'app', None), 's', {}).get('steamId')
-    if not rows:
-        out.append(txt(_('No points yet this month.'), 18, 'medium', MUTED, pad=[0, 10, 0, 0]))
-    for x in rows[:RANK_SHOWN]:
-        mine = x.get('steamId') == me
-        days = x.get('days') or 0
-        bits = [_('%d days') % days if days != 1 else _('1 day')]
-        if x.get('wins'):
-            bits.append(_('%d wins') % x['wins'] if x['wins'] != 1 else _('1 win'))
-        out.append(box(row(size(txt(str(x.get('rank') or ''), 18, 'bold', COLOUR if mine else WHITE, va='c'), w=48), sp(4),
-                           col(txt(x.get('name') or '?', 18, 'bold', COLOUR if mine else WHITE),
-                               txt(' · '.join(bits), 14, 'semi', FG2), fill=1),
-                           txt('%d' % (x.get('points') or 0), 22, 'bold', WHITE, va='c'), sp(6),
-                           txt(_('PTS'), 13, 'bold', MUTED, va='c'), va='c'),
-                       bg=PANEL2, p=[14, 6, 14, 6], pad=[0, 6, 0, 0]))
-    return col(*out)
+        return box(col(head, cols, txt(_('No crew has driven it yet.'), 17, 'medium', MUTED, pad=[8, 8, 0, 0])),
+                   bg=PANEL, p=[22, 16, 22, 20])
+    lines = []
+    for e in entries:
+        d, c = e.get('driver') or {}, e.get('codriver') or {}
+        mine = me in (d.get('steamId'), c.get('steamId'))
+        fg = WHITE if mine else SOFT
+        place = '%d' % e['rank'] if e.get('rank') else '–'
+        time_ = fmt_ms(e['totalMs']) if e.get('totalMs') is not None else 'DNF'
+        line = row(size(txt(place, 17, 'bold', ACC_TEXT if e.get('rank') == 1 else MUTED, j=2), w=40), sp(14),
+                   size(txt(d.get('name') or '?', 17, 'bold' if mine else 'semi', fg), w=NAME_W), sp(10),
+                   txt(c.get('name') or '?', 17, 'bold' if mine else 'semi', fg, fill=1),
+                   txt(time_, 17, 'semi', fg if e.get('totalMs') is not None else MUTED, j=2))
+        lines.append(line_row(line, mine, fid='copilot:board:%d' % len(lines)))
+    return box(col(head, cols, sheet(lines, 14, 'copilot:board')), bg=PANEL, p=[22, 16, 22, 20])
 
 
 # ---------------------------------------------------------------------- SETTINGS › COPILOT VOICE
@@ -263,7 +241,7 @@ def settings_panel(ig):
                sp(6), choice('clearbtn', None, _('CLEAR'), False) if c['button'] else None, va='c')
     volume = row(choice('gain', '-', '−', False), size(txt('%d %%' % round(c['gain'] * 100), 18, 'bold', WHITE, j=1), w=80,
                                                          va='c'), choice('gain', '+', '+', False))
-    return panel(_('COPILOT voice'),
+    return panel(_('CODRIVER voice'),
                  setting(_('Talk'), _('Push to talk: hold the key or the button. Open mic: sent whenever you speak.'),
                          under=modes),
                  setting(_('Push to talk'), _('The key (click to change it), and a wheel or pad button (click, then press '
@@ -282,8 +260,6 @@ def click(ig, action, arg):
         m['role'] = arg
     elif action == 'priv':
         m['private'] = arg == 'private'
-    elif action == 'side' and arg in dict(SIDES):
-        m['side'] = arg
     elif action == 'refresh':
         cp.refresh(force=True)
     elif action == 'create':

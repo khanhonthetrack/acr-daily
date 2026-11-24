@@ -56,7 +56,7 @@ def listed(tt):
 
 
 def label(slot):
-    return 'COPILOT' if slot == CP_SLOT else 'TT%d' % slot
+    return 'CODRIVER' if slot == CP_SLOT else 'TT%d' % slot
 
 
 def parse_id(cid):
@@ -474,7 +474,7 @@ class TimeTrialUI:
             if self.tt_sel != slot and slot != CP_SLOT:
                 self.tt_select(slot)
             if slot == CP_SLOT:                        # (COPILOT: one go, your co-driver waiting on the stage)
-                self.sub_l.configure(text=_('COPILOT: your stage is set up. At the Service Park: START STAGE. Your '
+                self.sub_l.configure(text=_('CODRIVER: your stage is set up. At the Service Park: START STAGE. Your '
                                             'co-driver watches your car from the start line.'))
                 return
             self.sub_l.configure(text=(_('TT%d set up in the game.') % slot) + ' ' + _(
@@ -634,10 +634,10 @@ class TimeTrialUI:
                 elif ev == 'finished' and cp is not None and (t.get('changed') or t.get('here') is False or
                                                                t.get('codriver_said') is False):
                     # (COPILOT: one go, and it didn't count: the crew's DNF, said why)
-                    why = (self.problems_hint('COPILOT', t['changed']) if t.get('changed') else
+                    why = (self.problems_hint('CODRIVER', t['changed']) if t.get('changed') else
                            _("it wasn't started from ACR DAILY") if t.get('here') is False else
                            _("the game's own co-driver was on at the start"))
-                    self.sub_l.configure(text=_('COPILOT: not counted: %s') % why)
+                    self.sub_l.configure(text=_('CODRIVER: not counted: %s') % why)
                     cp.on_result(dict(j.result, status='dnf', reason=str(why), totalMs=None))
                 elif ev == 'finished':
                     if not t.get('counts', True):
@@ -665,7 +665,7 @@ class TimeTrialUI:
                                          else 'TT%d: %s' % (slot, c.PRACTICE_HINT))
                 elif ev in ('dnf', 'invalid') and cp is not None:   # (COPILOT: the crew's DNF goes on its board)
                     self._clear_standing()
-                    self.sub_l.configure(text=_('COPILOT: %s (%s).') % (_('DNF') if ev == 'dnf' else _('INVALID'),
+                    self.sub_l.configure(text=_('CODRIVER: %s (%s).') % (_('DNF') if ev == 'dnf' else _('INVALID'),
                                                                          local((j.result or {}).get('reason') or '')))
                     cp.on_result(dict(j.result or {}, status='dnf', totalMs=None))
                 elif ev in ('dnf', 'invalid'):
@@ -878,7 +878,7 @@ class TimeTrialUI:
                 if cp.partner_off is False:
                     return (_("YOUR CO-DRIVER'S GAME CALLS THE NOTES"),
                             (_("Their game's own co-driver is on: it must be off, or it's a DNF for the crew."),), 'stop')
-                return (_('COPILOT · ONE GO'),
+                return (_('CODRIVER · ONE GO'),
                         (_('Your co-driver reads the notes: the game\'s own co-driver is off.'),
                          _('Changing settings, driving aids, the co-driver or pacenotes on the stage is a DNF.')), 'warn')
         return None
@@ -891,7 +891,7 @@ class TimeTrialUI:
         c = _c()
         t = self.tt[slot]
         j, ch = t.get('judge'), t['ch']
-        stage = 'COPILOT' if slot == CP_SLOT else 'TT%d · %s' % (slot, c.stage_name(ch, short=True).upper())
+        stage = 'CODRIVER' if slot == CP_SLOT else 'TT%d · %s' % (slot, c.stage_name(ch, short=True).upper())
         if not j:
             return _('TT%d has no route yet') % slot, '', ('offline', stage, 0, 0, _('No route for this stage yet'), c.MUTED)
         signed = bool(self.s.get('token'))
@@ -903,7 +903,7 @@ class TimeTrialUI:
                 line = _('vs %s  %s%.2f') % (t.get('ghost_name') or 'P1', '+' if gap >= 0 else '−', abs(gap) / 1000)
                 lc = c.SLOW if gap > 0 else c.GOOD
             else:
-                line, lc = (_('COPILOT · %d%%') if slot == CP_SLOT else _('Time trial · %d%%')) % round(j.progress * 100), c.SOFT
+                line, lc = (_('CODRIVER · %d%%') if slot == CP_SLOT else _('Time trial · %d%%')) % round(j.progress * 100), c.SOFT
             if not t.get('counts', True):
                 line, lc = _('NOT ENTERED · this run does not count'), c.BAD
             elif t.get('changed'):

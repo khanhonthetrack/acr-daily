@@ -2989,7 +2989,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if a.get('slot') != CP_SLOT or cp is None:
             return False
         cp.on_result(dict(a.get('result') or {}, status='dnf', reason=str(why), totalMs=None))
-        self.sub_l.configure(text=_('COPILOT: DNF (%s).') % local(why))
+        self.sub_l.configure(text=_('CODRIVER: DNF (%s).') % local(why))
         return True
 
     def _held_by(self, kind):

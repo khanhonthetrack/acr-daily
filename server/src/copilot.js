@@ -246,8 +246,8 @@ async function createLobby(env, me, b, now, deps) {
   const date = dayOf(now);
   if (!ROLES.includes(b.role)) return err('role: driver or codriver');
   const tries = await triesOf(env, date, me.steam_id);
-  if (tries[b.role]) return err(`you have driven today's COPILOT as ${b.role === 'driver' ? 'the driver' : 'the co-driver'} already`, 409);
-  if (!(await dayPick(env, date, deps, now))) return err('no COPILOT stage today', 409);
+  if (tries[b.role]) return err(`you have driven today's CODRIVER as ${b.role === 'driver' ? 'the driver' : 'the co-driver'} already`, 409);
+  if (!(await dayPick(env, date, deps, now))) return err('no CODRIVER stage today', 409);
   const code = b.private ? newCode() : null;
   // (one lobby at a time: any other open one of mine is closed, or left)
   const res = await env.DB.batch([
@@ -277,7 +277,7 @@ async function joinLobby(env, me, b, now, deps) {
   if (l.guest && l.guest !== me.steam_id) return err('that lobby is full', 409);
   const role = otherRole(l.host_role);
   const tries = await triesOf(env, date, me.steam_id);
-  if (tries[role]) return err(`you have driven today's COPILOT as ${role === 'driver' ? 'the driver' : 'the co-driver'} already`, 409);
+  if (tries[role]) return err(`you have driven today's CODRIVER as ${role === 'driver' ? 'the driver' : 'the co-driver'} already`, 409);
   const res = await env.DB.batch([
     env.DB.prepare(`UPDATE copilot_lobbies SET state = 'closed', updated = ? WHERE state = 'open' AND host = ?`).bind(now, me.steam_id),
     env.DB.prepare(`UPDATE copilot_lobbies SET guest = NULL, guest_ready = 0, host_ready = 0, guest_signal = NULL, updated = ?
@@ -318,7 +318,7 @@ async function setReady(env, me, id, b, now, deps) {
     ]);
     if (!res[2].meta.changes) {
       await env.DB.prepare(`UPDATE copilot_lobbies SET host_ready = 0, guest_ready = 0, updated = ? WHERE id = ? AND state = 'open'`).bind(now, id).run();
-      return err('one of you has driven today\'s COPILOT in that role already', 409);
+      return err('one of you has driven today\'s CODRIVER in that role already', 409);
     }
   }
   return json({ ok: true, lobby: await lobbyFor(env, id, me, deps) });
@@ -472,11 +472,11 @@ async function submit(req, env, me, now, deps) {
   let sub;
   try { sub = await req.json(); } catch { return err('bad json'); }
   const id = parseCpId(sub && sub.challengeId);
-  if (!id) return err('invalid run: not a COPILOT stage');
+  if (!id) return err('invalid run: not a CODRIVER stage');
   const old = deps.tooOld(req, sub);
   if (old) return old;
   const l = await env.DB.prepare('SELECT * FROM copilot_lobbies WHERE id = ? AND date = ?').bind(id.lobby, id.date).first();
-  if (!l) return err('invalid run: no such COPILOT lobby', 409);
+  if (!l) return err('invalid run: no such CODRIVER lobby', 409);
   if (crewOf(l).driver !== me.steam_id) return err('invalid run: only the lobby\'s driver sends its run', 403);
   if (l.state !== 'started') {
     const had = await env.DB.prepare('SELECT status, total_ms FROM copilot_runs WHERE lobby_id = ?').bind(l.id).first();
@@ -485,8 +485,8 @@ async function submit(req, env, me, now, deps) {
   if (now >= dayStart(id.date) + DAY + CP.lateMs) return err('too late: that day is over', 409);
   const p = await env.DB.prepare('SELECT track, car, weather, time FROM copilot_days WHERE date = ?').bind(id.date).first();
   const route = p ? await env.DB.prepare('SELECT points, length, stage_id FROM routes WHERE track = ?').bind(p.track).first() : null;
-  if (!p || !route) return err('no COPILOT stage', 409);
-  if (sub.track !== p.track || sub.car !== p.car) return err('invalid: not the COPILOT stage/car', 422);
+  if (!p || !route) return err('no CODRIVER stage', 409);
+  if (sub.track !== p.track || sub.car !== p.car) return err('invalid: not the CODRIVER stage/car', 422);
   const v = validateRun(sub, routeInfo(JSON.parse(route.points)), 0, true);
   if (!v.ok) return err('invalid: ' + v.reason, 422);
   const splits = v.status === 'finished' && v.trace && v.trace.length ? timesAt(v.trace, { points: JSON.parse(route.points) }, deps.splits, 0) : null;
@@ -505,7 +505,7 @@ export async function copilotApi(req, env, path, url, me, sameOrigin, now, deps)
   const { json, err } = deps;
   const post = req.method === 'POST';
   const today = dayOf(now);
-  if (!firstDay(env)) return path === '/api/copilot' && !post ? json({ on: false }) : err('COPILOT is off on this server', 404);
+  if (!firstDay(env)) return path === '/api/copilot' && !post ? json({ on: false }) : err('CODRIVER is off on this server', 404);
 
   if (path === '/api/copilot' && !post) {
     const date = url.searchParams.get('date') || today;
@@ -564,7 +564,7 @@ export async function copilotApi(req, env, path, url, me, sameOrigin, now, deps)
   if (!me) return err('sign in with Steam first', 401);
   if (me.banned) return err('this account is banned', 403);
   if (!sameOrigin) return err('refused: not from this site', 403);
-  if (!copilotOn(env, today)) return err('no COPILOT today', 409);
+  if (!copilotOn(env, today)) return err('no CODRIVER today', 409);
   const body = async () => (await req.json().catch(() => ({}))) || {};
   if (path === '/api/copilot/lobbies') return createLobby(env, me, await body(), now, deps);
   if (path === '/api/copilot/join') return joinLobby(env, me, await body(), now, deps);

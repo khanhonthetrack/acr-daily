@@ -349,11 +349,12 @@ class Pages(unittest.TestCase):
         ig._dialog_words = ' abc 234 '
         ig.dialog['go'][1]()
         cp.join.assert_called_with(lobby_id=10, code='ABC234')
-        ig_copilot.click(ig, 'side', 'drivers')
-        words = json.dumps(ig_copilot.page(ig))
-        self.assertIn('43', words)
-        self.assertIn("THIS MONTH'S DRIVERS", words)
-        self.assertEqual(check(ig_copilot.page(ig)), [])
+        table = ig_copilot._standings(ig, cp)               # (one table: place, driver, co-driver, time)
+        self.assertEqual(check(table), [])
+        words = json.dumps(table)
+        for w in ('"#"', 'DRIVER', 'CO-DRIVER', 'TIME', '"A"', '"B"', '3:20.000', '"DNF"', '"C"', '"D"'):
+            self.assertIn(w, words)
+        self.assertNotIn('PTS', words)
         cp.lobby = lobby(code='ABC234')
         self.assertIn('ABC234', json.dumps(ig_copilot.page(ig)))
         cp.lobby = lobby('started', ch=CH)
