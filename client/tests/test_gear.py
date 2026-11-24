@@ -39,6 +39,78 @@ class Tyres(unittest.TestCase):
         self.assertEqual(gear.compounds({'rally': 'Somewhere new'}), ())
 
 
+MIXED = {'id': 9, 'rally': 'Alsace · Wales · Sweden', 'kind': 'league',
+         'stages': [{'track': 'Alsace Obersteigen', 'stageId': 'AlsaceS4SaverneShort1Forward', 'day': 1},
+                    {'track': 'Wales Afon Bidno', 'stageId': 'WelesS4HafrenSouthFullForward', 'day': 1},
+                    {'track': 'Sweden Gravendal East', 'stageId': 'SwedenS3FredriksbergCut2Reverse', 'day': 1},
+                    {'track': 'Alsace La Mossig', 'stageId': 'AlsaceS4SaverneShort1Reverse', 'day': 2}]}
+
+
+class TyresBySurface(unittest.TestCase):
+    """An event on several surfaces: a set picked for each at the start, each leg given its own (the user, 24 Nov 2026)."""
+    def setUp(self):
+        p = mock.patch('acr_daily.gear.settings.save')
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_one_set_a_surface(self):
+        self.assertEqual(gear.surfaces(MIXED), ['tarmac', 'gravel', 'snow'])
+        self.assertEqual(gear.surface_stages(MIXED, 'tarmac'), [1, 4])
+        self.assertEqual(gear.compounds(MIXED), ())                       # (no one set for all of it)
+        s = {}
+        gear.step_tyres(s, MIXED, 'TarmacSoft', 1, surface='tarmac')
+        gear.step_tyres(s, MIXED, 'GravelHard', 1, surface='gravel')
+        kept = s['eventTyres']['9']
+        self.assertEqual(sorted(kept), ['@gravel', '@tarmac'])
+        self.assertEqual(sum(gear.tyres_of(s, MIXED, surface='tarmac').values()), gear.TYRES)
+        self.assertIsNone(gear.tyres_of(s, MIXED, surface='snow'))
+        gear.auto_tyres(s, MIXED, surface='gravel')                       # (that surface back to the game's own)
+        self.assertEqual(sorted(s['eventTyres']['9']), ['@tarmac'])
+
+    def test_each_leg_its_own(self):
+        s = {}
+        gear.step_tyres(s, MIXED, 'TarmacSoft', 1, surface='tarmac')
+        gear.step_tyres(s, MIXED, 'GravelHard', 1, surface='gravel')
+        from acr_daily import leagues
+        self.assertEqual(leagues.legs(MIXED), [(0, 1), (1, 2), (2, 3), (3, 4)])
+        legs = [gear.for_setup(s, MIXED, 'NoSuchCar', leg).get('tyres') for leg in range(4)]
+        self.assertIn('TarmacSoft', legs[0])
+        self.assertIn('GravelHard', legs[1])
+        self.assertIsNone(legs[2])                                        # (snow: the game's)
+        self.assertEqual(legs[3], legs[0])
+
+    def test_a_one_surface_events_counts_as_before(self):
+        s = {'eventTyres': {'7': {'GravelSoft': 6, 'GravelMedium': 5, 'GravelHard': 5}}}
+        self.assertEqual(gear.tyres_of(s, EV), {'GravelSoft': 6, 'GravelMedium': 5, 'GravelHard': 5})
+        gear.step_tyres(s, EV, 'GravelSoft', 1)
+        self.assertFalse(any(k.startswith('@') for k in s['eventTyres']['7']))
+
+
+class PickerInTheGame(unittest.TestCase):
+    """ACR DAILY's event card in the game (ig_comp.gear_picker): a set for each surface, each its own clicks."""
+    def setUp(self):
+        p = mock.patch('acr_daily.gear.settings.save')
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_a_picker_a_surface(self):
+        import json
+        from acr_daily import ig_comp
+        a = mock.Mock()
+        a.s = {}
+        a._league_car.return_value = None
+        a._league_event.return_value = MIXED
+        ig = mock.Mock(app=a)
+        said = json.dumps(ig_comp.gear_picker(ig, MIXED), ensure_ascii=False)
+        self.assertIn('TARMAC · SS1, SS4', said)
+        self.assertIn('GRAVEL · SS2', said)
+        self.assertNotIn('SNOW · SS3', said)                         # (one compound: nothing to pick)
+        ig_comp.gear_click(a, 'tyre', '9:GravelHard:1:gravel')
+        self.assertIn('@gravel', a.s['eventTyres']['9'])
+        ig_comp.gear_click(a, 'tyreauto', '9:gravel')
+        self.assertNotIn('9', a.s['eventTyres'])
+
+
 class Liveries(unittest.TestCase):
     def test_official_and_own(self):
         base = tempfile.mkdtemp()

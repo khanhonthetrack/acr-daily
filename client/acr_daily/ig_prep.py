@@ -82,23 +82,32 @@ def page(ig):
                                 c['name'], c['name'] == cur) for i, c in enumerate(cars)]))
     elif car:
         body.append(_grid([tile(None, 'ue:car:%s' % car['id'], car['name'], True)]))
-    # TYRES
-    rows_ = gear.compounds(ev) if ev and ev.get('kind') != 'live' else ()
+    # TYRES: one set a surface the event is driven on (several: each its own, named with its stages; gear.py)
+    kinds = gear.surfaces(ev) if ev and ev.get('kind') != 'live' else []
     body.append(kicker(_('Tyres'), pad=[0, 22, 0, 8]))
-    if len(rows_) > 1:
-        mine = gear.tyres_of(a.s, ev)
-        counts = mine or gear.start_counts(ev)
-        cells = [btn(tab_id(TAB, 'tyreauto'), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE, foc=FOCUS,
+    shown = 0
+    for k in kinds:
+        rows_ = gear.compounds(ev, surface=k)
+        if len(rows_) < 2:                     # (one compound, Sweden's snow: nothing to pick)
+            continue
+        mine = gear.tyres_of(a.s, ev, surface=k)
+        counts = mine or gear.start_counts(ev, k)
+        if len(kinds) > 1:
+            body.append(txt('%s · %s' % (i18n.data(gear.SURFACE_NAMES[k]).upper(), ', '.join(
+                'SS%d' % n for n in gear.surface_stages(ev, k))), 15, 'bold', SOFT, pad=[0, 10 if shown else 0, 0, 6]))
+        cells = [btn(tab_id(TAB, 'tyreauto', k), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE, foc=FOCUS,
                      fg=BG if not mine else SOFT, hfg=BG, sz=16, f='bold', p=[16, 6, 16, 6], r=2,
                      ol=None if not mine else LINE2, va='c')]
         for r in rows_:
             cells.append(row(txt(gear.NAMES.get(r, r), 17, 'semi', SOFT, va='c'), sp(10),
-                             quiet(tab_id(TAB, 'tyre', '%s:-1' % r), '‹', p=[12, 4, 12, 4], va='c'),
+                             quiet(tab_id(TAB, 'tyre', '%s:%s:-1' % (k, r)), '‹', p=[12, 4, 12, 4], va='c'),
                              size(txt('%d' % counts.get(r, 0), 20, 'bold', WHITE if mine else MUTED, j=1, va='c'),
                                   w=COUNT_W),
-                             quiet(tab_id(TAB, 'tyre', '%s:1' % r), '›', p=[12, 4, 12, 4], va='c'),
+                             quiet(tab_id(TAB, 'tyre', '%s:%s:1' % (k, r)), '›', p=[12, 4, 12, 4], va='c'),
                              pad=[26, 0, 0, 0], va='c'))
         body.append(row(*cells))
+        shown += 1
+    if shown:
         body.append(txt(_('%d tyres in all') % gear.TYRES, 15, 'medium', MUTED, pad=[0, 6, 0, 0]))
     else:
         body.append(txt(_('The game picks them, the same for everyone.'), 17, 'medium', MUTED))
@@ -130,10 +139,11 @@ def click(ig, action, arg):
         except (ValueError, IndexError, KeyError):
             pass
     elif action == 'tyre' and arg and ev:
-        r, _sep, d = arg.rpartition(':')
-        gear.step_tyres(a.s, ev, r, 1 if d == '1' else -1)
+        parts = arg.split(':')                   # ('<surface>:<row>:<±1>')
+        k, r, d = parts if len(parts) == 3 else [''] + parts[-2:]
+        gear.step_tyres(a.s, ev, r, 1 if d == '1' else -1, surface=k or None)
     elif action == 'tyreauto' and ev:
-        gear.auto_tyres(a.s, ev)
+        gear.auto_tyres(a.s, ev, surface=arg or None)
     elif action == 'livery' and arg is not None and car:
         opts = [''] + [n for n, _w in gear.choices(car['id'])]
         try:

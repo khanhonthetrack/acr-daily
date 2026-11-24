@@ -392,22 +392,29 @@ def gear_picker(ig, ev):
         return None
     car = _gear_car(a, ev)
     out = []
-    rows = gear.compounds(ev) if ev.get('kind') != 'live' else ()
-    if len(rows) > 1:                         # (one compound, Sweden's snow: nothing to pick)
-        mine = gear.tyres_of(a.s, ev)
-        counts = mine or gear.start_counts(ev)
+    kinds = gear.surfaces(ev) if ev.get('kind') != 'live' else []
+    for k in kinds:                           # (each surface it is driven on: its own set, gear.py)
+        rows = gear.compounds(ev, surface=k)
+        if len(rows) < 2:                     # (one compound, Sweden's snow: nothing to pick)
+            continue
+        mine = gear.tyres_of(a.s, ev, surface=k)
+        counts = mine or gear.start_counts(ev, k)
         cells = []
         for i, r in enumerate(rows):
             n = counts.get(r, 0)
             cells.append(row(txt(gear.NAMES.get(r, r), 16, 'semi', SOFT, va='c'), sp(8),
-                             quiet(tab_id(TAB, 'tyre', '%s:%s:-1' % (ev['id'], r)), '‹', p=[10, 2, 10, 2], va='c'),
+                             quiet(tab_id(TAB, 'tyre', '%s:%s:-1:%s' % (ev['id'], r, k)), '‹', p=[10, 2, 10, 2], va='c'),
                              size(txt('%d' % n, 18, 'bold', WHITE if mine else MUTED, j=1, va='c'), w=34),
-                             quiet(tab_id(TAB, 'tyre', '%s:%s:1' % (ev['id'], r)), '›', p=[10, 2, 10, 2], va='c'),
+                             quiet(tab_id(TAB, 'tyre', '%s:%s:1:%s' % (ev['id'], r, k)), '›', p=[10, 2, 10, 2], va='c'),
                              pad=[0 if i == 0 else 22, 0, 0, 0]))
-        auto = btn(tab_id(TAB, 'tyreauto', ev['id']), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE, foc=FOCUS,
-                   fg=BG if not mine else SOFT, hfg=BG, sz=15, f='bold', p=[12, 3, 12, 3], r=2, ol=None if not mine else LINE2)
-        out += [row(kicker(_('Tyres · %d') % gear.TYRES, fg=WHITE if mine else SOFT, va='c'), sp(14), auto,
-                    pad=[0, 14, 0, 0]),
+        auto = btn(tab_id(TAB, 'tyreauto', '%s:%s' % (ev['id'], k)), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE,
+                   foc=FOCUS, fg=BG if not mine else SOFT, hfg=BG, sz=15, f='bold', p=[12, 3, 12, 3], r=2,
+                   ol=None if not mine else LINE2)
+        head = _('Tyres · %d') % gear.TYRES
+        if len(kinds) > 1:
+            head += ' · %s · %s' % (i18n.data(gear.SURFACE_NAMES[k]),
+                                    ', '.join('SS%d' % n for n in gear.surface_stages(ev, k)))
+        out += [row(kicker(head, fg=WHITE if mine else SOFT, va='c'), sp(14), auto, pad=[0, 14, 0, 0]),
                 row(*cells, pad=[0, 6, 0, 0])]
     if car:
         picked = gear.livery_of(a.s, car['id'])
@@ -431,10 +438,10 @@ def gear_click(a, action, arg):
     ev = a._league_event(_int(parts[0]))
     if not ev:
         return
-    if action == 'tyre' and len(parts) == 3:
-        gear.step_tyres(a.s, ev, parts[1], 1 if parts[2] == '1' else -1)
+    if action == 'tyre' and len(parts) in (3, 4):          # ('<event>:<row>:<±1>[:<surface>]')
+        gear.step_tyres(a.s, ev, parts[1], 1 if parts[2] == '1' else -1, surface=parts[3] if len(parts) == 4 else None)
     elif action == 'tyreauto':
-        gear.auto_tyres(a.s, ev)
+        gear.auto_tyres(a.s, ev, surface=parts[1] if len(parts) == 2 else None)
     elif action == 'livery' and len(parts) == 2:
         car = _gear_car(a, ev)
         if not car:
