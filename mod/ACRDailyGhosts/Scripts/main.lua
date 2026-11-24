@@ -329,7 +329,12 @@ local function took(c, g, t_pose, t)
     if g.path then                                     -- (WATCH: its path ahead, from now on: on_path)
         c.prev_path = c.path
         c.path = {t0 = t_pose, c0 = g.path.c0, now = g.path.now, dt = g.path.dt, poses = g.path.poses}
-        if on_path(c, t) then return end
+        if on_path(c, t) then
+            -- (a car made while its paths were already coming had no base pose: never drawn, so WATCH went off and
+            -- never came back on it; seen live, VBR_PAUL_MARTIN starting a new run, 24 Nov 2026)
+            if not c.base then c.base, c.vel, c.t = g, g.v, t_pose end
+            return
+        end
     else
         c.path, c.prev_path, c.pc = nil, nil, nil
     end
