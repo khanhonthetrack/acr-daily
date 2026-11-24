@@ -573,6 +573,14 @@ function build_raw(P, n)
     elseif t == "scroll" then
         local sc = K.new("ScrollBox", tree)
         pcall(function() sc:SetScrollBarVisibility(n.bar == false and 1 or 0) end)
+        -- the bar always there (its room kept): a list just made doesn't know its height yet, so the engine hid the bar
+        -- for its first 2-3 frames and the page shook right by the bar's width at every redraw (the user, 24 Nov 2026;
+        -- seen in screen captures: 3-5 px for ~30 ms, the bar gone in exactly those frames)
+        if n.bar ~= false then
+            if not pcall(function() sc:SetAlwaysShowScrollbar(true) end) then
+                pcall(function() sc.AlwaysShowScrollbar = true end)
+            end
+        end
         -- the wheel's / pad's arrows move the focus down a list: the list follows it (EScrollWhenFocusChanges
         -- InstantScroll; the user, 21 Nov 2026)
         pcall(function() sc:SetScrollWhenFocusChanges(1) end)
