@@ -39,9 +39,9 @@ ROOT_DEFAULT = (-0.13, -0.57)
 ACTOR_FROM_CONTACTS = (0.04, -0.10)
 FALLBACK_CAR = 'SkodaFabiaRSRally2'
 ADJUST = ('fwd', 'up', 'side', 'tilt', 'fov')      # your own fine-tuning of a view, on top of the game's camera
-LIVE_SERVER = 'wss://immich.tail0d617f.ts.net:10000/live'   # the live relay (live/relay.py on the Raspberry Pi)
+LIVE_SERVER = 'wss://immich.tail0d617f.ts.net:10000/live'   # fallback relay on the Raspberry Pi (regions.py picks nearest VM first)
 DEFAULTS = dict(on=False, view='bonnet', follow=True, adjust={}, always=False, mirror=False, liveServer=LIVE_SERVER,
-                ingame=True)    # (real cars: the app puts the game mod in when ghost cars go on, modinstall.py)
+                region='auto', ingame=True)    # (real cars: the app puts the game mod in when ghost cars go on, modinstall.py)
 # (no longer used: the first test's hand-set view; your own past runs as ghosts, gone for live drivers only)
 LEGACY = ('fov', 'fwd', 'up', 'side', 'tilt', 'level', 'source', 'earlierS', 'line', 'live')
 

@@ -23,6 +23,7 @@ ROUTES = os.path.join(DIR, 'routes')              # routes recorded in admin mod
 
 DEFAULTS = {
     'server': '',
+    'region': 'auto',
     'token': '',
     'steamId': '',
     'name': '',
@@ -72,6 +73,10 @@ def save(s):
 
 
 def server_url(s):
+    from . import regions
+    cands = regions.DEFAULT_SELECTOR.api_candidates(s, DEFAULT_SERVER)
+    if cands:
+        return cands[0]
     return (os.environ.get('ACR_DAILY_SERVER') or s.get('server') or DEFAULT_SERVER).rstrip('/')
 
 

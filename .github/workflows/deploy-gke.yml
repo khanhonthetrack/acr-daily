@@ -1,0 +1,79 @@
+# Builds & publishes the multi-region server/relay container image to GitHub Container Registry (ghcr.io) whenever
+# backend/relay files change on main (using built-in GITHUB_TOKEN — zero GCP secrets or external IAM needed!).
+# Each GKE cluster's in-cluster `acr-rollout-watcher` detects the new immutable GHCR digest within ~90s and triggers a
+# 30-minute zero-drop RollingUpdate automatically.
+#
+# One-time GitHub package visibility check after first run:
+#   Ensure `ghcr.io/<owner>/acr-daily-server` package visibility is set to Public in GitHub Package Settings (or pass
+#   optional GHCR_READ_TOKEN in `acr-daily-secrets` if kept private).
+name: build server image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'live/**'
+      - 'routes/**'
+      - 'tools/auto_rollout_watcher.py'
+      - 'Dockerfile'
+      - '.github/workflows/deploy-gke.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-server-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run server, mesh & rollout watcher tests
+        run: |
+          python -m unittest client/tests/test_relay_mesh.py client/tests/test_regions.py client/tests/test_auto_rollout_watcher.py
+          cd server
+          npm ci
+          npm test
+
+      - name: Log in to GitHub Container Registry (ghcr.io)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize image name & tags
+        id: meta
+        run: |
+          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="ghcr.io/${OWNER_LC}/acr-daily-server"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${IMAGE}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "branch_tag=${IMAGE}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push multi-region server & relay image
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.licenses=MIT" \
+            -t "${{ steps.meta.outputs.sha_tag }}" \
+            -t "${{ steps.meta.outputs.branch_tag }}" \
+            .
+          docker push "${{ steps.meta.outputs.sha_tag }}"
+          docker push "${{ steps.meta.outputs.branch_tag }}"
+          echo "Published ${{ steps.meta.outputs.branch_tag }} (${{ steps.meta.outputs.sha_tag }})" >> "$GITHUB_STEP_SUMMARY"

@@ -34,7 +34,7 @@ permissions:
   attestations: write   # store it on GitHub
 
 env:
-  SERVER_URL: https://acr-daily.acr-daily-server.workers.dev
+  SERVER_URL: https://acrdaily.com
   PYINSTALLER_VERSION: '6.22.3'
   PILLOW_VERSION: '12.3.0'      # Steam avatars (JPEG) on the overlays
   # 7-Zip 24.09 (Igor Pavlov: GNU LGPL with the unRAR restriction), pinned by its SHA-256: its 7z.exe and 7z.dll go into

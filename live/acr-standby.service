@@ -1,0 +1,26 @@
+# systemd unit for the passive shadow-backup HTTP listener on the Raspberry Pi (no kubectl / GCP access needed).
+#
+#   mkdir -p ~/acr-standby/data
+#   cp live/standby_receiver.py ~/acr-standby/
+#   # Generate or derive standby.key (if ADMIN_KEY is set, derives deterministically; otherwise generates random 64-hex):
+#   python3 ~/acr-standby/standby_receiver.py --data-dir ~/acr-standby/data --key-file ~/acr-standby/standby.key --init-key-only
+#   sudo cp live/acr-standby.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now acr-standby
+#   sudo tailscale funnel --bg --https=8443 http://127.0.0.1:9876
+
+[Unit]
+Description=ACR Daily passive standby backup listener
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/acr-standby/standby_receiver.py --host 127.0.0.1 --port 9876 --data-dir /home/pi/acr-standby/data --key-file /home/pi/acr-standby/standby.key --auto-create-key
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

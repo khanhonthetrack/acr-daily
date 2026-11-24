@@ -493,8 +493,12 @@ class LiveLink:
     watch: False for a driver with ghost cars off: their car is still sent (everyone with ghost cars on sees every
     driver on the stage), but the relay sends them nobody else's (hello's 'watch'), and others() stays empty."""
 
-    def __init__(self, url, name, car='', ticket=None, watch=True):
-        self.url, self.name, self.car = url, name or _('Driver'), car
+    def __init__(self, url, name, car='', ticket=None, watch=True, urls=None, on_fail=None):
+        self.urls = [u for u in (urls or [url]) if u] or ([url] if url else [])
+        self.url = self.urls[0] if self.urls else url
+        self.active_url = self.url
+        self._on_fail = on_fail
+        self.name, self.car = name or _('Driver'), car
         self.watch = bool(watch)
         self.ticket_fn = ticket
         self._ticket = None
@@ -841,12 +845,23 @@ class LiveLink:
     # ---- the connection
     def _run_loop(self):
         tries = 0
+        cand_idx = 0
         while self.on:
+            cands = self.urls or [self.url]
+            target_url = cands[cand_idx % len(cands)]
+            welcomed = False
             try:
                 self.state = 'connecting'
+                self.active_url = target_url
                 self._refused = False
                 self._get_ticket()                   # (none: the relay says whether it wants one)
-                ws = self._ws = WebSocket(self.url)
+                ws = self._ws = WebSocket(target_url)
+                ws.sock.settimeout(5.0)
+                first = json.loads(ws.recv())
+                if isinstance(first, dict):
+                    self._got(first)
+                if getattr(self, '_refused', False):
+                    raise ConnectionError('refused')
                 ws.sock.settimeout(None)
                 self._joined = None                  # (told again on this connection)
                 ws.send(json.dumps(self._hello()))
@@ -855,6 +870,7 @@ class LiveLink:
                 if self.crew_room:                       # (the crew's room, joined again on a new connection)
                     ws.send(json.dumps({'t': 'crew', 'room': self.crew_room}))
                 self.state = 'live'
+                welcomed = True
                 tries = 0
                 threading.Thread(target=self._writer, args=(ws,), daemon=True).start()
                 while self.on:
@@ -865,7 +881,11 @@ class LiveLink:
                     if isinstance(m, dict):
                         self._got(m)
             except Exception:
-                pass
+                if not welcomed and not getattr(self, '_refused', False) and self._on_fail is not None:
+                    try:
+                        self._on_fail(target_url)
+                    except Exception:
+                        pass
             finally:
                 self.state = 'signin' if getattr(self, '_refused', False) else 'offline'
                 if self._ws is not None:
@@ -875,6 +895,21 @@ class LiveLink:
                     self.drivers.clear()
             if not self.on:
                 break
+            if getattr(self, '_refused', False):
+                cand_idx = 0
+                time.sleep(RETRY_S[min(tries, len(RETRY_S) - 1)])
+                tries += 1
+                continue
+            if welcomed:
+                # Session dropped mid-flight: retry best preferred candidate (0) first before failing over
+                cand_idx = 0
+                time.sleep(RETRY_S[0])
+                continue
+            if len(cands) > 1 and cand_idx + 1 < len(cands):
+                cand_idx += 1
+                time.sleep(0.25)                     # step immediately to the next regional relay / RPi fallback
+                continue
+            cand_idx = 0
             time.sleep(RETRY_S[min(tries, len(RETRY_S) - 1)])
             tries += 1
 
