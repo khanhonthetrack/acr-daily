@@ -121,6 +121,23 @@ class Dialog(unittest.TestCase):
         self.assertTrue(d.win.winfo_exists())
         self.done.assert_not_called()
 
+    def test_stages_from_two_places(self):
+        d, a = self.d, self.a
+        sw = [{'track': 'Sweden Lake', 'stageId': 'SwedenS1LakeForward', 'name': 'Lake', 'lengthM': 9000}]
+        d.rallies.append({'name': 'Sweden', 'stages': sw})
+        d.opp = {'steamId': ANN, 'name': 'Ann'}
+        d.stage_l.selection_set(3)                          # (Col de Turini, in Monte Carlo)
+        d._took()
+        d.rally.configure(values=list(d.rally.cget('values')) + ['Sweden'])
+        d.rally.current(1)
+        d._stages()                                         # (Sweden's list: Monte Carlo's pick kept)
+        self.assertEqual(d.stage_l.curselection(), ())
+        d.stage_l.selection_set(0)
+        d.send()
+        sent = a.api.h2h_challenge.call_args.args[2]
+        self.assertEqual([s['track'] for s in sent['stages']], [MC[3]['track'], 'Sweden Lake'])
+        self.assertEqual(sent['rally'], 'Monte Carlo')      # (where it starts: the server names all of its places)
+
     def test_no_answer_nothing_sent(self):
         self.ask.return_value = False
         self.d.opp = {'steamId': ANN, 'name': 'Ann'}

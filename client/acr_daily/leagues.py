@@ -89,7 +89,14 @@ def legs(ev, split=None):
         else:
             days.append([k, k + 1])
     if (split or ev.get('_split') or DAYS) != OLD:
-        return [(days[i][0], days[min(i + LEG_DAYS, len(days)) - 1][1]) for i in range(0, len(days), LEG_DAYS)]
+        out = []
+        for a, b in [(days[i][0], days[min(i + LEG_DAYS, len(days)) - 1][1]) for i in range(0, len(days), LEG_DAYS)]:
+            for k in range(a + 1, b):              # (a rally in several places: a Rally Weekend for each, in order)
+                if location(ev, k) != location(ev, k - 1):
+                    out.append((a, k))
+                    a = k
+            out.append((a, b))
+        return out
     out = []                                       # (the old split, as those apps made it)
     for a, b in days:
         for c in range(a, b, OLD_LEG_STAGES):      # (a day too long for one leg: in parts)
@@ -99,6 +106,24 @@ def legs(ev, split=None):
             else:
                 out.append([c, d, 1])
     return [(a, b) for a, b, _n in out]
+
+
+def location(ev, k):
+    """Stage k's place: its location's Rally Weekend (rallyweekend.location_preset), or its own id when the app has
+    none. An event may take its stages from several places (the user, 24 Nov 2026): the game holds one place a Rally
+    Weekend (a stage from another one in a calendar crashed the game at the tyre allocation, 18 Nov 2026), so each run
+    of stages in one place is a leg of its own (legs()), the car carried from one to the next (carried())."""
+    st = ev['stages'][k]
+    sid = st.get('stageId') or st.get('stage') or ''
+    return rallyweekend.location_preset(sid) or sid
+
+
+def carried(ev, k):
+    """Stage k starts a leg on the same day as the stage before (a new place, legs()): the car goes on from that
+    stage's finish line (put on at the start line or its Service Park: drive.lua, setup.damage), with no Service Park
+    the event doesn't have (an extra one would let a driver repair what the others couldn't)."""
+    return 0 < k < len(ev['stages']) and ev['stages'][k]['day'] == ev['stages'][k - 1]['day'] and \
+        location(ev, k) != location(ev, k - 1)
 
 
 def leg_of(ev, k, split=None):
@@ -123,12 +148,19 @@ def calendar(ev, leg=0, split=None, start=None):
     game lost a finished stage: recover()), its service park as the event has it (none: the car's damage goes on at its
     start line, drive.lua; an extra service park would let the driver repair what they shouldn't)."""
     a, b = legs(ev, split)[leg]
-    lead = a
+    lead = a if not carried(ev, a) else -1         # (a new place on the same day: its service park as the event has it)
     if start is not None and a < start < b:
         a = start
     first = ev['stages'][a]['day']
     return [{'stage': s['stageId'], 'weather': s['weatherGame'], 'start': s['startSeconds'], 'day': s['day'] - first,
              'service': bool(s['service']) or k == lead} for k, s in enumerate(ev['stages'][a:b], start=a)]
+
+
+def starts_mid_day(ev, leg, start=None):
+    """The calendar of this leg (from `start`) may open without a service park (rallyweekend.check_itinerary tail): a
+    recovery's tail, or a new place on the same day (carried())."""
+    a = legs(ev)[leg][0]
+    return (start is not None and start > a) or carried(ev, a)
 
 
 def leg_in(stages, ev, prefer=None, split=None):
@@ -196,7 +228,7 @@ def recover(ev, state, p):
         return None
     if state == 'none':
         ev['_split'] = setup_split(ev, done)
-    if leg_starts(ev, done):
+    if leg_starts(ev, done) and not carried(ev, done):
         return None
     return {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts'])}
 
@@ -623,18 +655,21 @@ def apply_plan(ev, car, action, details, b):
     done = entry.get('done', 0)
     if action == 'setup':                     # (the leg the entry is on: the first one for an entry not started)
         ev['_split'] = setup_split(ev, done) if entry.get('status') == 'running' else DAYS
-        return rallyweekend.apply_event(b, calendar(ev, leg_of(ev, done)), car['id'], ev.get('rules'))
+        leg = leg_of(ev, done)
+        return rallyweekend.apply_event(b, calendar(ev, leg), car['id'], ev.get('rules'), tail=starts_mid_day(ev, leg))
     if action == 'reset':                     # the event's rally in the game, unusable: thrown away, set up again
         ev['_split'] = DAYS
         return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev), car['id'], ev.get('rules'))
     if action == 'next-leg':                  # the leg before, done with: thrown away, the next one set up
-        return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev, details), car['id'], ev.get('rules'))
+        return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev, details), car['id'], ev.get('rules'),
+                                        tail=starts_mid_day(ev, details))
     if action == 'unpark':
         out = unpark(b, ev['id'])
         state, p = rally_state(out, ev)
         if state == 'this' and p['leg'] < leg_of(ev, done):            # (an earlier leg, done with: the next one)
-            return rallyweekend.apply_event(rallyweekend.park(out)[0], calendar(ev, leg_of(ev, done)), car['id'],
-                                            ev.get('rules'))
+            leg = leg_of(ev, done)
+            return rallyweekend.apply_event(rallyweekend.park(out)[0], calendar(ev, leg), car['id'],
+                                            ev.get('rules'), tail=starts_mid_day(ev, leg))
         if state != 'this' or p['done'] > done:     # (fewer: driven again, as plan()'s 'resume')
             n = p['done'] if p else 0
             raise Gone(said_n('the rally set aside has %d stage done, not %d', 'the rally set aside has %d stages done, not %d',

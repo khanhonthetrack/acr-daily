@@ -367,12 +367,12 @@ def check_itinerary(stages, tail=False):
     return rally.replace('Short', LENGTHS[min(days, len(LENGTHS)) - 1])
 
 
-def apply_event(b, stages, car_id, rules=None):
-    """-> new save bytes with a Rally Weekend of `stages` (see check_itinerary) driven in car_id; the player first on
-    the road (one opponent, custom running order), time standing still; rules: see RULES. The car is the game's
-    current selection (saveslot.apply_daily writes it; a new player's save has one too, with no Single Rally Stage
-    weather options, which a Rally Weekend doesn't need). Raises SaveError."""
-    preset = check_itinerary(stages)
+def apply_event(b, stages, car_id, rules=None, tail=False):
+    """-> new save bytes with a Rally Weekend of `stages` (see check_itinerary; tail: it may open without a service
+    park) driven in car_id; the player first on the road (one opponent, custom running order), time standing still;
+    rules: see RULES. The car is the game's current selection (saveslot.apply_daily writes it; a new player's save has
+    one too, with no Single Rally Stage weather options, which a Rally Weekend doesn't need). Raises SaveError."""
+    preset = check_itinerary(stages, tail=tail)
     settings = _rules(rules)
     first = stages[0]
     b = saveslot.apply_daily(_current_layout(_with_rally(b)), first['stage'], car_id, first['start'], first['weather'],

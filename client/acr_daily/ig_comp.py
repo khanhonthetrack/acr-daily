@@ -17,7 +17,7 @@ import time
 
 from . import gear, i18n, photos, settings, tmtext
 from .browserui import CHAMP, FILTERS as RALLY_FILTERS, kind_of
-from .challengeui import MAX_STAGES, TIMES, WINDOWS, challenge_event, random_stages
+from .challengeui import MAX_STAGES, TIMES, WINDOWS, challenge_event, picked_stages, random_stages
 from .cupbrowser import FILTERS as CUP_FILTERS, OFFICIAL, can_join, cups_of
 from .i18n import _, n_
 from .ingamekit import (BAD, BG, banner, COLOUR, FG2, FOCUS, GOOD, LINE2, MUTED, PANEL, PANEL2, SOFT, WHITE, box, btn, chip, col,
@@ -789,8 +789,12 @@ def form_page(ig, m):
     out.append(cycler('rally', i18n.data(r['name']) if r else '–', 420))
     out.append(row(part(_('Stages (1 to %d)') % MAX_STAGES, pad=[0, 18, 0, 0]), sp(fill=1),
                    link(tab_id(TAB, 'f', 'draw'), _('DRAW 2'), va='b'), pad=[0, 0, 0, 6]))
+    got = picked_stages(rallies, f['picked'])            # (from any location, in the order picked)
+    if got:
+        out.append(txt('  '.join('SS%d %s' % (k + 1, s['name']) for k, s in enumerate(got)), 16, 'medium', MUTED,
+                       wrap=True, pad=[0, 0, 0, 6]))
     for i, s in enumerate((r or {}).get('stages') or []):
-        on = i in f['picked']
+        on = s['track'] in f['picked']
         out.append(btn(tab_id(TAB, 'f', 'stage:%d' % i), '%s · %.1f km' % (s['name'], (s.get('lengthM') or 0) / 1000),
                        bg=WHITE if on else PANEL2, hov=WHITE, fg=BG if on else SOFT, hfg=BG, sz=17, f='semi',
                        p=[14, 6, 14, 6], cal='l', al='f', pad=[0, 4, 0, 0]))
@@ -844,7 +848,7 @@ def form_click(ig, what):
     elif key in ('rally', 'car', 'weather', 'start', 'win'):
         step = -1 if arg == '-1' else 1
         if key == 'rally' and rallies:
-            f['rally'], f['picked'] = (f['rally'] + step) % len(rallies), []
+            f['rally'] = (f['rally'] + step) % len(rallies)   # (the stages picked elsewhere stay picked)
         elif key == 'car':
             values, _l = _car_values(f)
             if values:
@@ -858,12 +862,14 @@ def form_click(ig, what):
             f['start'] = TIMES[(i + step) % len(TIMES)]
         else:
             f['win'] = (f['win'] + step) % len(WINDOWS)
-    elif key == 'stage':
-        i = int(arg)
-        f['picked'] = [x for x in f['picked'] if x != i] if i in f['picked'] else f['picked'] + [i]
+    elif key == 'stage' and rallies:
+        st = rallies[f['rally'] % len(rallies)]['stages']
+        t = st[int(arg)]['track'] if 0 <= int(arg) < len(st) else None
+        if t:
+            f['picked'] = [x for x in f['picked'] if x != t] if t in f['picked'] else f['picked'] + [t]
     elif key == 'draw' and rallies:
         r = rallies[f['rally'] % len(rallies)]
-        f['picked'] = [r['stages'].index(s) for s in random_stages(r['stages'], 2)]
+        f['picked'] = [s['track'] for s in random_stages(r['stages'], 2)]
     elif key == 'mode' and arg in ('class', 'car'):
         f['mode'], f['car'] = arg, None
     elif key == 'hide':
@@ -900,7 +906,7 @@ def challenge_of(f, now_ms=None):
     if not rallies:
         return _('Pick where.')
     r = rallies[f['rally'] % len(rallies)]
-    picked = [r['stages'][i] for i in sorted(f['picked']) if 0 <= i < len(r['stages'])]
+    picked = picked_stages(rallies, f['picked'])
     if not picked:
         return _('Pick a stage (or draw some at random).')
     if len(picked) > MAX_STAGES:
@@ -911,7 +917,8 @@ def challenge_of(f, now_ms=None):
         return _('Pick the car.')
     ws = (f['cat'] or {}).get('weathers') or []
     weather = ws[_weather_index(f)]['id'] if ws else 'Clear'
-    return challenge_event(r['name'], picked, weather, f['start'] or '12:00', WINDOWS[f['win']][0],
+    first = next((x['name'] for x in rallies if picked[0] in x['stages']), r['name'])
+    return challenge_event(first, picked, weather, f['start'] or '12:00', WINDOWS[f['win']][0],
                            now_ms if now_ms is not None else _now(),
                            car=values[k] if f['mode'] == 'car' else None,
                            car_class=values[k] if f['mode'] == 'class' else None, name=f['name'], hide=f['hide'])

@@ -895,7 +895,9 @@ class LeaguesUI:
             rec = leagues.recover(ev, state, p) if state in ('this', 'none') else None
             if rec and self._league_recover_in_game(ev, car, rec):
                 return
-            if state == 'this' and p['done'] == done and not changed and not leagues.is_parked(ev['id']):
+            # (a leg of the event in the game, all of it driven: not resumed, the next leg set up below: legs())
+            if state == 'this' and p['done'] == done and not changed and not leagues.is_parked(ev['id']) and \
+                    p['leg'] == leagues.leg_of(ev, done):
                 if self._league_resume_in_game(ev, car, done, p):
                     return
                 self._follow(ev, car)
@@ -926,7 +928,7 @@ class LeaguesUI:
         try:
             setup = ingamedrive.setup_of(leagues.calendar(ev, rec['leg'], start=rec['start']), car['id'], ev.get('rules'),
                                          tail=True)
-            setup.update(gear.for_setup(self.s, ev, car['id']))    # (the tyres and livery picked: gear.py)
+            setup.update(gear.for_setup(self.s, ev, car['id'], rec['leg']))   # (the tyres and livery picked: gear.py)
             setup['damage'] = rec['damage']
         except (saveslot.SaveError, KeyError, ValueError, IndexError):
             return False
@@ -959,7 +961,7 @@ class LeaguesUI:
             if tail is not None:
                 first = tail
             setup = ingamedrive.setup_of(leagues.calendar(ev, leg, start=tail), car['id'], ev.get('rules'),
-                                         tail=tail is not None)
+                                         tail=leagues.starts_mid_day(ev, leg, tail))
         except (saveslot.SaveError, KeyError, ValueError):
             return False
 
@@ -983,18 +985,29 @@ class LeaguesUI:
         return True
 
     def _league_drive_in_game(self, ev, car, b):
-        """An event's rally not started yet ('setup': its first leg, or the leg the entry is on) set up in the running
-        game, the game on to its Service Park (0.2, ingamedrive.py). Anything else (a rally in the game to set aside,
-        resume or throw away) is the save's to do, as before. -> False when it isn't tried."""
+        """An event's rally not started yet ('setup': its first leg, or the leg the entry is on), or its next leg once the
+        one before is all driven ('next-leg'), set up in the running game, the game on to its Service Park (0.2,
+        ingamedrive.py). A leg in a new place on the same day (leagues.carried) starts with the car as it crossed the
+        last finish line (the server keeps it: entry.damage; drive.lua puts it on). Anything else (a rally in the game
+        to set aside, resume or throw away) is the save's to do, as before. -> False when it isn't tried."""
         if b is None or not ingamedrive.ready(self):
             return False
         try:
             action, _details = leagues.plan(ev, b, self.league_events)
-            if action != 'setup':
+            if action not in ('setup', 'next-leg'):
                 return False
-            done = (ev.get('entry') or {}).get('done', 0)
-            setup = ingamedrive.setup_of(leagues.calendar(ev, leagues.leg_of(ev, done)), car['id'], ev.get('rules'))
-            setup.update(gear.for_setup(self.s, ev, car['id']))    # (the tyres and livery picked: gear.py)
+            entry = ev.get('entry') or {}
+            done = entry.get('done', 0)
+            leg = leagues.leg_of(ev, done)
+            setup = ingamedrive.setup_of(leagues.calendar(ev, leg), car['id'], ev.get('rules'),
+                                         tail=leagues.starts_mid_day(ev, leg))
+            setup.update(gear.for_setup(self.s, ev, car['id'], leg))   # (the tyres and livery picked: gear.py)
+            d = entry.get('damage')
+            if leagues.carried(ev, done) and isinstance(d, dict) and d.get('no') == done - 1 and \
+                    isinstance(d.get('parts'), dict):
+                setup['damage'] = dict(d['parts'])
+                waiting.note('%s: SS%d in a new place, the car as it finished SS%d (%s)' % (
+                    ev['name'], done + 1, done, ', '.join('%s %g' % x for x in sorted(d['parts'].items())) or 'intact'))
         except (leagues.Gone, saveslot.SaveError, KeyError, ValueError):
             return False
 

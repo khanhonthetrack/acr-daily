@@ -178,6 +178,8 @@ def data(s):
     ('Afternoon (16:00)') too; anything else as it is."""
     if not isinstance(s, str) or not s:
         return s
+    if ' · ' in s:                                 # (an event in several places: 'Alsace · Sweden')
+        return ' · '.join(data(x) for x in s.split(' · '))
     m = _TIME_LABEL.match(s)
     if m:
         return '%s (%s)' % (_(m.group(1)), m.group(2))

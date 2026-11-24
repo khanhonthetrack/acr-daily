@@ -131,7 +131,7 @@ function load(){
 }
 function loadLive(){var p=C.kind==='event'?'/events/'+C.id+'/live'+Q:D.base?D.base+'/live':null;if(!p)return Promise.resolve();
   return api(p).then(function(l){D.live=(l.drivers||[]).filter(function(d){return d.state==='live'||d.state==null});D.poll=l.pollSeconds||5;D.at=Date.now();
-    if(C.kind==='event'&&D.live.length&&D.info.stages){var no=D.live[0].stageNo,s=D.info.stages.filter(function(x){return x.no===no})[0];if(s){D.info.stage=s.name||D.info.stage;D.info.no=no}}})}
+    if(C.kind==='event'&&D.live.length&&D.info.stages){var no=D.live[0].stageNo,s=D.info.stages.filter(function(x){return x.no===no})[0];if(s){D.info.stage=s.name||D.info.stage;D.info.no=no;if(s.rally)D.info.rally=s.rally}}})}
 
 // ---- the parts
 function tower(){var w=el('div','tower');var taken={};

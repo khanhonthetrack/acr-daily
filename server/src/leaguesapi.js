@@ -146,12 +146,18 @@ export function eventOut(ev, routes, now) {
     const r = rt.get(s.track) || {};
     const [hh, mm] = s.time.split(':').map(Number);
     const w = WEATHER[s.weather] || {};
+    const p = stageParts(s.track);
     return { no: k + 1, day: s.day, service: s.service, track: s.track, stageId: r.stage_id || null,
-      name: (r.stage_id && menuName(r.stage_id)) || stageParts(s.track).stageName, lengthM: Math.round(r.length || 0),
+      name: (r.stage_id && menuName(r.stage_id)) || p.stageName, lengthM: Math.round(r.length || 0),
+      // (its own location: an event may take its stages from several, checkEvent)
+      rally: p.rally || null, surface: p.surface || null,
       weather: s.weather, weatherLabel: w.label || s.weather, weatherGame: w.game || null, time: s.time, startSeconds: hh * 3600 + mm * 60 };
   });
+  // (one surface for the event only when its stages share one: several places, each stage has its own)
+  const surfaces = [...new Set(out.map((s) => s.surface).filter(Boolean))];
   return {
-    id: ev.id, leagueId: ev.league_id, seasonId: ev.season_id || null, name: ev.name, rally: ev.rally, surface: SURFACE[ev.rally] || null,
+    id: ev.id, leagueId: ev.league_id, seasonId: ev.season_id || null, name: ev.name, rally: ev.rally,
+    surface: SURFACE[ev.rally] || (surfaces.length === 1 ? surfaces[0] : null),
     // several classes: carClass reads "Rally2/R5 or Rally4" (what an app before 0.0.17 shows), carClasses lists them
     car: ev.car, carClass: classes.length > 1 ? classes.join(' or ') : ev.car_class, carClasses: classes.length > 1 ? classes : undefined,
     cars: cars.map((c) => ({ name: c.name, id: c.id, cls: c.cls, telemetry: c.telemetry, aliases: [c.telemetry, ...(c.aliases || [])].filter(Boolean) })),
@@ -663,7 +669,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       const stage = s.out.stages[(d.stageNo || 1) - 1];
       if (!stage || !stage.track) continue;
       drivers.push({ kind: s.ev.league_kind, eventId: d.eventId, event: s.ev.name, league: s.ev.league_name,
-        stageNo: d.stageNo, stage, car: s.out.car || null, cars: s.out.cars, rules: s.out.rules, rally: s.out.rally,
+        stageNo: d.stageNo, stage, car: s.out.car || null, cars: s.out.cars, rules: s.out.rules, rally: stage.rally || s.out.rally,
         steamId: d.steamId, name: d.name, country: d.country, look: d.look, progress: d.progress,
         totalMs: s.v && s.v.results ? null : d.totalMs });
     }

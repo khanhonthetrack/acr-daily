@@ -36,19 +36,35 @@ USER = 'usergen_'
 
 
 # ---------------------------------------------------------------------- tyres
-def compounds(ev):
-    """An event's compounds to pick from (its rally's surface), or () when the rally isn't known here."""
-    rally = (ev.get('rally') or '').strip().lower()
+def _surface(name):
+    name = (name or '').strip().lower()
     for k, v in BY_RALLY.items():
-        if rally.startswith(k):
+        if name.startswith(k):
             return v
     return ()
 
 
-def tyres_of(s, ev):
+def compounds(ev, leg=None):
+    """An event's compounds to pick from (its rally's surface), or () when the rally isn't known here. An event in
+    several places (leagues.legs): only when they all share one surface; leg: that leg's own."""
+    tracks = [s.get('track') for s in ev.get('stages') or () if s.get('track')]
+    if leg is not None and tracks:
+        from . import leagues                          # (late: leagues imports this module's neighbours)
+        try:
+            a, b = leagues.legs(ev)[leg]
+            tracks = [s.get('track') for s in ev['stages'][a:b] if s.get('track')]
+        except (IndexError, KeyError):
+            pass
+    if not tracks:
+        return _surface(ev.get('rally'))
+    kinds = {tuple(_surface(t)) for t in tracks}
+    return list(kinds.pop()) if len(kinds) == 1 else ()
+
+
+def tyres_of(s, ev, leg=None):
     """The driver's counts for this event ({row: n}), or None: the game's own."""
     t = (s.get('eventTyres') or {}).get(str(ev.get('id')))
-    rows = compounds(ev)
+    rows = compounds(ev, leg)
     if not isinstance(t, dict) or not rows:
         return None
     t = {k: int(v) for k, v in t.items() if k in rows and int(v) > 0}
@@ -196,11 +212,12 @@ def for_daily(s, car_id):
     return {}
 
 
-def for_setup(s, ev, car_id):
-    """What an event's in-game DRIVE adds to its set-up: {'tyres': ..., 'livery': ...}, only what was picked."""
+def for_setup(s, ev, car_id, leg=None):
+    """What an event's in-game DRIVE adds to its set-up: {'tyres': ..., 'livery': ...}, only what was picked. leg: the
+    leg being set up (an event in several places: the tyres picked only where their surface is)."""
     out = {}
     if ev.get('kind') != 'live':                        # (a ranked session: everyone alike)
-        t = tyres_of(s, ev)
+        t = tyres_of(s, ev, leg)
         if t:
             out['tyres'] = t
     lv = livery_of(s, car_id)

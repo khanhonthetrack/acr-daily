@@ -217,7 +217,7 @@ document.getElementById('t2').onclick=function(){FOLLOW=false;show(2)};
 if(EV){   // a league event (a cup match): a tab a stage
   fetch('/api/events/'+EV).then(function(r){if(!r.ok)throw r;return r.json()}).then(function(ev){
     EVNAME=ev.name;document.title=ev.name+' · ACR Daily';var tabs=document.querySelector('.tabs');tabs.innerHTML='';
-    ev.stages.forEach(function(s,k){stages[k+1]={track:s.track,menuName:s.name,lengthM:s.lengthM,rally:ev.rally,car:ev.car||(ev.carClass?F(${tq('{0} class')},ev.carClass):''),route:null};
+    ev.stages.forEach(function(s,k){stages[k+1]={track:s.track,menuName:s.name,lengthM:s.lengthM,rally:s.rally||ev.rally,car:ev.car||(ev.carClass?F(${tq('{0} class')},ev.carClass):''),route:null};
       var b=document.createElement('button');b.textContent='SS'+(k+1);b.setAttribute('data-s',k+1);b.onclick=function(){FOLLOW=false;show(k+1)};tabs.appendChild(b)});
     var bk=document.getElementById('back');bk.href=ev.league&&ev.league.kind==='cup'?'/cup/'+ev.league.id:'/e/'+ev.id;
     first()}).catch(function(){document.getElementById('info').innerHTML='<h1>${ts('No such event')}</h1>'});

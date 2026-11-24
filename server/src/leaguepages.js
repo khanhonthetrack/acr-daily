@@ -1145,8 +1145,11 @@ function builderFrom(S,x){S.rally=x.rally;S.carMode=x.car?'car':x.carClasses?'cl
   var hs=x.hideSet||x.hidden;if(hs)S.hide={weather:!!hs.weather,times:!!hs.times,stages:!!hs.stages}}
 var LEVELS={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
 function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
+  // (the stages may come from several locations, checkEvent: S.rally is the one new stages are taken from)
   function rally(){return CAT.rallies.filter(function(r){return r.name===S.rally})[0]}
-  function stageOf(track){return rally().stages.filter(function(s){return s.track===track})[0]}
+  function placeOf(track){return CAT.rallies.filter(function(r){return r.stages.some(function(s){return s.track===track})})[0]}
+  function stageOf(track){var r=placeOf(track);return r?r.stages.filter(function(s){return s.track===track})[0]:null}
+  if(!rally()){var f0=(S.days||[]).reduce(function(a,d){return a.concat(d)},[])[0];S.rally=(f0&&placeOf(f0.track)||{}).name||''}
   function newStage(day){var st=rally().stages,used=S.days.reduce(function(a,d){return a.concat(d)},[]).map(function(x){return x.track});
     var free=st.filter(function(s){return used.indexOf(s.track)<0})[0]||st[0];var last=day.length?day[day.length-1].time:'08:00';
     var h=Math.min(22,parseInt(last,10)+(day.length?2:0));return{track:free?free.track:'',time:pad(h)+':'+last.slice(3),weather:'Clear',service:false}}
@@ -1164,8 +1167,9 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
       ni.oninput=function(){S.name=this.value};nl.appendChild(ni);top.appendChild(nl)}
     var rl=el('label'),rs=el('select');add(rl,el('span',null,${tq('Location')}));rs.id='fr';rl.appendChild(rs);top.appendChild(rl);
     CAT.rallies.forEach(function(r){opt(rs,r.name,TD(r.name)+(r.surface?' ('+TD(r.surface).toLowerCase()+')':''),S.rally)});
-    rs.onchange=function(){if(S.days.some(function(d){return d.length})&&!confirm(${tq('Changing the location clears the stages. Go on?')})){this.value=S.rally;return}
-      S.rally=this.value;fresh();draw()};
+    // (where new stages come from; the itinerary kept, unless it is still the one stage a new event starts with)
+    rs.onchange=function(){var all=S.days.reduce(function(a,d){return a.concat(d)},[]),only=all.length===1&&!S.touched;
+      S.rally=this.value;if(only)fresh();draw()};
     if(limited){rs.disabled=true}
     if(o.seasons){var sl=el('label');sl.innerHTML='<span>${ts('Season (its championship)')}</span>';var ss=el('select');
       o.seasons.forEach(function(s){opt(ss,String(s.id),s.name,S.seasonId)});
@@ -1218,7 +1222,10 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
       box.appendChild(hd);box.appendChild(el('div','sprow',${tq('Service park (the day starts here)')}));
       d.forEach(function(s,si){no++;if(si>0&&s.service)box.appendChild(el('div','sprow',${tq('Service park')}));
         var r=el('div','st');add(r,el('span','no','SS'+no));
-        var ss=el('select');rally().stages.forEach(function(x){opt(ss,x.track,x.name+' · '+km(x.lengthM),s.track)});ss.onchange=function(){s.track=this.value;summary()};r.appendChild(ss);
+        // (every location's stages, the one new stages come from first: an event may cross several)
+        var ss=el('select');[rally()].concat(CAT.rallies.filter(function(x){return x!==rally()})).forEach(function(g){if(!g)return;
+          var og=el('optgroup');og.label=TD(g.name);g.stages.forEach(function(x){opt(og,x.track,x.name+' · '+km(x.lengthM),s.track)});ss.appendChild(og)});
+        ss.onchange=function(){s.track=this.value;S.touched=true;summary()};r.appendChild(ss);
         var ti=el('input');ti.type='time';ti.value=s.time;ti.onchange=function(){s.time=this.value};r.appendChild(ti);
         var ws=el('select','w');CAT.weathers.forEach(function(w){opt(ws,w.id,TD(w.label),s.weather)});ws.onchange=function(){s.weather=this.value};r.appendChild(ws);
         var spl=el('label','sp');if(si>0){var cb=el('input');cb.type='checkbox';cb.checked=!!s.service;cb.onchange=function(){s.service=this.checked;draw()};add(spl,cb,${tq('service park before')})}r.appendChild(spl);
@@ -1246,7 +1253,7 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
 export function rallyNewPage(env) {
   return shell(t('New rally') + ' · ACR Daily', `
   <div class="top"><div class="kick"><span class="kindtag rally">${t('Rally')}</span></div><h1 id="h">${t('New rally')}</h1>
-  <p class="note">${t("One event, open to every driver: a public one is in everyone's app, under RALLIES. One location, a service park at the start of each day, stages in time order. Each driver gets one go.")}</p></div>
+  <p class="note">${t("One event, open to every driver: a public one is in everyone's app, under RALLIES. One location or several, a service park at the start of each day, stages in time order. Each driver gets one go.")}</p></div>
   <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}
   var Q=new URLSearchParams(location.search),eventId=+Q.get('edit')||null,FROM=+Q.get('from')||null,CAT=null,EV=null,limited=false,B=null;
   var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',carClasses:[],rules:null,opens:null,closes:null,days:[[]],about:'',pub:true};
@@ -1281,7 +1288,7 @@ export function rallyNewPage(env) {
 export function eventEditPage({ leagueId = null, eventId = null }, env) {
   return shell((eventId ? t('Edit event') : t('New event')) + ' · ACR Daily', `
   <div class="top"><div class="kick" id="kick">${t('New event')}</div><h1 id="h">${eventId ? t('Edit event') : t('New event')}</h1>
-  <p class="note">${t('One location, a service park at the start of each day, stages in time order. Each driver gets one go.')}</p></div>
+  <p class="note">${t('One location or several, a service park at the start of each day, stages in time order. Each driver gets one go.')}</p></div>
   <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}
   var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false,B=null;
   var FROM=new URLSearchParams(location.search).get('from');

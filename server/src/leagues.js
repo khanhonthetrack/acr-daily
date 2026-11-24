@@ -139,13 +139,21 @@ export function checkDivisions(v) {
 
 /** An event from the builder: b = {name, rally, car | carClass | carClasses, rules, stages: [{track, day (1..), service, weather,
  *  time 'HH:MM'}], opens, closes (ms)}. cat: catalog(). -> {value: row fields} or {error}. The stages must make a
- *  calendar the game takes: one location, days in order from day 1, each day opening with a service park (set here),
- *  a later start time for each stage of a day. */
+ *  calendar the game takes: days in order from day 1, each day opening with a service park (set here), a later start
+ *  time for each stage of a day. They may come from several locations (the user, 24 Nov 2026): the app gives the game
+ *  each run of stages in one place as a Rally Weekend of its own, the car carried from one to the next (client
+ *  leagues.legs / carried). b.rally: the location the builder starts from (any stage of any location is taken); the
+ *  event's rally is its locations in the order driven, ' · ' between them (placesOf). */
+export const PLACES_SEP = ' · ';
+export const placesOf = (stages, cat) => [...new Set(stages.map((s) =>
+  (cat.rallies.find((r) => r.stages.some((x) => x.track === s.track)) || {}).name).filter(Boolean))];
 export function checkEvent(b, cat, now = Date.now()) {
   if (!b || typeof b !== 'object') return { error: 'nothing sent' };
   const name = text(b.name, LIMITS.name);
   if (name.length < 3) return { error: 'give the event a name (3 to 60 characters)' };
-  const rally = cat.rallies.find((r) => r.name === b.rally);
+  const list0 = Array.isArray(b.stages) ? b.stages : [];
+  const rally = cat.rallies.find((r) => r.name === b.rally) ||
+    cat.rallies.find((r) => r.stages.some((x) => x.track === (list0[0] && list0[0].track)));
   if (!rally) return { error: 'pick a location' };
   let car = null, carClass = null, carClasses = null;
   const several = Array.isArray(b.carClasses) ? [...new Set(b.carClasses.map(String))] : [];
@@ -191,7 +199,8 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (list.length > LIMITS.stages) return { error: `at most ${LIMITS.stages} stages` };
   const stages = [];
   for (const [k, s] of list.entries()) {
-    const st = rally.stages.find((x) => x.track === (s && s.track));
+    const st = rally.stages.find((x) => x.track === (s && s.track)) ||
+      cat.rallies.map((r) => r.stages.find((x) => x.track === (s && s.track))).find(Boolean);
     if (!st) return { error: `SS${k + 1}: pick a stage of ${rally.name}` };
     const day = Number.isInteger(s.day) ? s.day : NaN;
     const prev = stages[k - 1];
@@ -213,8 +222,8 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (closes <= opens) return { error: 'the event closes after it opens' };
   if (closes - opens > LIMITS.windowDays * 86400000) return { error: `an event is open for at most ${LIMITS.windowDays} days` };
   if (closes < now + 3600000) return { error: 'the event must stay open for at least another hour' };
-  return { value: { name, rally: rally.name, car, car_class: carClass, car_classes: carClasses, rules, stages, opens, closes,
-    hide: checkHide(b.hide) } };
+  return { value: { name, rally: placesOf(stages, cat).join(PLACES_SEP), car, car_class: carClass, car_classes: carClasses,
+    rules, stages, opens, closes, hide: checkHide(b.hide) } };
 }
 
 /** What of an event is kept from its drivers until it ends (src/hidden.js): b.hide = {weather, times, stages} (each

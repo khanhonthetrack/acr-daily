@@ -153,7 +153,7 @@ export function I18N_JS() {
     if(m){var v=a[+m[1]];if(v!=null)out.push(typeof v==='object'?v:String(v))}else if(p)out.push(p)});return out}
   function PI(n){n=Math.abs(Math.trunc(+n||0));return ${rule}}
   function P(f,n){var s=typeof f==='string'?f:f[Math.min(PI(n),f.length-1)];return F.apply(null,[s].concat([].slice.call(arguments,1)))}
-  function TD(w){if(w==null)return w;var m=/^(.*?)\\s*\\((\\d{1,2}:\\d\\d)\\)$/.exec(w);if(m)return (DW[m[1]]||m[1])+' ('+m[2]+')';return DW[w]||w}
+  function TD(w){if(w==null)return w;if(String(w).indexOf(' · ')>0)return String(w).split(' · ').map(TD).join(' · ');var m=/^(.*?)\\s*\\((\\d{1,2}:\\d\\d)\\)$/.exec(w);if(m)return (DW[m[1]]||m[1])+' ('+m[2]+')';return DW[w]||w}
   // one way to write a date on every page (they had six: 17/11/2026, 17 Nov 2026, Tue 17 Nov, Tuesday 17 November,
   // November 2026...: a UI review, Nov 2026): the day and the month in short, the year only when it isn't this one;
   // o.wd: the weekday first (what is coming up), o.utc: the UTC day (a daily's, a week's); FDATETIME: and the time

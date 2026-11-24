@@ -50,6 +50,17 @@ def random_stages(stages, n, rng=random):
     return got
 
 
+def picked_stages(rallies, tracks):
+    """The stages picked (their tracks, in the order picked: from any of the rallies, an event may cross several
+    locations: server checkEvent) -> the catalog's stages, in that order."""
+    by = {s['track']: s for r in rallies for s in r.get('stages') or ()}
+    return [by[t] for t in tracks if t in by]
+
+
+def _rally_of(rallies, stage):
+    return next((r['name'] for r in rallies if stage in (r.get('stages') or ())), None)
+
+
 def stage_times(start, n):
     """The stages' start times: SS1 at `start` ('HH:MM'), each next GAP_MIN later, all on the same day (moved earlier
     when the last would start after 23:30)."""
@@ -146,6 +157,10 @@ class ChallengeDialog:
                                   highlightthickness=1, highlightbackground=c.LINE2, selectbackground=c.ACC,
                                   selectforeground=c.WHITE, activestyle='none', font=(c.FONT, 9), exportselection=False)
         self.stage_l.pack(anchor='w', fill='x')
+        self.stage_l.bind('<<ListboxSelect>>', lambda _e: self._took())
+        self.picked = []                                   # (tracks, in the order picked, from any location)
+        self.picked_l = a._lbl(b, '', fg=c.MUTED, font=(c.FONT, 9), wraplength=c.px(b, 400))
+        self.picked_l.pack(anchor='w', pady=(4, 0))
         # the car
         self._part(_('Car'))
         row = tk.Frame(b, bg=c.BG)
@@ -261,19 +276,33 @@ class ChallengeDialog:
         return self.rallies[i] if 0 <= i < len(self.rallies) else None
 
     def _stages(self):
+        """The list of one location's stages (the ones picked from it selected); those picked elsewhere stay picked."""
         r = self._rally()
         self.stage_l.delete(0, 'end')
-        for s in (r or {}).get('stages') or []:
+        for i, s in enumerate((r or {}).get('stages') or []):
             self.stage_l.insert('end', '%s · %.1f km' % (s['name'], (s.get('lengthM') or 0) / 1000))
+            if s['track'] in self.picked:
+                self.stage_l.selection_set(i)
+        self._show_picked()
+
+    def _took(self):
+        """The list's selection -> the picks: this location's as selected now, the others' as they were, in order."""
+        r = self._rally()
+        here = [s['track'] for s in (r or {}).get('stages') or []]
+        sel = [here[i] for i in self.stage_l.curselection() if i < len(here)]
+        self.picked = [t for t in self.picked if t not in here or t in sel] + [t for t in sel if t not in self.picked]
+        self._show_picked()
+
+    def _show_picked(self):
+        got = picked_stages(self.rallies, self.picked)
+        self.picked_l.configure(text='  '.join('SS%d %s' % (k + 1, s['name']) for k, s in enumerate(got)))
 
     def draw(self, n):
         r = self._rally()
         if not r:
             return
-        picks = random_stages(r['stages'], n)
-        self.stage_l.selection_clear(0, 'end')
-        for s in picks:
-            self.stage_l.selection_set(r['stages'].index(s))
+        self.picked = [s['track'] for s in random_stages(r['stages'], n)]
+        self._stages()
 
     def _cars(self):
         if self.car_mode.get() == 'car':
@@ -292,7 +321,8 @@ class ChallengeDialog:
         r = self._rally()
         if not r:
             return _('Pick where.')
-        picked = [r['stages'][i] for i in self.stage_l.curselection()]
+        self._took()                                       # (the list as it is now)
+        picked = picked_stages(self.rallies, self.picked)
         if not picked:
             return _('Pick a stage (or draw some at random).')
         if len(picked) > MAX_STAGES:
@@ -302,7 +332,7 @@ class ChallengeDialog:
             return _('Pick the car.')
         car = self.car_values[k]
         days = WINDOWS[max(0, self.window.current())][0]
-        return challenge_event(r['name'], picked, self.weather_ids[max(0, self.weather.current())], self.start.get() or '12:00',
+        return challenge_event(_rally_of(self.rallies, picked[0]) or r['name'], picked, self.weather_ids[max(0, self.weather.current())], self.start.get() or '12:00',
                                days, now_ms if now_ms is not None else time.time() * 1000,
                                car=car if self.car_mode.get() == 'car' else None,
                                car_class=car if self.car_mode.get() == 'class' else None, name=self.name.get(),

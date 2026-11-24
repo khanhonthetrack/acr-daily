@@ -8,6 +8,8 @@ import { BANNER, catalog, checkBanner, checkDivisions, checkEvent, checkLeague, 
   sniffImage } from '../src/leagues.js';
 import { duePosts, openMessage, resultsMessage } from '../src/leaguediscord.js';
 import { CARS } from '../src/cars.js';
+import { eventOut } from '../src/leaguesapi.js';
+import { maskStage } from '../src/hidden.js';
 
 const ROUTES = [
   { track: 'Wales Afon Bidno', stage_id: 'WelesS4HafrenSouthFullForward', length: 4793 },
@@ -76,14 +78,31 @@ test('an event the game can run: days, service parks, times', () => {
   assert.equal(checkEvent(ev({ car: null, carClass: 'Rally2/R5' }), CAT, NOW).value.car_class, 'Rally2/R5');
 });
 
+test('an event in several places: its stages from any location, its rally their names in order', () => {
+  const st = ev().stages;
+  const v = checkEvent(ev({ stages: [st[0], { ...st[1], track: 'Greece Elatia' }, st[2]] }), CAT, NOW).value;
+  assert.equal(v.rally, 'Wales · Greece');
+  assert.deepEqual(v.stages.map((s) => s.track), ['Wales Afon Bidno', 'Greece Elatia', 'Wales Severn']);
+  assert.equal(checkEvent(ev(), CAT, NOW).value.rally, 'Wales');          // (one place: as before)
+  // (the location the builder starts from is only that: an event all in Greece is Greece's)
+  assert.equal(checkEvent(ev({ stages: [{ ...st[0], track: 'Greece Elatia' }] }), CAT, NOW).value.rally, 'Greece');
+  // what the app and the pages get: each stage its own place and surface, the event's surface only when one
+  const out = eventOut({ id: 1, league_id: 1, name: 'Tour', rally: v.rally, car: v.car, car_class: null, car_classes: null,
+    rules: JSON.stringify(v.rules), stages: JSON.stringify(v.stages), opens: NOW, closes: NOW + H }, ROUTES, NOW);
+  assert.deepEqual(out.stages.map((s) => [s.rally, s.surface]), [['Wales', 'Gravel'], ['Greece', 'Gravel'], ['Wales', 'Gravel']]);
+  assert.equal(out.surface, 'Gravel');
+  const snow = { ...out.stages[1], rally: 'Sweden', surface: 'Snow' };
+  assert.equal(maskStage(snow, { stages: true }).rally, null);            // (hidden stages: which place each is in too)
+});
+
 test('an event the game could not run is refused', () => {
   const st = ev().stages;
   const bad = {
-    'pick a location': { rally: 'Atlantis' },
+    'pick a location': { rally: 'Atlantis', stages: [{ ...st[0], track: 'Atlantis Deep' }] },
     'pick a car or a car class': { car: null },
     'unknown car class': { car: null, carClass: 'Group Z' },
     'add at least one stage': { stages: [] },
-    'SS2: pick a stage of Wales': { stages: [st[0], { ...st[1], track: 'Greece Elatia' }] },
+    'SS2: pick a stage of Wales': { stages: [st[0], { ...st[1], track: 'Wales Nowhere' }] },
     'the days come in order, from day 1': { stages: [st[0], { ...st[2], day: 3 }] },
     'SS2 starts after SS1 on the same day': { stages: [st[0], { ...st[1], time: '07:00' }] },
     'SS1: pick the weather': { stages: [{ ...st[0], weather: 'Sunny' }] },

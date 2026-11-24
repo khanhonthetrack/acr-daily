@@ -119,7 +119,7 @@ function seasonTables(l, s) {
 // ------------------------------------------------------------------ events
 
 const stageOut = (s) => ({ no: s.no, day: s.day ?? null, name: s.name ?? null, track: s.track ?? null, lengthM: s.lengthM ?? null,
-  weather: s.weatherLabel ?? s.weather ?? null, time: s.time ?? null, serviceBefore: !!s.service });
+  rally: s.rally ?? null, weather: s.weatherLabel ?? s.weather ?? null, time: s.time ?? null, serviceBefore: !!s.service });
 
 const timeRow = (r) => ({ rank: r.rank ?? null, steamId: r.steamId, name: r.name, country: r.country || null, team: look(r),
   car: r.car || null, carClass: r.cls || null, division: r.division || null, status: r.status, reason: r.reason || null,

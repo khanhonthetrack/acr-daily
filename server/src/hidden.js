@@ -49,7 +49,9 @@ export function maskEvent(o, h, v) {
 export function maskStage(s, v) {
   if (!v) return s;
   const out = { ...s };
-  if (v.stages) Object.assign(out, { track: null, name: null, stageId: null, lengthM: null });
+  // (an event in several places: which stage is in which place too; the event's own list of places stays)
+  if (v.stages) Object.assign(out, { track: null, name: null, stageId: null, lengthM: null },
+    'rally' in out ? { rally: null, surface: null } : {});
   if (v.weather) Object.assign(out, { weather: null, weatherLabel: null, weatherGame: null });
   if (v.time) Object.assign(out, { time: null, startSeconds: null });
   return out;
