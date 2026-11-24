@@ -456,6 +456,12 @@ test('a private time trial: made by the admin, a week long, seen by the newest a
   const later = await setTtPrivate(env, { stages: [{ track: 'Nowhere', car: CARS[2].name }], startsAt: now + D }, hash, now);
   assert.deepEqual(later.stages.map((s) => [s.slot, s.warning]), [[5, 'no route for that track yet']], 'the next free slot');
   assert.notEqual(later.week, week);
+  // the next one, opening as both close: TT3 and TT4 again (the user, 24 Nov 2026: "i want 4 only")
+  const next = await setTtPrivate(env, { stages: [{ track: LONDON, car: CARS[0].name }, { track: GERMANY, car: CARS[1].name }],
+    startsAt: now + 8 * D }, hash, now);
+  assert.deepEqual(next.stages.map((s) => s.slot), [3, 4]);
+  db.prepare('DELETE FROM tt_schedule WHERE week = ?').run(next.week);   // (out of the way of the checks below)
+  db.prepare('DELETE FROM tt_private WHERE page = ?').run(next.week);
 
   // the app: the newest sees them beside the week's two (not one that opens tomorrow); older apps and the website don't
   const tt = (app, who = 1, at = now) => call('GET', '/api/tt', { who, now: at, app });

@@ -477,12 +477,27 @@ async function overview(env, me, now, rand) {
   const evIds = [...pub.values()].map((r) => r.event_id).filter(Boolean);
   const mine = sid && evIds.length ? new Map((await env.DB.prepare(`SELECT event_id, status, done FROM league_entries WHERE steam_id = ?
     AND event_id IN (SELECT value FROM json_each(?))`).bind(sid, JSON.stringify(evIds)).all()).results.map((e) => [e.event_id, e])) : new Map();
+  // a session under way whose drivers are all done (finished, DNF, DSQ, or out before their first start: the session's
+  // own resultsOut) is over, not under way to its close 1:45 after the hour: its results go to RESULTS at once (the
+  // user, 24 Nov 2026: one driver, a DNS at 17:34, "UNDER WAY · closes in 30:56" at 18:44)
+  const doneEarly = new Set();
+  if (evIds.length) {
+    const { results: left } = await env.DB.prepare(`SELECT e.id, json_array_length(e.only_ids) AS n,
+        (SELECT COUNT(*) FROM json_each(e.only_ids) j
+          WHERE NOT EXISTS (SELECT 1 FROM league_entries le WHERE le.event_id = e.id AND le.steam_id = j.value
+                              AND le.status IN ('finished', 'dnf', 'dsq'))
+            AND NOT EXISTS (SELECT 1 FROM live_slots ls WHERE ls.event_id = e.id AND ls.steam_id = j.value
+                              AND ls.stage_no = 0 AND ls.out IS NOT NULL)) AS left_n
+      FROM league_events e WHERE e.id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(evIds)).all();
+    for (const r of left) if (r.n > 0 && r.left_n === 0) doneEarly.add(r.id);
+  }
   // (a session past its hour that nobody registered for is over then, not under way: left out, so a series shows its
-  // next one and the list starts at the sessions to come; one with drivers stays under way to its close)
+  // next one and the list starts at the sessions to come; one with drivers stays under way until they are all done)
   const sessions = list.map(({ series: s, starts }) => {
     const c = count.get(key(s.key, starts)) || {}, p = pub.get(key(s.key, starts)) || null;
     let phase = phaseOf(starts, now);
     if (phase === 'running' && ((p && p.event_id === 0) || (!c.n && !(p && p.event_id)))) phase = 'empty';
+    if (phase === 'running' && p && doneEarly.has(p.event_id)) phase = 'empty';      // (in RESULTS, below)
     const e = p && p.event_id ? mine.get(p.event_id) : null;
     return { series: s.key, starts, ...timesOf(starts), phase, rally: rallyOfWeek(s, starts), signups: c.n || 0,
       signedUp: !!c.mine, car: c.car || null, eventId: (p && p.event_id) || null,
@@ -499,7 +514,11 @@ async function overview(env, me, now, rand) {
     sid ? env.DB.prepare(`${PAST} AND EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?) ORDER BY s.starts DESC LIMIT ${RECENT_N}`)
       .bind(since, from, sid).all() : { results: [] },
   ]);
-  const past = [...new Map([...last, ...minePast].map((r) => [r.event_id, r])).values()].sort((a, b) => b.starts - a.starts);
+  // (and the ones under way with every driver done)
+  const early = doneEarly.size ? (await env.DB.prepare(`SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s
+      JOIN league_events e ON e.id = s.event_id WHERE s.event_id IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify([...doneEarly])).all()).results : [];
+  const past = [...new Map([...early, ...last, ...minePast].map((r) => [r.event_id, r])).values()].sort((a, b) => b.starts - a.starts);
   const table = await eventsRows(env, past.map((r) => r.event_id), now);
   const recent = past.map((r) => {
     const s = SERIES.find((x) => x.key === r.series), only = JSON.parse(r.only_ids || '[]');

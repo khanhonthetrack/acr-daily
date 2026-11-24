@@ -337,6 +337,11 @@ test('the results are out when every driver is done', async () => {
   await live(f, `${S()}/dnf`, CAT, t0 + 3000, { no: 1, reason: 'SS2 driven outside the rally' });
   v = (await live(f, S(), CAT, t0 + 4000)).body;
   assert.deepEqual([v.resultsOut, v.pollS], [true, LIVE.pollS.idle]);
+  // ... and in the overview: no longer under way to its close (1:45 after the hour), in RESULTS at once (the user, 24
+  // Nov 2026: "UNDER WAY · closes in 30:56" an hour after its only driver's DNS)
+  const now = (await live(f, '/api/liverallies', DAN, t0 + 5000)).body;
+  assert.ok(!now.sessions.some((x) => x.starts === H), JSON.stringify(now.sessions.filter((x) => x.starts === H)));
+  assert.deepEqual(now.recent.map((r) => [r.series, r.starts, r.eventId]), [['rally2', H, id]]);
   // in the RESULTS list once it is over: who won (nobody finished: none) and where I came (from its standings)
   const o = (await live(f, '/api/liverallies', CAT, H + 3 * 3600000)).body;
   assert.deepEqual(o.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.winner, r.me && r.me.status, r.me && r.me.rank]),

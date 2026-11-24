@@ -33,8 +33,10 @@
 // engines are told to leave out (/tt/p/<code>: whoever has the link sees it), and in the app's TIME TRIAL tab only
 // from their min_app version on (GET /api/tt adds them as `private`; older apps never see them, and their runs are
 // refused). Free, no prizes, nothing settled. Their runs, boards and live maps are the weekly ones' (the same tables
-// and calls), with the page's key ('p-<code>') for the week and a slot of their own: TT3, TT4... one number per
-// private stage, never used twice, so the app keeps them by slot beside TT1 and TT2.
+// and calls), with the page's key ('p-<code>') for the week and a slot of their own: TT3, TT4... from TT3 on each
+// page, after the numbers of any page open at the same time (migration 0047: a stage is its page + its number), so the
+// app keeps the open ones by slot beside TT1 and TT2, and next week's community stages are TT3 and TT4 again (the
+// user, 24 Nov 2026: "i dont want 6 time trials, i want 4 only"), as TT1 and TT2 are every week.
 
 import { POOL_CARS as CARS, carByName } from './cars.js';   // (the held cars: never picked, cars.js)
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
@@ -307,7 +309,9 @@ export async function setTtPrivate(env, body, hash, now = Date.now()) {
   }
   const bytes = crypto.getRandomValues(new Uint8Array(PRIVATE.codeLength));
   const week = 'p-' + Array.from(bytes, (b) => '0123456789abcdefghijklmnopqrstuvwxyz'[b % 36]).join('');
-  const top = await env.DB.prepare('SELECT MAX(slot) AS n FROM tt_private').first();
+  // (numbered from TT3, after any page open at the same time: two open at once never share a number)
+  const top = await env.DB.prepare('SELECT MAX(slot) AS n FROM tt_private WHERE starts_at < ? AND ends_at > ?')
+    .bind(starts + days * DAY, starts).first();
   let slot = Math.max(PRIVATE.firstSlot - 1, (top && top.n) || 0);
   const stmts = [];
   for (const r of rows) {

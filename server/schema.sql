@@ -660,16 +660,18 @@ CREATE INDEX IF NOT EXISTS tt_live_week ON tt_live (week, slot);
 -- private time trials (src/timetrial.js setTtPrivate; migration 0041): each stage open from starts_at to ends_at, on a
 -- page only its link reaches (/tt/p/<code>) and in the app from min_app on; the stage itself is a tt_schedule row with
 -- the page's key ('p-<code>') for the week, its runs and live positions tt_runs / tt_live rows with that key.
--- slot: TT3, TT4... one number per private stage, never used twice (the app keeps its stages by slot)
+-- slot: TT3, TT4... on its page, from TT3 again on each page after any page open at the same time (migration 0047;
+-- the app keeps the open stages by slot)
 CREATE TABLE IF NOT EXISTS tt_private (
-  slot      INTEGER PRIMARY KEY,
+  slot      INTEGER NOT NULL,
   page      TEXT NOT NULL,
   title     TEXT,
   starts_at INTEGER NOT NULL,
   ends_at   INTEGER NOT NULL,
   min_app   TEXT,
   created   INTEGER NOT NULL,
-  listed    INTEGER NOT NULL DEFAULT 0     -- public (migration 0044): the main time trial page points to it while open
+  listed    INTEGER NOT NULL DEFAULT 0,    -- public (migration 0044): the main time trial page points to it while open
+  PRIMARY KEY (page, slot)
 );
 CREATE INDEX IF NOT EXISTS tt_private_page ON tt_private (page);
 CREATE INDEX IF NOT EXISTS tt_private_open ON tt_private (ends_at);
