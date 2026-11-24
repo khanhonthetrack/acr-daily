@@ -131,13 +131,6 @@ def calendar(ev, leg=0, split=None, start=None):
              'service': bool(s['service']) or k == lead} for k, s in enumerate(ev['stages'][a:b], start=a)]
 
 
-def calendar_index(ev, k, first=None):
-    """Stage k's place in the game's calendar of its leg (first: the calendar's own first stage, a recovery's tail)."""
-    if first is None:
-        first = legs(ev)[leg_of(ev, k)][0]
-    return k - first
-
-
 def leg_in(stages, ev, prefer=None, split=None):
     """The event's leg a calendar from the save (rallyweekend stages) is: the same stages, in order, on the same days.
     -> its index, or None. Legs alike (the same stages on the same days: an event driving one loop each leg) can't be

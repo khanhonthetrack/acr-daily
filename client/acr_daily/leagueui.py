@@ -1492,13 +1492,15 @@ class LeaguesUI:
         ev, k = run['ev'], run['no']
         self._lr_finished(ev, k)                   # a ranked rally's session: the next stage's queue, now (liverallyui.py)
         r = dict(run['judge'].result)
-        dmg = ingamedrive.read_damage()            # the car as it finished (the game mod): sent with the stage, so a
-        if dmg is not None:                        # crash past the line goes on with this car (leagues.recover)
+        # the car as it crossed the line (the game mod keeps it from the line on: drive.lua, and puts it on the next
+        # stage's car itself at NEXT STAGE, tyres and all): sent with the stage, so after a crash of the game past the
+        # line the event goes on with this car (leagues.recover)
+        dmg = ingamedrive.read_damage()
+        if dmg is not None:
             r['damage'] = dmg
             if dmg:
                 waiting.note('league:%d:%d: the car at the finish: %s' % (ev['id'], k, ', '.join(
                     '%s %g' % (p, v) for p, v in sorted(dmg.items()))))
-            self._next_stage_damage(run, ev, k, dmg)
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
                            'watch': saveslot.SaveWatch()}
@@ -1525,23 +1527,6 @@ class LeaguesUI:
             pass
         self.sub_l.configure(text=_('SS%d finished. %s') % (k + 1, waiting.HINT))
         self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
-
-    def _next_stage_damage(self, run, ev, k, dmg):
-        """The car as it crossed SS(k+1)'s finish line, for the next stage of the same Rally Weekend: the mod puts it on
-        that stage's car before it starts (drive.lua next_damage), whatever happened past the line (the user, 24 Nov
-        2026: the same for everyone, a crash after the finish or not). Not across legs (each its own Rally Weekend,
-        a fresh car: an overnight service)."""
-        ig = getattr(self, 'ingame_app', None)
-        if ig is None or k + 1 >= len(ev.get('stages') or []) or leagues.leg_starts(ev, k + 1):
-            return
-        try:
-            first = (run.get('ingame') or {}).get('first')
-            index = leagues.calendar_index(ev, k + 1, first)
-        except (KeyError, IndexError, ValueError):
-            return
-        ig.next_damage(dmg, index)
-        waiting.note('league:%d:%d: the car at the finish goes on to SS%d (its place in the calendar: %d)' % (
-            ev['id'], k, k + 2, index))
 
     def _league_wait_step(self, b, w, ev, stage_id, car_id, known):
         """One look at the game's save (b) for a league stage waiting for its official result. w: {'result', 'until',

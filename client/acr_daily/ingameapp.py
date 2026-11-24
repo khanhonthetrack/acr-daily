@@ -241,7 +241,6 @@ class InGameApp:
         self._dialog_words = ''      # what's typed in a question that wants words
         self._patched = False
         self.cmd = {'n': 0, 'do': None}   # a command to the mod, done once each (n): 'close'
-        self.damage_next = None      # the car at the last finish, for the next stage: in the state until the mod says (next_damage)
         self._status_words, self._status_at = None, -1e9   # the status line: its words and since when (status())
         self.focus = ''              # the button the keyboard / wheel / pad is on (the mod says: across())
         self.prep = None             # DRIVE's set-up screen on, over the tab ({'kind', 'key'}: ig_prep.py)
@@ -370,9 +369,6 @@ class InGameApp:
             id_, _sep, words = rest.partition(' ')
             self.text(id_, words)
         elif what == 'drive':
-            d = self.damage_next
-            if d and (rest or '').startswith('%d damage' % d['id']):   # (put on, or given up: not sent again)
-                self.damage_next = None
             self.drives.answer(rest)
         elif what == 'tab':                       # (Q / E in the game, as its own menu's tabs: appui.lua)
             self.switch_tab(-1 if rest.strip() == 'prev' else 1)
@@ -507,17 +503,6 @@ class InGameApp:
         m = self.module(tab)
         if m is not None and hasattr(m, 'text'):
             self.run(lambda: m.text(self, field, words))
-
-    def next_damage(self, parts, index):
-        """The car as it crossed the finish line ({part: life points}, ingamedrive.read_damage), for the next stage of
-        the Rally Weekend (index: its place in the calendar): the mod puts it on that stage's car before it starts
-        (drive.lua next_damage). Not one of the commands (one at a time: a click right after the finish took its place):
-        a field of its own in the state, kept until the mod answers "<id> damage ..."; id from the clock (an app started
-        again doesn't start again at an id the mod has seen)."""
-        last = self.damage_next['id'] if self.damage_next else 0
-        n = max(int(time.time() * 1000) % 2000000000, last + 1)
-        self.damage_next = {'id': n, 'parts': dict(parts or {}), 'index': int(index)}
-        return n
 
     def drive(self, setup, on_ok, on_fail):
         """DRIVE in the running game (ingamedrive.py): the set-up to the mod; on_ok() once the game is on its way to
@@ -752,8 +737,7 @@ class InGameApp:
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
                           'go' if self.dialog and self.dialog.get('go') and not self.dialog.get('safe') else
                           'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
-                'cmd': self.cmd, 'damage': self.damage_next,
-                'prep': bool(self.prep), 'overlay': self.stage_overlay(),
+                'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.stage_overlay(),
                 'chat': self._chat_on_stage,       # (RANKED's chat over the stage: T opens the mod's box to write)
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}

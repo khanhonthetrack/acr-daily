@@ -250,29 +250,20 @@ steps[7] = function(t)
     return true
 end
 
--- The car as it was at the finish line of the event's stage before, put on the car of the next stage before it starts
--- (the user, 24 Nov 2026): after every finish (what happened past the line doesn't come with it: the same for everyone,
--- a crash after the line or not), and after a crash of the game (the stage counted from its finish-line time, the rally
--- set up again from the next stage: setup.damage). parts = {<part> = <life points>} as the app read them at that finish
--- (main.lua write_damage): every other part is put back to 100.
+-- After a crash of the game past a finish line (the stage counted from its finish-line time, the rally set up again
+-- from the next stage: setup.damage), the car as it was at that line put on the next stage's car before it starts (the
+-- user, 24 Nov 2026; a NEXT STAGE in the running game needs none of this: the game carries the car itself, given the
+-- car at the line: "the whole car at the finish line" below). parts = {<part> = <life points>} as the app read them at
+-- that finish (main.lua write_damage): every other part is put back to 100. The tyres come new (not kept by the server).
 -- How (probed in the game 24 Nov 2026): each part's LifePoints written, then the player's repairs component makes its
 -- plans again and applies the selected one, empty (nothing repaired, no time, no penalty): the game sets every part's
 -- state from its life points, as it does at a Service Park (engine 35 -> state 3, radiator 25 -> 3, suspension 50 -> 2;
 -- back to 100 -> 0). Written alone, the life points stay but the states don't. It works on the start line (no Service
 -- Park needed) and at a Service Park (before the player repairs anything: their repairs then go on top).
-car_damage = nil                 -- {parts, n, tell, at, index (the calendar's stage it is for, or nil), old (the car
-                                 -- at the finish: not that one)}
+car_damage = nil                 -- {parts, n, tell, at, index (the calendar's stage it is for, or nil)}
 local DAMAGE_WAIT_S = 2.0        -- the new car this long before it is touched (it is being made)
 local DAMAGE_GIVE_UP_S = 1800    -- no next stage by then: not done
 local CAR_STILL_KMH = 2.0        -- on the start line, the car still standing (before it drives to the start)
-
---- the app's command (appui.lua): the car at this finish, for the stage after it (index: its place in the calendar)
-function D.next_damage(n, parts, index, tell, t)
-    local old, world = nil, nil
-    pcall(function() old = UEHelpers.GetPlayerController().Pawn:GetAddress() end)
-    pcall(function() world = UEHelpers.GetWorld():GetFullName() end)
-    car_damage = {parts = parts, n = n, tell = tell, at = t, index = index, old = old, world = world}
-end
 
 local UTIL_ = nil
 local function sub_index()
@@ -294,16 +285,13 @@ local function restore_damage(t)
     local okw, w = pcall(UEHelpers.GetWorld)
     local name = okw and w and w:IsValid() and w:GetFullName() or ""
     if name == "" or name:find("MainMenu", 1, true) then
-        d.seen, d.gone = nil, true
+        d.seen = nil
         return
     end
-    if d.world and name ~= d.world then d.gone = true end
     local pc = UEHelpers.GetPlayerController()
     local pawn = pc and pc.Pawn
-    if not (pawn and pawn:IsValid()) then d.gone = true return end
+    if not (pawn and pawn:IsValid()) then return end
     local at = pawn:GetAddress()
-    if at == d.old and not d.gone then return end        -- (still the car that finished: a new one may come at the
-                                                         -- same address, but only after a loading screen)
     local at_park = pawn:GetClass():GetFName():ToString():find("ServicePark", 1, true) ~= nil
     local comp = nil
     if at_park then                                      -- (the Service Park: its car isn't the player's pawn)
@@ -511,6 +499,222 @@ local function dress(t)
         if livery_done == 1 and livery:sub(1, 8) == "usergen_" then D.rescan_liveries() end   -- (one installed since)
         local ok = pcall(function() c:ApplyLivery(FName(livery)) end)
         log("livery %s on the stage's car: %s", livery, ok and "ok" or "failed")
+    end
+end
+
+-- ---------------------------------------------------------------------- the whole car at the finish line
+-- The car as it crossed the finish line goes on to the next stage, whatever happened past it (the user, 24 Nov 2026:
+-- "the whole state of a car - including tyres"; fair for everyone, a crash after the line or not). The game carries the
+-- car between a Rally Weekend's stages itself: NEXT STAGE stores a snapshot of it (FSM_NextGamePostGameGM:
+-- CarRaceComponent and PlayerTiresSetupComponent ClientStoreSnapshot -> ServerSnapshotStored(struct)) and the next
+-- stage loads it (ClientLoadSnapshot). Probed in the game 24 Nov 2026: the same two calls made by hand on the stage give
+-- the same structs there and then, nothing else happens. So: at the finish line (PlayerRaceSectorsTracker:
+-- MulticastOnLastSectorPassed) the car's and the tyres' snapshots are taken that way and kept (every field the game's
+-- reflection shows); when the game stores its own after the finish, those fields are written into it. Kept: the parts'
+-- life (0-1 in the snapshot), brakes' / clutch's / differentials' wear, the body's deformation and parts come off, the
+-- lights' damage, dirt and body damage zones, the windscreens' cracks (their baked intensities), each tyre (tread,
+-- wear: grain, blisters, marbles, flat spots; damage, deflation, puncture). Not kept (no fields the game shows): each
+-- part's property bag, the windscreens' crack history. Only for a stage ACR DAILY took the game to (ACRDAILY_OURS).
+local V = "v"
+-- an array of the snapshot (by place, or by its entries' `key` name); `fill`: what an entry the car at the finish didn't
+-- have gets (the game lists only what isn't as new: a part, a bent bone, a panel come off after the line put back as
+-- new: seen 24 Nov 2026, the front lights broken past the line came along until this)
+local function A(s, key, fill) return {arr = s, key = key, fill = fill} end
+local WEAR = {Wear = {Value = V}}
+local ATTACHED = {State = {bDetached = false, bPartiallyDetached = false}}
+local SNAP_CAR = {
+    CarState = {BrakesDiscsStatus = A(WEAR), BrakesPadsStatus = A(WEAR), ClutchStatus = WEAR, DifferentialsStatus = A(WEAR)},
+    CarDestruction = {
+        CarDeformer = {DeformableBones = A({State = {CurrentDeformation = V, DeformationRand = V}}, "Name",
+            {State = {CurrentDeformation = 0.0}})},
+        ConstrainedComponents = {
+            ksState = {
+                Components = A({State = {Constraints = A({State = {bDetached = V, bPartiallyDetached = V}}, "Name", ATTACHED)}},
+                    "Name", {State = {Constraints = {all = ATTACHED}}}),
+                ComponentsConstraints = A({State = {Constraint = {bDetached = V, bPartiallyDetached = V}}}, "Name",
+                    {State = {Constraint = {bDetached = false, bPartiallyDetached = false}}})},
+            ConstrainedComponentsState = A({State = {bPartialBreakEnabled = V, bBreakEnabled = V, bExternalReset = V}}, "Name")}},
+    CarDamage = {PartsStates = A({LifePoints = V, bRepaired = V}, "ID", {LifePoints = 1.0})},
+    LightsDamage = {ZoneDamages = A(V)},                 -- (by place: ZoneNames is the same list, checked below)
+    CarFX = {ZonesData = A({Values = A(V), Damages = V}), GenericDirt = V},
+    Windshields = {Windshields = A({BakedCracksIntensities = {X = V, Y = V, Z = V, W = V}}, "ComponentName")},
+}
+local SNAP_TYRES = {ProviderState = {Tires = A({MaxTread = A(V), PreviousEquippedIndex = V,
+    Damage = {Wear = {Tread = A(V), Grain = V, Blister = V, Marbles = V, FlatSpot = V, Normalized = V},
+              Value = V, Deflation = V, bPunctured = V}}, "ID")}}
+
+local function snap_read(x, sch)
+    if sch == V then return x end
+    if sch.arr then
+        local out = {n = #x, by = sch.key and {} or nil}
+        for i = 1, #x do
+            local e = x[i]
+            local ok, v = pcall(snap_read, e, sch.arr)
+            if ok then
+                if sch.key then out.by[e[sch.key]:ToString()] = v else out[i] = v end
+            end
+        end
+        return out
+    end
+    local out = {}
+    for k, s in pairs(sch) do
+        local ok, v = pcall(function() return snap_read(x[k], s) end)
+        if ok then out[k] = v end
+    end
+    return out
+end
+
+local function snap_write(x, sch, d, st)
+    -- d (snap_read's) written into x; st: {set, skipped} counts
+    if sch.arr then
+        if not sch.key and d.n ~= #x then st.skipped = st.skipped + 1 return end   -- (another list: left)
+        for i = 1, #x do
+            local e = x[i]
+            local v = nil
+            if sch.key then
+                local okk, k = pcall(function() return e[sch.key]:ToString() end)
+                v = okk and d.by and d.by[k] or nil
+                if v == nil then v = d.all or sch.fill end       -- (not at the finish: as new)
+            else
+                v = d[i]
+            end
+            if v == nil then
+                st.skipped = st.skipped + 1
+            elseif sch.arr == V then
+                if pcall(function() x[i] = v end) then st.set = st.set + 1 else st.skipped = st.skipped + 1 end
+            else
+                snap_write(e, sch.arr, v, st)
+            end
+        end
+        return
+    end
+    for k, s in pairs(sch) do
+        local v = d[k]
+        if v ~= nil then
+            if s == V then
+                if pcall(function() x[k] = v end) then st.set = st.set + 1 else st.skipped = st.skipped + 1 end
+            else
+                local ok = pcall(function() snap_write(x[k], s, v, st) end)
+                if not ok then st.skipped = st.skipped + 1 end
+            end
+        end
+    end
+end
+
+D._snap = {read = snap_read, write = snap_write, CAR = SNAP_CAR, TYRES = SNAP_TYRES}   -- (tests: client/tests/test_mod_snapshot.py)
+
+-- _G.ACRDAILY_FINISH: {world, at, pending, car (snap_read of the car's), tyres (of the tyres'), lights (zone names),
+-- parts {<part> = life points 0-100} (main.lua writes these to ingame-damage.txt while it is kept), stored}
+local function world_name_now()
+    local ok, n = pcall(function() return UEHelpers.GetWorld():GetFullName() end)
+    return ok and n or ""
+end
+
+local function on_finish(self)
+    if not rawget(_G, "ACRDAILY_OURS") or rawget(_G, "watching") then return end
+    local pc = UEHelpers.GetPlayerController()
+    local mine = pcall(function()
+        if self:get():GetOwner():GetAddress() ~= pc:GetAddress() then error("not mine") end
+    end)
+    if not mine then return end
+    _G.ACRDAILY_FINISH = {world = world_name_now(), at = os.clock(), pending = true}
+end
+
+local function capture(f)
+    -- the game's own snapshot calls, made at the finish line (the frame after it): ServerSnapshotStored is called from
+    -- inside each, and on_stored keeps what it gets
+    f.pending = false
+    local pc = UEHelpers.GetPlayerController()
+    f.capturing = true
+    pcall(function() pc.CarRace:ClientStoreSnapshot() end)
+    pcall(function() pc.PlayerTiresSetup:ClientStoreSnapshot() end)
+    f.capturing = false
+    local parts = {}
+    for k, v in pairs(f.car and f.car.CarDamage and f.car.CarDamage.PartsStates and f.car.CarDamage.PartsStates.by or {}) do
+        if type(v.LifePoints) == "number" then parts[k] = v.LifePoints * 100.0 end
+    end
+    f.parts = next(parts) and parts or nil
+    local nt = 0
+    for _ in pairs(f.tyres and f.tyres.ProviderState and f.tyres.ProviderState.Tires and f.tyres.ProviderState.Tires.by or {}) do
+        nt = nt + 1
+    end
+    log("finish: the car kept as it crossed the line (%s, %d tyres)", f.car and "car" or "NO car", nt)
+end
+
+local function on_stored(which, self, param)
+    local f = rawget(_G, "ACRDAILY_FINISH")
+    if not f then return end
+    local pc = UEHelpers.GetPlayerController()
+    local comp = which == "car" and pc.CarRace or pc.PlayerTiresSetup
+    if self:get():GetAddress() ~= comp:GetAddress() then return end
+    local s = param:get()
+    if f.capturing then
+        if which == "car" then
+            f.car = snap_read(s, SNAP_CAR)
+            local names = {}
+            pcall(function()
+                local zn = s.LightsDamage.ZoneNames
+                for i = 1, #zn do names[i] = zn[i]:ToString() end
+            end)
+            f.lights = table.concat(names, ",")
+        else
+            f.tyres = snap_read(s, SNAP_TYRES)
+        end
+        return
+    end
+    -- the game's own store (NEXT STAGE, or a restart): the car as it crossed the line written into it
+    if f.world ~= world_name_now() then return end
+    local data = which == "car" and f.car or f.tyres
+    if not data then return end
+    local st = {set = 0, skipped = 0}
+    if which == "car" then
+        local names = {}
+        pcall(function()
+            local zn = s.LightsDamage.ZoneNames
+            for i = 1, #zn do names[i] = zn[i]:ToString() end
+        end)
+        local d = data
+        if table.concat(names, ",") ~= f.lights then              -- (other light zones: their damage left as it is)
+            d = {}
+            for k, v in pairs(data) do d[k] = v end
+            d.LightsDamage = nil
+        end
+        snap_write(s, SNAP_CAR, d, st)
+    else
+        snap_write(s, SNAP_TYRES, data, st)
+    end
+    f.stored = (f.stored or 0) + 1
+    log("finish: the game's store of the %s given the car at the finish line: %d fields, %d left", which, st.set, st.skipped)
+end
+
+_G.ACRDAILY_SNAP_ON = function(kind, self, param)
+    local ok, e = pcall(function()
+        if kind == "finish" then on_finish(self) else on_stored(kind, self, param) end
+    end)
+    if not ok then log("finish (%s): %s", kind, tostring(e)) end
+end
+if not rawget(_G, "ACRDAILY_SNAP_HOOKED") then              -- (once a game: the hooks call the latest module's code)
+    _G.ACRDAILY_SNAP_HOOKED = true
+    for _, h in ipairs({{"/Script/acr.PlayerRaceSectorsTracker:MulticastOnLastSectorPassed", "finish"},
+            {"/Script/acr.CarRaceComponent:ServerSnapshotStored", "car"},
+            {"/Script/acr.PlayerTiresSetupComponent:ServerSnapshotStored", "tyres"}}) do
+        local kind = h[2]
+        local ok, e = pcall(RegisterHook, h[1], function(self, param)
+            local fn = rawget(_G, "ACRDAILY_SNAP_ON")
+            if fn then fn(kind, self, param) end
+        end)
+        if not ok then log("finish: no hook on %s: %s", h[1], tostring(e)) end
+    end
+end
+
+--- every frame (appui.lua, before anything else: the app may be gone)
+function D.finish_tick()
+    local f = rawget(_G, "ACRDAILY_FINISH")
+    if not f then return end
+    if f.pending then
+        capture(f)
+    elseif f.world ~= world_name_now() then                  -- (another level: the next stage, the menu)
+        _G.ACRDAILY_FINISH = nil
     end
 end
 

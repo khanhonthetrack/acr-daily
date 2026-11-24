@@ -1078,7 +1078,9 @@ local function write_damage(me, t)
     end
     dmg_seq = dmg_seq + 1
     local words = {}
-    local parts = me and car_parts(me)
+    -- past the finish line: the car as it crossed it (drive.lua keeps it, ACRDAILY_FINISH), not what came after
+    local fin = rawget(_G, "ACRDAILY_FINISH")
+    local parts = fin and fin.parts or (me and car_parts(me))
     if parts then
         for k, lp in pairs(parts) do
             if type(lp) == "number" and lp < 99.95 then words[#words + 1] = string.format("%s=%.1f", k, lp) end
