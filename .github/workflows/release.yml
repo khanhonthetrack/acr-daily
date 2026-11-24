@@ -158,17 +158,55 @@ jobs:
           python -m pip install --quiet pyinstaller==%PYINSTALLER_VERSION% pillow==%PILLOW_VERSION% truststore==%TRUSTSTORE_VERSION%
           cd client && call build.bat %SERVER_URL%
 
+      # The installer (the user, 24 Nov 2026: fewer antivirus false alarms, "an installer ... ask to make a desktop copy",
+      # "the end product should be a zip"): the app as a folder (build_folder.bat: one-dir, no UPX) installed by Inno
+      # Setup into the player's own programs folder (client/installer.iss), and a zip holding the installer and a README.
+      # The one-file exe stays on the release: the apps out there update from it (updater.py); installed ones from
+      # ACR-Daily-Setup.exe.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          cd client
+          cmd /c "build_folder.bat $env:SERVER_URL"
+          if ($LASTEXITCODE) { throw 'build_folder.bat failed' }
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup --no-progress -y | Out-Null
+            $env:Path += ';C:\Program Files (x86)\Inno Setup 6'
+          }
+          $v = $env:TAG.Substring(1)
+          iscc /Q "/DMyAppVersion=$v" installer.iss
+          if ($LASTEXITCODE) { throw 'iscc failed' }
+          $zipDir = "$env:RUNNER_TEMP/zip"; New-Item -ItemType Directory -Force $zipDir | Out-Null
+          Copy-Item dist/ACR-Daily-Setup.exe $zipDir
+          $readme = @(
+            "ACR Daily $v", '',
+            '1. Run ACR-Daily-Setup.exe. It installs ACR Daily for you alone (no administrator), adds it to the Start menu',
+            '   and, if you tick it, puts a shortcut on the desktop. Uninstall it from Windows Settings > Apps.',
+            '2. Start ACR Daily, sign in with Steam, DRIVE.', '',
+            'Windows SmartScreen may say "Windows protected your PC" for a program it has not seen often yet:',
+            'More info > Run anyway. ACR Daily is open source (MIT): https://github.com/' + $env:GITHUB_REPOSITORY,
+            'Check the file: certutil -hashfile ACR-Daily-Setup.exe SHA256 prints the SHA-256 on the release page.',
+            'https://acrdaily.com')
+          Set-Content -Encoding utf8 "$zipDir/README.txt" $readme
+          Compress-Archive -Path "$zipDir/*" -DestinationPath "dist/ACR-Daily-$v.zip" -CompressionLevel Optimal -Force
+
       - name: Checksum
         shell: pwsh
         run: |
-          $h = (Get-FileHash client/dist/ACR-Daily.exe -Algorithm SHA256).Hash.ToLower()
-          [IO.File]::WriteAllText("$PWD/client/dist/ACR-Daily.exe.sha256", $h)
-          "SHA-256: $h" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          $v = $env:TAG.Substring(1)
+          foreach ($f in 'ACR-Daily.exe', 'ACR-Daily-Setup.exe', "ACR-Daily-$v.zip") {
+            $h = (Get-FileHash "client/dist/$f" -Algorithm SHA256).Hash.ToLower()
+            [IO.File]::WriteAllText("$PWD/client/dist/$f.sha256", $h)
+            "SHA-256 $($f): $h" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          }
 
       - name: Build attestation
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: client/dist/ACR-Daily.exe
+          subject-path: |
+            client/dist/ACR-Daily.exe
+            client/dist/ACR-Daily-Setup.exe
+            client/dist/ACR-Daily-*.zip
 
       - name: Publish the release
         shell: pwsh
@@ -196,4 +234,7 @@ jobs:
           $title = "ACR Daily $env:TAG"
           $flags = @()
           if ($env:TAG -match '^v\d+\.\d+\.\d+\.\d+$') { $title += ' (test build)'; $flags = @('--prerelease', '--latest=false') }
-          gh release create $env:TAG client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 $ue4ss --title $title --target $env:GITHUB_SHA --notes $notes @flags
+          $v = $env:TAG.Substring(1)
+          gh release create $env:TAG client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 `
+            client/dist/ACR-Daily-Setup.exe client/dist/ACR-Daily-Setup.exe.sha256 `
+            "client/dist/ACR-Daily-$v.zip" "client/dist/ACR-Daily-$v.zip.sha256" $ue4ss --title $title --target $env:GITHUB_SHA --notes $notes @flags

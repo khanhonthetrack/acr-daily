@@ -64,6 +64,37 @@ def exe_path():
     return os.path.abspath(sys.executable)
 
 
+def installed():
+    """Is this the installed app (the installer's folder: client/installer.iss, PyInstaller's one-dir with its
+    _internal folder beside the exe), not the one-file exe? It updates by running the new installer then."""
+    return can_self_update() and os.path.isdir(os.path.join(os.path.dirname(exe_path()), '_internal'))
+
+
+SETUP = 'ACR-Daily-Setup.exe'
+
+
+def setup_url(exe_url):
+    """The installer's address beside the one-file exe's on the same release."""
+    return exe_url.rsplit('/', 1)[0] + '/' + SETUP if '/' in exe_url else SETUP
+
+
+def download_setup(exe_url, progress=None):
+    """The installed app's update: the new installer downloaded to the temp folder and checked (its .sha256 beside it on
+    the release). -> its path. Raises UpdateError."""
+    import tempfile
+    url = setup_url(exe_url)
+    dst = os.path.join(tempfile.gettempdir(), 'ACR-Daily-Setup-update.exe')
+    return _fetch_checked(url, dst, progress)
+
+
+def run_setup(path):
+    """The new installer started, silently, over this installation (it closes this app if still open and starts the new
+    one: installer.iss /UPDATE=1). The caller quits the app right after."""
+    subprocess.Popen([path, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/UPDATE=1',
+                      '/DIR=' + os.path.dirname(exe_path())],
+                     close_fds=True, creationflags=0x00000008 | 0x00000200)
+
+
 def cleanup_old():
     """Delete the previous version left behind by an update (it may still be closing: retry a little)."""
     if not can_self_update():
@@ -85,6 +116,11 @@ def _get(url, timeout=30):
 
 def download(url, progress=None):
     """Download the new exe next to the running one. -> path of the checked file. Raises UpdateError."""
+    return _fetch_checked(url, exe_path() + '.new', progress)
+
+
+def _fetch_checked(url, dst, progress=None):
+    """url downloaded to dst, checked against url.sha256 and as a Windows program. -> dst. Raises UpdateError."""
     try:
         with _get(url + '.sha256', timeout=15) as r:
             want = r.read().decode('ascii', 'replace').split()[0].strip().lower()
@@ -93,7 +129,6 @@ def download(url, progress=None):
     if len(want) != 64:
         raise UpdateError(_('the server has no valid checksum for this download'))
 
-    dst = exe_path() + '.new'
     h = hashlib.sha256()
     try:
         with _get(url, timeout=60) as r, open(dst, 'wb') as f:

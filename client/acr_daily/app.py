@@ -2601,7 +2601,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
         def go():
             try:
-                new = updater.download(info['url'], progress=lambda p: setattr(
+                fetch = updater.download_setup if updater.installed() else updater.download   # (installed: its setup)
+                new = fetch(info['url'], progress=lambda p: setattr(
                     self, 'update_busy', _('DOWNLOADING %s  ·  %d %%') % (info['version'], p * 100)))
                 self.update_busy = _('INSTALLING %s ...') % info['version']
                 self.root.after(0, lambda: self._install_update(new))
@@ -2617,7 +2618,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._pending_update = new
             return
         try:
-            updater.install_and_restart(new)
+            (updater.run_setup if updater.installed() else updater.install_and_restart)(new)
         except updater.UpdateError as e:
             self.update_busy = ''
             messagebox.showerror('ACR Daily', _('Update failed: %s') % e)
