@@ -6,7 +6,7 @@ from .i18n import _
 from .ingamekit import row, sp, tab_id, tabs
 
 TAB = 'events'
-SUBS = (('daily', _('DAILIES')), ('tt', _('TIME TRIAL')))
+SUBS = (('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('copilot', _('COPILOT')))   # (COPILOT: ig_copilot.py)
 
 
 def last(ig):

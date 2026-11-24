@@ -56,7 +56,8 @@ def lines(ig):
     'progress', 'ms'}], the dailies first, then the time trials, then the events."""
     a = ig.app
     out = []
-    for kind, held, label in (('daily', a.dailies or {}, 'SS%d'), ('tt', getattr(a, 'tt', None) or {}, 'TT%d')):
+    from .ttui import listed
+    for kind, held, label in (('daily', a.dailies or {}, 'SS%d'), ('tt', listed(getattr(a, 'tt', None)), 'TT%d')):
         for slot in sorted(held):
             d = held[slot]
             ch = d.get('ch') or {}

@@ -105,6 +105,7 @@ import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
 import { isPrivateWeek, privateListed, rejectTtRun, setTtPrivate, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
+import { copilotApi, copilotTick } from './copilot.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
@@ -1803,6 +1804,10 @@ async function route(req, env, ctx, L) {
       const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
       if (res) return res;
     }
+    if (path === '/api/copilot' || path.startsWith('/api/copilot/')) {   // COPILOT: the daily for two (src/copilot.js)
+      const res = await copilotApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
+      if (res) return res;
+    }
     if (path === '/credits') return html(inLang(L, () => creditsPage(env)));
     if (path === '/report') return html(inLang(L, () => reportPage(env)));   // a bug report (src/reportpage.js)
     if (path === '/changelog') return html(inLang(L, () => changelogPage(env)));   // what's new in each app version (src/changelog.js)
@@ -2035,6 +2040,8 @@ export default {
         .catch((e) => console.error('discord team cups', e)));
       // the time trial: this week's stages fixed, a finished week's prizes paid (src/timetrial.js)
       ctx.waitUntil(ttTick(env, t, ttDeps(env)).catch((e) => console.error('time trial', e)));
+      // COPILOT: today's stage picked, lobbies left open closed, starts that never sent a run made DNFs (src/copilot.js)
+      ctx.waitUntil(copilotTick(env, t, ttDeps(env)).catch((e) => console.error('copilot', e)));
       // achievements: the drivers who did something since their last check (src/achievements.js)
       ctx.waitUntil(achievementsTick(env, t).catch((e) => console.error('achievements', e)));
     }

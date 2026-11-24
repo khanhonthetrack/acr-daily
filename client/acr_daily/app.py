@@ -18,6 +18,7 @@ from . import (autodrive, gamelog, gamewatch, ghostui, ingamedrive, ingamehud, l
                nextcard, photos,
                rallyweekend, saveslot, single, tiles, tmtext, updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
+from .copilot import CP_SLOT
 from .homeui import HomeUI
 from .communityui import CommunityUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
@@ -2981,6 +2982,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.notifier = notify.Notifier(hwnd, lambda: (getattr(self, 's', None) or {}).get('notify', True))
         self.notifier.notify(ok, title, text)
 
+    def _copilot_dnf(self, a, why):
+        """A COPILOT crew's run (kind 'tt', CP_SLOT) without a time that counts: the crew's DNF on its board
+        (copilot.py; a time trial's run would just not be sent). -> True when it was one."""
+        cp = getattr(self, 'copilot', None)
+        if a.get('slot') != CP_SLOT or cp is None:
+            return False
+        cp.on_result(dict(a.get('result') or {}, status='dnf', reason=str(why), totalMs=None))
+        self.sub_l.configure(text=_('COPILOT: DNF (%s).') % local(why))
+        return True
+
     def _held_by(self, kind):
         """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
         return self.tt if kind == 'tt' else self.dailies
@@ -3152,6 +3163,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 pass
             return
         waiting.note('%s: the result found, but the set-up changed in the game: %s' % (a['id'], what))
+        if a.get('kind') == 'tt' and a.get('slot') == CP_SLOT:
+            self.awaiting.remove(a)
+            try:
+                waiting.remove(a.get('id'))
+            except OSError:
+                pass
+            self._copilot_dnf(a, said('the stage\'s %s changed in the game', what))
+            return
         if a.get('kind') == 'tt':
             self.awaiting.remove(a)
             try:
@@ -3275,6 +3294,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if app_time and OFFICIAL_ONLY:            # no official time: no app's clock in its place
             if r.get('noRallyWeekend'):           # (the save after the finish holds no Rally Weekend: _lost_save)
                 why = said(NO_RALLY_WEEKEND)
+            if a.get('kind') == 'tt' and self._copilot_dnf(a, why):   # (COPILOT: one go: the crew's DNF, copilot.py)
+                return
             if a.get('kind') == 'tt':             # (the time trial takes finished runs only: nothing to send)
                 label = 'TT%d' % a['slot']
                 waiting.note('%s: not counted (no official time): %s' % (a['id'], why))

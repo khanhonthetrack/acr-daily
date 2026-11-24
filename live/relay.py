@@ -19,6 +19,9 @@ takes the names it is told (for tests on one PC only).
                  {"t": "s", "track": "...", "at": [x, z], "room": "...", "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
                  (room, optional: a room of its own on that stage, e.g. "live:123" for a live rally's session (server
                   src/liverallies.js): only the drivers with the same room hear each other, nobody else on the stage)
+                 {"t": "x", "b": "..."}             (in a COPILOT crew's room, "cp:<lobby>": passed on to the other one
+                                                    as {"t": "x", "id", "sid", "b"}; its voice when the two apps can't
+                                                    reach each other directly, client copilotlink.py)
                  {"t": "leave"}                     (off the stage)
                  {"t": "follow", "id": <driver id or 0>}   (WATCH: that driver's every message, however far)
   relay -> app   {"t": "welcome", "id": <your id>}
@@ -50,6 +53,8 @@ import time
 GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 MAX_MSG = 16 * 1024
 MAX_RATE = 25            # messages a second (a second's bucket)
+MAX_CREW_RATE = 60       # a COPILOT crew's own messages ('x': its voice when the two apps can't reach each other directly)
+MAX_CREW_B = 4000        # ... and their size (characters of their payload)
 MAX_SAMPLES = 30
 MAX_CONNS = 500
 IDLE_S = 60
@@ -129,6 +134,7 @@ class Conn:
         self.near = None                         # the ids of the drivers they get in full (None: not known, all)
         self.follow = None                       # WATCH: the driver they follow, in full however far (follow message)
         self.bucket, self.bucket_at = 0, 0.0
+        self.xbucket = 0                         # (this second's crew messages: 'x')
         self.last = time.monotonic()
         self.lock = asyncio.Lock()
 
@@ -288,14 +294,20 @@ class Relay:
                     continue
                 now = time.monotonic()
                 if now - c.bucket_at >= 1.0:
-                    c.bucket, c.bucket_at = 0, now
-                c.bucket += 1
-                if c.bucket > MAX_RATE:
-                    continue
+                    c.bucket, c.xbucket, c.bucket_at = 0, 0, now
                 try:
                     m = json.loads(data.decode('utf-8'))
                 except ValueError:
                     continue
+                crew = isinstance(m, dict) and m.get('t') == 'x'     # (a COPILOT crew's voice: a bucket of its own)
+                if crew:
+                    c.xbucket += 1
+                    if c.xbucket > MAX_CREW_RATE:
+                        continue
+                else:
+                    c.bucket += 1
+                    if c.bucket > MAX_RATE:
+                        continue
                 await self.message(c, m)
         except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError, ValueError, OSError):
             pass
@@ -379,6 +391,18 @@ class Relay:
             if self.leave(c):
                 c.room = None
                 await self.broadcast(room, json.dumps({'t': 'bye', 'id': c.id}))
+        elif t == 'x' and c.hello and c.room and str(c.room[0]).startswith('cp:'):
+            # a COPILOT crew's own message (its voice, when the two apps can't reach each other directly: the app's
+            # copilotlink.py): passed on as it is to the other one in the crew's room only, nothing kept
+            b = m.get('b')
+            if isinstance(b, str) and 0 < len(b) <= MAX_CREW_B:
+                out = json.dumps({'t': 'x', 'id': c.id, 'sid': c.sid, 'b': b}, separators=(',', ':'))
+                for o in list(self.rooms.get(c.room, ())):
+                    if o is not c:
+                        try:
+                            await o.send_text(out)
+                        except Exception:
+                            pass
 
     async def ping(self, c):
         try:

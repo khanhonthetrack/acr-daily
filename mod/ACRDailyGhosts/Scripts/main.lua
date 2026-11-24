@@ -1116,6 +1116,8 @@ local function write_camera(pc)
     -- WATCH: the camera shot on now (tv, onboard, heli...): "W <shot> <seq>" (the app's broadcast shows it)
     -- the penalties the game has given on this stage so far: "P <ms> <disqualified 0/1> <seq>" (read_penalty)
     if penalty_now then line = line .. string.format(" P %d %d %d", penalty_now[1], penalty_now[2], cam_seq) end
+    -- COPILOT: the game's own co-driver off (codriver_off): "C <1/0> <seq>"
+    if codriver_now then line = line .. string.format(" C %d %d", codriver_now, cam_seq) end
     local shot = rawget(_G, "ACRDAILY_SHOT")
     if shot then line = line .. string.format(" W %s %d", shot, cam_seq) end
     -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
@@ -1386,6 +1388,64 @@ function driver_visible(c, on)
         if ok and part:IsValid() and n:find("Driver", 1, true) and not n:lower():find("codriver", 1, true) then
             part:SetVisibility(on and c.crew_shown and c.detail ~= false, false)
         end
+    end
+end
+
+-- COPILOT (the app's copilot.py; appui.lua sets _G.ACRDAILY_COPILOT while a COPILOT stage is on): the game's own co-driver
+-- off, for the crew's driver (their co-driver reads the notes over voice) and for their co-driver (watching the driver's
+-- car: no game voice to repeat). Its notes stop moving on (PacenoteStateComponent and PacenoteAudioComponent: their tick
+-- off, the voice's component deactivated) and its notes on screen are collapsed (the pacenote widgets). On the camera
+-- line: "C <1/0> <seq>": 1 = its components found and every one off, 0 = not (copilot.py: the driver's run then doesn't
+-- count). Looked for again every 2 s (FindAllOf costs: never more often), kept off every 0.25 s. (Classes from the game's
+-- .usmap, 24 Nov 2026; not yet seen in the game.)
+local CODRIVER = {look = -1e9, found_t = -1e9, world = nil, objs = {}, said = nil}
+codriver_now = nil
+local function codriver_off(t)
+    if not rawget(_G, "ACRDAILY_COPILOT") then
+        codriver_now = nil
+        if CODRIVER.said ~= nil then CODRIVER.said = nil log("copilot: the game's co-driver left as it is") end
+        return
+    end
+    if t - CODRIVER.look < 0.25 then return end
+    CODRIVER.look = t
+    local world = UEHelpers.GetWorld()
+    local wa = world and world:IsValid() and world:GetAddress() or nil
+    if CODRIVER.world ~= wa then CODRIVER.objs, CODRIVER.world, CODRIVER.found_t = {}, wa, -1e9 end
+    if t - CODRIVER.found_t > 2.0 then
+        CODRIVER.found_t = t
+        local list = {}
+        for _, cls in ipairs({"PacenoteStateComponent", "PacenoteAudioComponent", "PacenoteCanvasWidget", "PacenoteMainWidget"}) do
+            for _, x in ipairs(FindAllOf(cls) or {}) do
+                local okn, n = pcall(function() return x:GetFullName() end)
+                if okn and not n:find("Default__", 1, true) then
+                    list[#list + 1] = {o = x, widget = cls:find("Widget", 1, true) ~= nil, audio = cls == "PacenoteAudioComponent"}
+                end
+            end
+        end
+        CODRIVER.objs = list
+    end
+    local comps, off = 0, 0
+    for _, e in ipairs(CODRIVER.objs) do
+        pcall(function()
+            if not e.o:IsValid() then return end
+            if e.widget then
+                if e.o:GetVisibility() ~= 1 then e.o:SetVisibility(1) end      -- (ESlateVisibility::Collapsed)
+                return
+            end
+            comps = comps + 1
+            if e.o:IsComponentTickEnabled() then e.o:SetComponentTickEnabled(false) end
+            if e.audio and not e.deactivated then
+                e.o:Deactivate()
+                e.deactivated = true
+            end
+            if not e.o:IsComponentTickEnabled() then off = off + 1 end
+        end)
+    end
+    codriver_now = (comps > 0 and off == comps) and 1 or 0
+    local said = string.format("%d of %d off", off, comps)
+    if said ~= CODRIVER.said then
+        CODRIVER.said = said
+        log("copilot: the game's co-driver: %s", said)
     end
 end
 
@@ -1715,7 +1775,9 @@ function watch_tick(pc, me, t)
     if frame % 15 == 0 then
         local inside = s.name == "cockpit" or s.name == "incar"
         crumb("watch: pace notes")
-        pcall(notes_follow, pc, me, inside and c.actor or nil)
+        if not rawget(_G, "ACRDAILY_COPILOT") then          -- (COPILOT: the crew's co-driver reads them, not the game)
+            pcall(notes_follow, pc, me, inside and c.actor or nil)
+        end
     end
     -- the driver's own figure away on the cockpit shot (the camera is at their eyes: it showed the inside of their
     -- helmet, 22 Nov 2026); back on any other
@@ -1768,8 +1830,10 @@ local function tick()
     if me then
         pcall(read_penalty, t)
         pcall(tell_livery, me, t)
+        pcall(codriver_off, t)                         -- (COPILOT: the game's co-driver kept off)
     else
         penalty_now = nil
+        codriver_now = nil
     end
     pcall(write_damage, me, t)
     local cam = write_camera(pc)
