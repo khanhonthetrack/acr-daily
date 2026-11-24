@@ -664,6 +664,16 @@ class OtherTools(Base):
         cm._save_installed(self.game, {'acrdaily-london': {'version': '1', 'files': []}})   # (this app's own, installed)
         self.assertIn('acrdaily', cm.pack_groups(items, one, self.game))
 
+    def test_londons_pacenote_prefix_mismatch_or_own_files_never_clash(self):
+        london = dict(LONDON_ITEM, group='acrdaily', stages=[
+            {'stageId': 'AcrXsLn02r0FullForward'}, {'stageId': 'AcrXsLn02r1FullForward'}])
+        packs = {os.path.join('~mods', 'zz_acrxs_s_acrxsln02r0_P.utoc'): ['AcrXsLn02r0Forward'],
+                 os.path.join('~mods', 'zz_acrxs_s_acrxsln02r1_P.utoc'): ['AcrXsLn02r1Forward']}
+        self.assertEqual(cm.pack_groups([london, SANDO], packs, self.game), {'acrdaily': [london['name']]})
+        cm._save_installed(self.game, {'acrdaily-london': {
+            'version': '11', 'files': ['zz_acrxs_s_acrxsln02r0_P.utoc', 'zz_acrxs_s_acrxsln02r1_P.utoc']}})
+        self.assertEqual(cm.pack_groups([london, SANDO], packs, self.game), {'acrdaily': [london['name']]})
+
     def test_the_official_download_checked_unpacked_and_its_zip_gone(self):
         src = os.path.join(self.tmp, 'Sando.zip')
         with zipfile.ZipFile(src, 'w') as z:

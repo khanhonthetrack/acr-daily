@@ -3,11 +3,11 @@ a photo card (what it is, who made it, its credits, where it stands in this game
 the category's list, and over the tracks ALL TRACKS (how many are in, INSTALL ALL / STOP ALL, how far). Every button does
 the window's own (communityui.py): its words and its checks.
 
-The game keeps its packages open while it runs, and these pages are drawn by the running game: what changes the game's
-files (INSTALL, UPDATE, REMOVE, SHOW, REBUILD, MANAGE, INSTALL ALL) is not offered while it runs, the page says why
-(the window's CLOSE_GAME). What works with the game open: liveries (in once the game restarts, as the window says), a
-WRC Generations stage put in line (it starts by itself once the game is closed, as in the window), CANCEL / STOP ALL,
-GET IT and the makers' pages (the browser). Picking a file (FIND TOOL / FIND GAME) stays in the window.
+The game keeps its packages open while it runs, and these pages are drawn by the running game: downloads run in the
+background while the game runs, and actions that change the game's files (INSTALL, UPDATE, REMOVE, SHOW, REBUILD, MANAGE,
+INSTALL ALL, SHOW ONLY) ask to close Assetto Corsa Rally, complete the work, and restart it. Liveries (in once the game
+restarts, as the window says), WRC Generations stages queued for game close, CANCEL / STOP ALL, GET IT and makers' pages
+work directly. Picking a file (FIND TOOL / FIND GAME) stays in the window.
 
 The page is drawn every tick: where each item stands (read from the game's folder) is looked at again every VIEW_S, after
 a click, or when something starts or ends; what is going on (its words, how far) is read as it is."""
@@ -17,7 +17,7 @@ import threading
 import time
 import webbrowser
 
-from . import community, liveries, photos, settings
+from . import community, liveries, photos, saveslot, settings, stageswitch
 from .communityui import (BADGE, BUTTON, CATEGORIES, CLASH, CLOSE_GAME, EXPORT_BUTTON, LINK_BUTTON, LV_BUTTON, LV_SORTS,
                           LV_STATUS, MANAGER_BUTTON, ROW_COLOUR, SHORT, SWITCH_CLASH, SWITCH_NAMES, _span)
 from .i18n import _, n_
@@ -129,8 +129,7 @@ def bar(frac, w, h=8, fg=GREEN, **o):
     """How far: a track, the done part over it (a box in a size node as wide as the fraction)."""
     f = min(1.0, max(0.0, float(frac or 0)))
     done = int(round(w * f))
-    return stack(size(box(None, bg=LINE2), w=w, h=h), size(box(None, bg=fg), w=done, h=h, al='l') if done else None,
-                 **o)
+    return stack(size(box(None, bg=LINE2), w=w, h=h), size(box(None, bg=fg), w=done, h=h, al='l', lv=True), **o)
 
 
 # ---------------------------------------------------------------------- what each item is now (kept VIEW_S)
@@ -143,9 +142,11 @@ def _sig(a):
     return (a.community_cat, tuple(sorted(a._community_busy or {})), tuple(sorted(map(str, a._livery_busy or {}))),
             id(ex), id(getattr(a, '_export_waiting', None)), len(getattr(a, '_export_queue', None) or []),
             (getattr(a, '_all_now', None) or {}).get('id'), getattr(a, '_all_queue', None) is None,
-            id(a.community_data), id(a.liveries_data), id(a._community_packs), id(getattr(a, '_community_switch', None)),
-            a._community_game, a.livery_car, a.livery_sort, a.livery_pick,
-            tuple(sorted((a.community_picks or {}).items())))
+            id(a.community_data), id(a._community_man), id(a.liveries_data), id(a._community_packs),
+            id(getattr(a, '_community_switch', None)), a._community_game, a.livery_car, a.livery_sort, a.livery_pick,
+            tuple(sorted((a.community_picks or {}).items())),
+            tuple(sorted((getattr(a, '_community_pending', None) or {}).keys())),
+            tuple(sorted((getattr(a, '_community_cancel', None) or {}).keys())))
 
 
 def view(ig):
@@ -224,15 +225,21 @@ def action(a, it, st):
     busy = (a._community_busy or {}).get(it['id'])
     how = it.get('install')
     mine = a._export_mine(it) if how == 'export' else None
+    if (getattr(a, '_community_cancel', None) or {}).get(it['id']):
+        return _('CANCEL'), lambda: a.community_cancel(it), False, False
+    pending = (getattr(a, '_community_pending', None) or {}).get(it['id'])
+    go = '  ›'
+    if pending and not busy:
+        return (_('CLOSE GAME & INSTALL') + go, lambda: a.community_install(it, man), True, False)
     buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON, 'export': EXPORT_BUTTON}.get(how, BUTTON)
     if not (st in buttons and not busy) and mine is None:
         return None
-    go = '  ›'
     if how == 'manager':
         if st == 'off':
             return MANAGER_BUTTON[st] + go, lambda: a.community_show(it), True, True
+        need_closed = bool(community.manager_exe(man)) or st not in ('install', 'update')
         return (MANAGER_BUTTON[st] + ('' if st == 'installed' else go), lambda: a.community_manager(it, man),
-                st != 'installed', True)
+                st != 'installed', need_closed)
     if how == 'export':
         if mine is not None:
             return _('CANCEL'), lambda: a.community_export_cancel(it), False, False
@@ -252,7 +259,7 @@ def action(a, it, st):
         return BUTTON[st] + go, lambda: a.community_show(it), True, True
     if st == 'installed':
         return BUTTON[st], lambda: a.community_remove(it), False, True
-    return BUTTON[st] + go, lambda: a.community_install(it, man), True, True
+    return BUTTON[st] + go, lambda: a.community_install(it, man), True, False
 
 
 # ---------------------------------------------------------------------- the page
@@ -289,11 +296,12 @@ def _tracks(ig, v, cat):
     run = running(ig)
     out = []
     if run:                      # (always, in the game: one plain line, not a warning strip: a review, 21 Nov 2026)
-        out.append(txt(_('Tracks and cars install with the game closed.'), 17, 'medium', MUTED, pad=[0, 0, 0, 12]))
+        out.append(txt(_('Downloads run in the background; the game restarts when installing or switching tracks.'),
+                       17, 'medium', MUTED, pad=[0, 0, 0, 12]))
     if v.get('clash'):
         more = [row(*[quiet(tab_id(TAB, 'showonly', g), _('SHOW ONLY %s') % SWITCH_NAMES[g].upper(),
                             pad=[0 if i == 0 else 10, 10, 0, 0]) for i, g in enumerate(v.get('switch') or [])])] \
-            if v.get('switch') and not run else []
+            if v.get('switch') else []
         out.append(_warn(v['clash'], *more))
     if v.get('strip'):
         out.append(_strip(ig, v, run))
@@ -315,8 +323,6 @@ def _strip(ig, v, run):
     btn = None
     if o is not None or going:
         btn = quiet(tab_id(TAB, 'stopall'), _('STOP ALL'))
-    elif run:
-        btn = None                                   # (the rest change the game's files: CLOSE_GAME says so above)
     elif s['stale']:
         btn = primary(tab_id(TAB, 'rebuild', s['stale'][0]['id']), _('REBUILD') + '  ›')
     elif s['hidden'] and not s['lists']:
@@ -343,8 +349,8 @@ def _strip(ig, v, run):
             parts.append(_('about %s left') % _span(o['eta']))
         cur = None
         if o['total'] > 1 and o['cur'] > 0:          # (the one being made: its share, how far)
-            cur = row(sp(int(w * o['done'] / o['total'])), size(box(None, bg=WHITE), w=int(w * o['cur'] / o['total']), h=3),
-                      al='f', va='b')
+            cur = row(sp(int(w * o['done'] / o['total']), lv=True),
+                      size(box(None, bg=WHITE), w=int(w * o['cur'] / o['total']), h=3, lv=True), al='f', va='b')
         lines.append(stack(bar(o['fraction'], w, 10), cur, pad=[0, 10, 0, 0]))
         lines.append(txt('   ·   '.join(parts), 17, 'medium', SOFT, pad=[0, 6, 0, 0]))
     return box(col(top, *lines), bg=PANEL, ol=LINE2, p=[20, 12, 20, 12], pad=[0, 0, 0, 14])
@@ -392,9 +398,11 @@ def item_card(ig, it, spec_st, run):
     buttons = []
     if act is not None and act[0] == 'window':       # (FIND TOOL / FIND GAME: a file picker, the desktop's own)
         buttons.append(quiet(tab_id(TAB, 'go', it['id']), _('ON THE DESKTOP ›')))
-    elif act is not None and not (act[3] and run):
+    elif act is not None:
         label, _fn, main = act[0], act[1], act[2]
         buttons.append((primary if main else quiet)(tab_id(TAB, 'go', it['id']), label))
+    if not busy and (getattr(a, '_community_pending', None) or {}).get(it['id']):
+        buttons.append(quiet(tab_id(TAB, 'cancel', it['id']), _('CANCEL'), pad=[12, 0, 0, 0]))
     sup = it.get('support') or {}
     if sup.get('name') and str(sup.get('url') or '').startswith('https://'):
         buttons.append(link(tab_id(TAB, 'support', it['id']),
@@ -573,12 +581,49 @@ def _livery(a, livery_id):
     return a._livery_of(livery_id)
 
 
-def _closed_first(ig):
-    """True when the game runs (said, as the window says it): what changes its files waits."""
-    if community.game_running():
-        ig.say('ACR Daily', [CLOSE_GAME])
-        return False
-    return True
+def _relaunch_game():
+    try:
+        saveslot.launch_game()
+    except OSError as e:
+        from tkinter import messagebox
+        messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % e)
+
+
+def _confirm_close(ig, title, msg, go_label, fn):
+    """Run fn(relaunch=False) when the game is closed; otherwise ask to close it, run fn(relaunch=True), and restart."""
+    if not community.game_running():
+        fn(relaunch=False)
+        return
+    ig.ask(title, [msg], go_label, lambda: ig.app._community_close_and_run(fn, relaunch=True), _('CANCEL'))
+
+
+def _remove_and_relaunch(a, it, relaunch=False):
+    game = a._community_game
+    if not game:
+        return
+    try:
+        community.uninstall(game, it['id'])
+    except community.CommunityError as e:
+        from tkinter import messagebox
+        messagebox.showinfo('ACR Daily', CLOSE_GAME if e.kind == 'running' else str(e))
+        return
+    a._community_packs = community.stage_packs(game, a._catalogue_stage_ids())
+    a._community_switch = stageswitch.state(game)
+    a._lists_update(force=True)
+    a._render_community()
+    if relaunch:
+        _relaunch_game()
+
+
+def _show_and_relaunch(a, fn, relaunch=False):
+    fn()
+    if relaunch and not community.game_running():
+        _relaunch_game()
+
+
+def _manager_and_relaunch(a, it, man, relaunch=False):
+    a._manager_relaunch = relaunch
+    a.community_manager(it, man)
 
 
 def click(ig, action_, arg):
@@ -602,6 +647,11 @@ def click(ig, action_, arg):
             a.community_picks[a.community_cat] = arg
             m.pop('tools', None)
         return
+    if action_ == 'cancel':
+        it = _item(a, arg)
+        if it is not None:
+            a.community_cancel(it)
+        return
     if action_ in ('go', 'support', 'tool', 'rebuild', 'show'):
         item_id = (arg or '').rsplit('/', 1)[0] if action_ == 'tool' else arg
         it = _item(a, item_id)
@@ -621,17 +671,49 @@ def click(ig, action_, arg):
                 ig.browser()
             except (ValueError, IndexError):
                 pass
-        elif action_ == 'rebuild' and _closed_first(ig):
-            a.community_export_rebuild(it)
-        elif action_ == 'show' and _closed_first(ig):
-            a.community_show(it)
+        elif action_ == 'rebuild':
+            _confirm_close(ig, it.get('name', it['id']),
+                           _('Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.')
+                           % it.get('name', it['id']),
+                           _('CLOSE GAME & REBUILD'),
+                           lambda relaunch=False, it=it: a.community_export_rebuild(it))
+        elif action_ == 'show':
+            _confirm_close(ig, it.get('name', it['id']),
+                           _('Show %s in the game? Assetto Corsa Rally must close to switch tracks and will restart '
+                             'automatically once done.') % it.get('name', it['id']),
+                           _('CLOSE GAME & SWITCH'),
+                           lambda relaunch=False, it=it: _show_and_relaunch(a, lambda: a.community_show(it),
+                                                                            relaunch=relaunch))
         return
     if action_ == 'showonly':
-        if arg in SWITCH_NAMES and _closed_first(ig):
-            a._community_show_group(arg)
+        if arg in SWITCH_NAMES:
+            _confirm_close(ig, SWITCH_NAMES[arg],
+                           _('Show only %s in the game? Assetto Corsa Rally must close to switch tracks and will '
+                             'restart automatically once done.') % SWITCH_NAMES[arg],
+                           _('CLOSE GAME & SWITCH'),
+                           lambda relaunch=False, g=arg: _show_and_relaunch(a, lambda: a._community_show_group(g),
+                                                                            relaunch=relaunch))
     elif action_ == 'all':
-        if _closed_first(ig):
+        items = a._all_todo()
+        if not items:
+            return
+        if not community.game_running():
             a.community_install_all()
+            return
+        ups = {x['id'] for x in items if a._community_status(x) == 'update'}
+        if len(ups) == len(items):
+            head = _('Update this track?') if len(items) == 1 else _('Update these %d tracks?') % len(items)
+        elif ups:
+            head = _('Install or update these %d tracks?') % len(items)
+        else:
+            head = _('Install this track?') if len(items) == 1 else _('Install these %d tracks?') % len(items)
+        what = '\n'.join('·  %s' % x.get('name', x['id']) for x in items[:8]) + ('\n·  …' if len(items) > 8 else '')
+        msg = head + '\n\n' + what + '\n\n' + _(
+            'Assetto Corsa Rally must close to install tracks and will restart automatically once ready.')
+        ig.ask(_('ALL TRACKS'), [msg], _('CLOSE GAME & INSTALL'),
+               lambda: a._community_close_and_run(
+                   lambda relaunch=True: a.community_install_all(confirmed=True, relaunch=relaunch), relaunch=True),
+               _('CANCEL'))
     elif action_ == 'stopall':
         a.community_export_stop_all()
     elif action_ == 'car':
@@ -680,7 +762,8 @@ def _go(ig, it):
         ig.window(TAB)
         return
     label, fn, _main, closed = act
-    if it.get('install') == 'link':                  # GET IT / OPEN PAGE: the tool's page (more than one: which)
+    how = it.get('install')
+    if how == 'link':                  # GET IT / OPEN PAGE: the tool's page (more than one: which)
         tools = _tools(it)
         if len(tools) < 2:
             page = tools[0]['page'] if tools else it.get('page')
@@ -690,6 +773,39 @@ def _go(ig, it):
         else:
             m['tools'] = None if m.get('tools') == it['id'] else it['id']
         return
-    if closed and not _closed_first(ig):
+    if closed and community.game_running():
+        name = it.get('name', it['id'])
+        if st == 'off':
+            _confirm_close(ig, name,
+                           _('Show %s in the game? Assetto Corsa Rally must close to switch tracks and will restart '
+                             'automatically once done.') % name,
+                           _('CLOSE GAME & SWITCH'),
+                           lambda relaunch=False, it=it: _show_and_relaunch(a, lambda: a.community_show(it),
+                                                                            relaunch=relaunch))
+        elif how == 'manager':
+            man = (a._community_man or {}).get(it['id'])
+            _confirm_close(ig, name,
+                           _('%s must close Assetto Corsa Rally before it can change the game.\n\n'
+                             'Close the game now, run it, and restart the game when done?') % name,
+                           _('CLOSE GAME & CONTINUE'),
+                           lambda relaunch=False, it=it, man=man: _manager_and_relaunch(a, it, man, relaunch=relaunch))
+        elif how == 'export' and st == 'stale':
+            _confirm_close(ig, name,
+                           _('Rebuild %s for this version of the game? Assetto Corsa Rally must close to rebuild it.')
+                           % name,
+                           _('CLOSE GAME & REBUILD'),
+                           lambda relaunch=False, it=it: a.community_export_rebuild(it))
+        elif how == 'export' and st == 'installed':
+            _confirm_close(ig, name,
+                           _('Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart '
+                             'automatically once done.') % name,
+                           _('CLOSE GAME & REMOVE'),
+                           lambda relaunch=False, it=it: a.community_export_remove(it, confirmed=True, relaunch=relaunch))
+        elif st == 'installed':
+            _confirm_close(ig, name,
+                           _('Take %s out of the game? Assetto Corsa Rally must close to remove it and will restart '
+                             'automatically once done.') % name,
+                           _('CLOSE GAME & REMOVE'),
+                           lambda relaunch=False, it=it: _remove_and_relaunch(a, it, relaunch=relaunch))
         return
     fn()

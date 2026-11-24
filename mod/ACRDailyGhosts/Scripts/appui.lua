@@ -663,7 +663,7 @@ local function make_page(data)
     local canvas = K.new("CanvasPanel", tree)
     tree.RootWidget = canvas
     w:AddToViewport(Z)
-    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}}
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}, lives = {}}
     -- the backdrop: the game's scene behind, darkened and blurred
     local blur = K.new("BackgroundBlur", tree)
     pcall(function() blur:SetBlurStrength(8.0) end)
@@ -784,7 +784,7 @@ local function chat_open(t)
     local canvas = K.new("CanvasPanel", tree)
     tree.RootWidget = canvas
     w:AddToViewport(Z + 20)
-    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}}
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}, lives = {}}
     local body = build(P, {t = "box", bg = "0A1428", a = 0.94, p = {14, 10, 14, 10}, ol = "FF2D3A", olw = 2,
                            c = {t = "size", w = 492, c = {t = "edit", id = "chat", s = "", sz = 17,
                                                           hint = "Write to the others, Enter to send"}}})
@@ -949,7 +949,7 @@ local function redraw()
     if page and page.shape == new_shape and page.w:IsValid() then
         local words = texts_of(state.data.page, {})
         texts_of(state.data.dialog, words)
-        if #words == #page.texts then
+        if #words == #page.texts and set_lives(page, state.data.page) then
             for i, s in ipairs(words) do
                 local x = page.texts[i]
                 if x.s ~= s then
@@ -983,6 +983,7 @@ local function redraw()
     end
     menu.had_dialog = dialog
     menu.focus_hint = state.data.focus
+    if next(offsets) or page.bottoms then pcall(function() page.w:ForceLayoutPrepass() end) end
     for id, o in pairs(offsets) do
         local sc = page.scrolls[id]
         if sc then pcall(function() sc:SetScrollOffset(o) end) end

@@ -6,6 +6,7 @@ the rest is (the user, 21 Nov 2026: "minimalistic: sign in, what's new and play,
 It sits over the app's window (placed over everything in it) and makes the window small; the in-game pages' few
 desktop-only things (a file to pick) put it away for a moment (hide)."""
 import ctypes
+import re
 import tkinter as tk
 
 from . import ghostui, saveslot
@@ -69,7 +70,13 @@ class Launcher:
         if getattr(self, '_min', None):
             r.minsize(*self._min)
         if self._geom:
-            r.geometry(self._geom)
+            k = r.winfo_fpixels('1i') / 96
+            mw, mh = round(960 * k), round(720 * k)
+            m = re.match(r'^(\d+)x(\d+)(.*)$', self._geom)
+            if m and (int(m.group(1)) < mw or int(m.group(2)) < mh):
+                r.geometry('%dx%d%s' % (max(int(m.group(1)), mw), max(int(m.group(2)), mh), m.group(3)))
+            else:
+                r.geometry(self._geom)
         if getattr(self, '_zoomed', False):
             r.state('zoomed')
 
@@ -137,6 +144,7 @@ class Launcher:
         low = tk.Frame(f, bg=BG)
         low.pack(side='bottom', fill='x', padx=28, pady=(0, 22))
         self._button(low, _("WHAT'S NEW"), self.whats_new).pack(side='left')
+        self._button(low, _('COMMUNITY'), self.open_community).pack(side='left', padx=(8, 0))
         self.upd = self._button(low, '', self.update, primary=True)
 
     def _draw_picture(self):
@@ -185,7 +193,12 @@ class Launcher:
             if not self.signin.winfo_ismapped():
                 self.signin.pack(side='left')
         self.play.configure(text=_('TO THE GAME') if running else _('PLAY'))
-        busy = getattr(a, 'update_busy', '')
+        busy = getattr(a, 'update_busy', '') or next(iter((getattr(a, '_community_busy', None) or {}).values()), '')
+        if not busy and getattr(a, '_community_closing', False):
+            try:
+                busy = a.sub_l.cget('text')
+            except Exception:
+                busy = ''
         self.state.configure(text=busy or (_('Sign in to use ACR DAILY in the game.') if not signed else ''))
         info = getattr(a, 'update_info', None)
         if info and not busy:
@@ -266,6 +279,10 @@ class Launcher:
     def whats_new(self):
         from . import whatsnew
         whatsnew.reopen(self.app)
+
+    def open_community(self):
+        self.hide()
+        self.app.open_community('tracks')
 
     def update(self):
         try:
