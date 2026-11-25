@@ -413,6 +413,7 @@ class ModPulse:
                         self._aids = self._digits(line, 'A', AIDS)
                         self._dash = self._digits(line, 'V', DASH)
                         self._penalty = self._penalty_of(line)
+                        self._codriver = self._digits(line, 'C', ('off',))
             except (OSError, ValueError):
                 self.close()
             if self.fh is not None and now - self.moved_at > ALIVE_S:
@@ -475,6 +476,12 @@ class ModPulse:
     def in_menus(self, now=None):
         """Is the game in its menus (the mod running and saying no stage is loaded)? Then nothing of a stage is shown."""
         return self.alive(now) and self._mode == 'none'
+
+    def codriver_off(self, now=None):
+        """COPILOT: the game's own co-driver as the mod keeps it (main.lua codriver_off, its C group): True (off), False
+        (not found or still on), None (not said: COPILOT not on, no stage, an older mod)."""
+        c = getattr(self, '_codriver', None) if self.alive(now) else None
+        return None if c is None else c['off'] == 1
 
     def close(self):
         if self.fh is not None:

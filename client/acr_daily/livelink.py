@@ -29,6 +29,8 @@ from .i18n import _
 
 SAMPLE_MS = 20           # one of your samples per 20 ms of stage clock (50 a second: 0.2, as smooth as the relay takes)
 SEND_S = 0.1             # sent in batches this often
+CREW_SEND_S = 0.05       # ... on a COPILOT crew's stage (its own room): sooner, the co-driver calls from it (20 a second:
+#                          under the relay's 25)
 DELAY_MS = 30            # (the gap to them: their clock this far in the past, clock_now)
 AHEAD_MS = 250           # past their newest sample: carried on at their speed this long at most, then held
 STALE_S = 5.0            # nothing from a driver for this long: gone
@@ -47,6 +49,8 @@ JUMP_MPS = 120.0         # faster than this between two samples: a reset onto th
 # WATCH: the drivers played back this far behind, at least (a broadcast's delay: always a sample on each side of what is
 # drawn, however their data comes: the user, 22 Nov 2026 "to make the broadcast smooth")
 WATCH_DELAY_MS = 5000    # (the user, 24 Nov 2026: "Put the buffer/delay to 5 seconds"; 1.5 s before)
+COPILOT_DELAY_MS = 0     # COPILOT's co-driver: no broadcast delay (the calls must be on time), as late as the data is
+DIRECT_KEEP_S = 2.0      # the crew's driver's samples coming straight: the relay's copy left aside this long after
 DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 20 s)
 GUESS_MS = 300           # no dash from them: how they speed up, over this long
 DASH_STALE_MS = 1500     # their last dash older than this (on their clock): no longer shown
@@ -580,7 +584,8 @@ class LiveLink:
                 self._batch = []
                 self._stand(f, now, -int(run_id or 1))
                 return
-        if self._batch and now - self._last_send >= SEND_S:
+        every = CREW_SEND_S if str(room or '').startswith('cp:') else SEND_S   # (a COPILOT crew's: sooner)
+        if self._batch and now - self._last_send >= every:
             self._last_send = now
             m = {'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id or 0), 's': self._batch}
             if room:
@@ -593,6 +598,7 @@ class LiveLink:
             m['d'] = [self._batch[-1][0], round(float(g('speed')), 1), int(g('gear')), int(g('rpm')),
                       round(float(g('gas')), 2), round(float(g('brake')), 2), round(float(g('steer')), 2)]
             self._put(m)
+            self._tee(m)
             self._batch = []
 
     def _stand(self, f, now, run_id):
@@ -610,6 +616,40 @@ class LiveLink:
         if self.root:
             m['root'] = [round(self.root[0], 3), round(self.root[1], 3)]
         self._put(m)
+        self._tee(m)
+
+    # ---- COPILOT (copilot.py, copilotlink.py): your samples to your crew's co-driver straight, and the crew's voice
+    tee = None                        # a function taking each sample message you send (the direct link), or None
+    on_crew = None                    # a function (Steam id, payload) for a crew message the relay passes on ('x')
+    direct_sid, direct_seen = None, -1e9   # the driver whose samples come straight (the direct link) and when last
+
+    def _tee(self, m):
+        fn = self.tee
+        if fn is not None:
+            try:
+                fn(m)
+            except Exception:
+                pass
+
+    def send_crew(self, b):
+        """A crew message through the relay to the other one in your COPILOT room (its voice when the two apps can't
+        reach each other directly): False when the relay isn't there."""
+        if self.state != 'live' or not self.room:
+            return False
+        self._put({'t': 'x', 'b': b})
+        return True
+
+    def take_direct(self, m, now=None):
+        """A sample message that came straight from your crew's driver (copilotlink.py): as the relay's, under the
+        relay's id for them when known (one car, not two), and the relay's copy of them left aside meanwhile."""
+        now = time.monotonic() if now is None else now
+        sid = str(m.get('sid') or '')
+        if not sid:
+            return
+        with self._lock:
+            known = next((k for k, d in self.drivers.items() if str(getattr(d, 'sid', '') or '') == sid and k != -1), None)
+        self.direct_sid, self.direct_seen = sid, now
+        self._got(dict(m, t='s', id=known if known is not None else -1), direct=True)
 
     def _put(self, m):
         if self.state != 'live':
@@ -661,9 +701,20 @@ class LiveLink:
             self.name = self._ticket.get('name') or self.name
         return bool(self._ticket)
 
-    def _got(self, m):
+    def _got(self, m, direct=False):
         now = time.monotonic()
         t = m.get('t')
+        if t == 'x':                                 # (a COPILOT crew's message: copilotlink.py)
+            fn = self.on_crew
+            if fn is not None and isinstance(m.get('b'), str):
+                try:
+                    fn(str(m.get('sid') or ''), m['b'])
+                except Exception:
+                    pass
+            return
+        if t == 's' and not direct and self.direct_sid and str(m.get('sid') or '') == self.direct_sid \
+                and now - self.direct_seen < DIRECT_KEEP_S:
+            return                                   # (the crew's driver: their samples come straight, not twice)
         with self._lock:
             if t == 'error':
                 self._ticket = None                  # (refused: a fresh ticket next time)

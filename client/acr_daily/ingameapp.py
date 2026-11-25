@@ -53,11 +53,11 @@ TABS = (('home', _('HOME')), ('events', _('EVENTS'))) + (
     ('comp', _('ONLINE RALLIES')), ('watch', _('WATCH')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')),
     ('profile', _('PROFILE')), ('settings', _('SETTINGS')))
 # each tab's page (ig_<name>.py); 'daily' and 'tt' are EVENTS' sub-tabs, each its own page still
-PAGES = {'home': 'ig_home', 'events': 'ig_events', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked',
-         'comp': 'ig_comp', 'watch': 'ig_watchlist', 'community': 'ig_community', 'inbox': 'ig_inbox',
+PAGES = {'home': 'ig_home', 'events': 'ig_events', 'daily': 'ig_daily', 'tt': 'ig_tt', 'copilot': 'ig_copilot',
+         'live': 'ig_ranked', 'comp': 'ig_comp', 'watch': 'ig_watchlist', 'community': 'ig_community', 'inbox': 'ig_inbox',
          'profile': 'ig_profile', 'settings': 'ig_settings',
          'prep': 'ig_prep'}                 # (DRIVE's set-up screen: no tab of its own)
-EVENT_SUBS = ('daily', 'tt')
+EVENT_SUBS = ('daily', 'tt', 'copilot')
 FIRST_TAB = 'home'                      # (where ACR DAILY opens, as the app's window: HOME)
 
 
@@ -251,6 +251,9 @@ class InGameApp:
         self.nav = None              # the game's menu buttons on the wheel / pad (ingamenav.py), once the pages show
         self._front_at, self._front = -1e9, False
         self._stage_n, self._was_on_stage, self._down_since = 0, False, None   # (_dialog_upkeep)
+        if getattr(app, 'copilot', None) is None:    # COPILOT, the daily for two (copilot.py, ig_copilot.py)
+            from .copilot import Copilot
+            app.copilot = Copilot(app)
 
     # ---- what a page has to hand
     def mem(self, tab):
@@ -347,6 +350,13 @@ class InGameApp:
             self.event(what, rest)
         self.drives.check(now)
         self._dialog_upkeep()
+        cp = getattr(self.app, 'copilot', None)
+        if cp is not None:                         # (COPILOT: my lobby, its link and voice)
+            try:
+                cp.tick()
+            except Exception as e:
+                from . import waiting
+                waiting.note('copilot: %r' % (e,))
         if self.shown and not self.game_up():
             # the game gone (closed for a restart, crashed) with the pages on: they are not, and the app's questions go
             # to its window again (a review, 21 Nov 2026: they went to pages nobody saw and the set-up stopped)
@@ -404,6 +414,13 @@ class InGameApp:
             except Exception as e:
                 from . import waiting
                 waiting.note('chat overlay: %r' % (e,))
+            if watch is None:                      # (COPILOT's driver: their co-driver's voice and the link)
+                from . import ig_copilot
+                try:
+                    watch = ig_copilot.overlay(self)
+                except Exception as e:
+                    from . import waiting
+                    waiting.note('copilot overlay: %r' % (e,))
         self._chat_on_stage = chat is not None
         if watch is None or chat is None:
             return watch or chat
@@ -426,6 +443,9 @@ class InGameApp:
             return None
         from . import ig_watch
         try:
+            if w.copilot():                             # (COPILOT's co-driver: the notes, not the broadcast)
+                from . import ig_copilot
+                return ig_copilot.overlay(self)
             return ig_watch.overlay(self)
         except Exception as e:
             from . import waiting
@@ -738,6 +758,8 @@ class InGameApp:
                           'go' if self.dialog and self.dialog.get('go') and not self.dialog.get('safe') else
                           'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
                 'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.stage_overlay(),
+                # (COPILOT: a crew's stage on, the game's own co-driver kept off: main.lua codriver_off)
+                'copilot': 1 if getattr(getattr(self.app, 'copilot', None), 'mod_on', lambda: False)() else 0,
                 'chat': self._chat_on_stage,       # (RANKED's chat over the stage: T opens the mod's box to write)
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}

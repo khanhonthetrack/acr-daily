@@ -131,8 +131,9 @@ class HomeUI:
                               ('   ·   '.join(names) or _('Loading today\'s stages…'), 'info')], 'button': False}
         if key == 'tt':
             info = getattr(self, 'tt_info', None) or {}
-            names = ['TT%s %s' % (s, c.stage_name(t['ch'])) for s, t in sorted((getattr(self, 'tt', None) or {}).items())]
-            entered = any(((t.get('ch') or {}).get('me') or {}).get('entered') for t in (getattr(self, 'tt', None) or {}).values())
+            from .ttui import listed
+            names = ['TT%s %s' % (s, c.stage_name(t['ch'])) for s, t in sorted(listed(getattr(self, 'tt', None)).items())]
+            entered = any(((t.get('ch') or {}).get('me') or {}).get('entered') for t in listed(getattr(self, 'tt', None)).values())
             badge = (_('ENTERED'), c.GOOD) if entered else (_('NEW WEEK'), '#BF5AF2') if names else None
             return {'photo': 'tt', 'bottom': True, 'badge': badge, 'title': _('TIME TRIAL'), 'sizes': (34, 30, 26),
                     'lines': [(_('Two stages all week · as many runs as you like · your best counts'), 'sub'),

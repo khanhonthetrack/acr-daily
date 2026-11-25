@@ -14,7 +14,8 @@ def opened(ig):
 
 def page(ig):
     a = ig.app
-    tt = getattr(a, 'tt', None) or {}
+    from .ttui import listed
+    tt = listed(getattr(a, 'tt', None))
     if not tt:
         info = getattr(a, 'tt_info', None) or {}
         msg = _('No time trial this week.') if info and not info.get('on') else _('Loading the time trial…')

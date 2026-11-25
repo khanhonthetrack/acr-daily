@@ -289,6 +289,29 @@ class Relay(unittest.TestCase):
             for x in (a, b, c):
                 x.close()
 
+    def test_a_copilot_crew_s_voice_goes_to_its_partner_only(self):
+        """COPILOT (copilotlink.py): a crew's own messages, passed on in its room to the other one, nobody else."""
+        a = livelink.LiveLink(self.url, 'Driver')
+        b = livelink.LiveLink(self.url, 'Co-driver')
+        c = livelink.LiveLink(self.url, 'Someone on the stage')
+        heard = {'b': [], 'c': []}
+        b.on_crew = lambda sid, words: heard['b'].append(words)
+        c.on_crew = lambda sid, words: heard['c'].append(words)
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == c.state == 'live'))
+            self.assertFalse(a.send_crew('v-before'), 'no room: nothing sent')
+            a.room = b.room = 'cp:7'
+            for x in (a, b, c):
+                x.feed(frame(0, 0, 0))
+            time.sleep(0.4)
+            self.assertTrue(a.send_crew('v1234'))
+            self.assertTrue(wait(lambda: heard['b'] == ['v1234']))
+            time.sleep(0.2)
+            self.assertEqual(heard['c'], [], 'not in the crew: not heard')
+        finally:
+            for x in (a, b, c):
+                x.close()
+
     def test_ghost_cars_off_still_sends_and_hears_nobody(self):
         """A driver with ghost cars off (watch=False) is seen by those with them on (everyone sees everyone), but is sent
         nobody's samples: the relay leaves them out."""
@@ -461,6 +484,9 @@ class CheckedNames(Relay):
         pass
 
     def test_a_live_rally_has_a_room_of_its_own(self):
+        pass
+
+    def test_a_copilot_crew_s_voice_goes_to_its_partner_only(self):
         pass
 
     def test_ghost_cars_off_still_sends_and_hears_nobody(self):

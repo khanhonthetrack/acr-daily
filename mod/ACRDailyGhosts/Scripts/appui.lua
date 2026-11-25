@@ -1234,6 +1234,8 @@ function M.tick(t)
     pcall(keep_scrolls)
     if frame % 6 == 0 then poll_file(t) end
     local alive = app_alive(t)
+    -- COPILOT (the app's copilot.py): a crew's stage on, the game's own co-driver off (main.lua codriver_off)
+    _G.ACRDAILY_COPILOT = alive and type(state.data) == "table" and state.data.copilot == 1 or nil
     local own = alive and type(state.data) == "table" and tonumber(state.data.own)
     if own and own ~= own_used and LOADED >= own - 5 and LOADED - own < 300 and
             world_name and world_name:find("MainMenu", 1, true) then

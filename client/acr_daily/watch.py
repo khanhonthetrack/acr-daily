@@ -61,6 +61,9 @@ class Watch:
         self.target, self.cam, self.since, self._lost_at = None, 0, time.monotonic(), None
         self.on_stage = False
         self.menu, self.shot = None, None
+        if self.copilot():                    # (COPILOT's co-driver: in the car, beside the driver, as the real one)
+            self.cam = CAMS.index('incar')
+            self.graphics = 'off'
 
     def stop(self):
         self.on = False
@@ -80,7 +83,14 @@ class Watch:
         ev = getattr(self, 'event', None) if self.on else None
         if ev and ev.get('kind') == 'live' and ev.get('eventId'):
             return 'live:%d' % int(ev['eventId'])
+        if ev and ev.get('kind') == 'copilot' and ev.get('eventId'):   # (a COPILOT crew's: its driver only, copilot.py)
+            return 'cp:%d' % int(ev['eventId'])
         return None
+
+    def copilot(self):
+        """Watching as a COPILOT crew's co-driver (copilot.py): the driver's car from inside, the notes over it."""
+        ev = getattr(self, 'event', None) if self.on else None
+        return bool(ev and ev.get('kind') == 'copilot')
 
     # ---- the drivers on the stage
     def drivers(self):
@@ -88,9 +98,10 @@ class Watch:
         g = getattr(self.app, 'ghostcars', None)
         live = getattr(g, 'live', None)
         out = list(live.others()) if live is not None else []
-        from .livelink import WATCH_DELAY_MS
+        from .livelink import COPILOT_DELAY_MS, WATCH_DELAY_MS
+        floor = (COPILOT_DELAY_MS if self.copilot() else WATCH_DELAY_MS) if self.on else 0
         for d in out:                                # (a broadcast's steady delay: livelink.WATCH_DELAY_MS)
-            d.floor_ms = WATCH_DELAY_MS if self.on else 0
+            d.floor_ms = floor
         rows = [(self.where(d), d) for d in out]
         # (the cars driving first, furthest on first; then the ones standing: at the start, or after their finish)
         rows.sort(key=lambda x: (bool(getattr(x[1], 'standing', False)), -(x[0]['progress'] if x[0] else -1)))
@@ -265,7 +276,11 @@ class Watch:
     def key(self, k):
         """The wheel's / pad's / keyboard's keys while watching: 'select' opens / closes the spectator menu; in it,
         up / down between its lines, left / right change the line, back closes it; outside it, left / right the
-        driver before / after, up / down the camera. -> whether something changed."""
+        driver before / after, up / down the camera. -> whether something changed. A COPILOT co-driver's keys move
+        through the notes instead (copilot.py)."""
+        if self.copilot():
+            cp = getattr(self.app, 'copilot', None)
+            return bool(cp is not None and cp.key(k))
         if k == 'select':
             self.menu = None if self.menu is not None else 0
             return True

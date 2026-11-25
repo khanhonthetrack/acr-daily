@@ -66,7 +66,8 @@ def refresh_live(ig, kind):
     if m.get('busy') or now - m.get('at', -1e9) < LIVE_EVERY_S or not a.api.configured:
         return
     m['at'], m['busy'] = now, True
-    held = dict(a.dailies or {}) if kind == 'daily' else dict(getattr(a, 'tt', None) or {})
+    from .ttui import listed
+    held = dict(a.dailies or {}) if kind == 'daily' else listed(getattr(a, 'tt', None))
 
     def go():
         try:

@@ -96,9 +96,10 @@ def _signin_handler(api, state, verifier, got):
 
 
 def run_path(body):
-    """Where a run goes: a time trial stage's ('tt:<week>/<slot>', server src/timetrial.js) to /api/tt/runs, a
-    daily's to /api/runs."""
-    return '/api/tt/runs' if str((body or {}).get('challengeId') or '').startswith('tt:') else '/api/runs'
+    """Where a run goes: a time trial stage's ('tt:<week>/<slot>', server src/timetrial.js) to /api/tt/runs, a COPILOT
+    crew's ('cp:<date>/<lobby>', src/copilot.js) to /api/copilot/runs, a daily's to /api/runs."""
+    cid = str((body or {}).get('challengeId') or '')
+    return '/api/tt/runs' if cid.startswith('tt:') else '/api/copilot/runs' if cid.startswith('cp:') else '/api/runs'
 
 
 def refused(e):
@@ -373,6 +374,49 @@ class Api:
         """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if
         the week has turned since it was shown."""
         return self._req('POST', '/api/tt/enter', dict({'slot': int(slot)}, **({'week': week} if week else {})), auth=True)
+
+    # ---------------------------------------------------------------- COPILOT (server src/copilot.js)
+
+    def copilot(self):
+        """Today's COPILOT: {on, date, ready, revealed, stage (once revealed), tries: {driver, codriver}, lobby (mine),
+        lobbies (the open public ones)}."""
+        return self._req('GET', '/api/copilot', auth=True, timeout=8)
+
+    def copilot_board(self, date=None):
+        """A day's crews: {entries: [{rank, status, totalMs, gapMs, driver: {name...}, codriver: {...}}], stage?}."""
+        return self._req('GET', '/api/copilot/board' + ('?date=' + date if date else ''), auth=True, timeout=8)
+
+    def copilot_create(self, role, private=False):
+        """A new lobby: role 'driver' / 'codriver' -> {lobby}."""
+        return self._req('POST', '/api/copilot/lobbies', {'role': role, 'private': bool(private)}, auth=True)
+
+    def copilot_join(self, lobby_id=None, code=None):
+        """Join a lobby: from the list (lobby_id; a private one with its code too), or by its code alone."""
+        body = {}
+        if lobby_id:
+            body['id'] = int(lobby_id)
+        if code:
+            body['code'] = code
+        return self._req('POST', '/api/copilot/join', body, auth=True)
+
+    def copilot_ranking(self, month=None):
+        """A month's ranking (this one's by default): {month, drivers: [{rank, name, points, days, wins, best}],
+        codrivers: [...]}."""
+        return self._req('GET', '/api/copilot/ranking' + ('?month=' + month if month else ''), timeout=8)
+
+    def copilot_lobby(self, lobby_id):
+        """My lobby: its state, the other's link details; once started its stage (ch) and, for the co-driver, notes."""
+        return self._req('GET', '/api/copilot/lobbies/%d' % int(lobby_id), auth=True, timeout=6)
+
+    def copilot_ready(self, lobby_id, ready=True):
+        return self._req('POST', '/api/copilot/lobbies/%d/ready' % int(lobby_id), {'ready': bool(ready)}, auth=True)
+
+    def copilot_leave(self, lobby_id):
+        return self._req('POST', '/api/copilot/lobbies/%d/leave' % int(lobby_id), {}, auth=True)
+
+    def copilot_signal(self, lobby_id, data):
+        """My side's details for the direct link between the two apps (copilotlink.py)."""
+        return self._req('POST', '/api/copilot/lobbies/%d/signal' % int(lobby_id), {'data': data}, auth=True, timeout=6)
 
     # ---------------------------------------------------------------- leagues (server src/leagues.js)
 
