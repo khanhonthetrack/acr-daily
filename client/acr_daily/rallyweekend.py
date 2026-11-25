@@ -336,6 +336,26 @@ def rule_values(rules):
         raise SaveError('unexpected Rally Weekend rules %r' % (rules,)) from None
 
 
+def put_rules(b, rules):
+    """-> the save b with its Rally Weekend's rules (respawn, damage, its levels, penalties, Hardcore) set to the
+    event's, in place, the rest as it was: a rally in progress resumed by DRIVE / CONTINUE goes on with the event's
+    rules whatever was changed in the game's menus since (the user, 25 Nov 2026: "DRIVE should never be a problem as
+    it overrides the settings"). A save in the layout from before 2026-10-06 is left as it is. Raises SaveError."""
+    w = read_weekend(b)
+    if w['old']:
+        return b
+    settings = _rules(rules)
+    out = bytearray(b)
+    for at, v in settings.items():
+        out[w['data'] + at] = v
+    out = bytes(out)
+    back = read_weekend(out)                       # check: it reads back, with exactly those values, the calendar as it was
+    if any(out[w['data'] + at] != v for at, v in settings.items()) or back['stages'] != w['stages'] or \
+            back['in_progress'] != w['in_progress'] or len(out) != len(b):
+        raise SaveError('verification failed')
+    return out
+
+
 def check_itinerary(stages, tail=False):
     """A league event's stages in driving order: [{'stage': game id, 'weather': 'WT_...', 'start': seconds since
     midnight, 'day': 0.., 'service': a service park before it}]. -> the calendar preset's name. Raises SaveError

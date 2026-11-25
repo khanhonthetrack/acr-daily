@@ -761,8 +761,16 @@ class InGameApp:
                 # (COPILOT: a crew's stage on, the game's own co-driver kept off: main.lua codriver_off)
                 'copilot': 1 if getattr(getattr(self.app, 'copilot', None), 'mod_on', lambda: False)() else 0,
                 'chat': self._chat_on_stage,       # (RANKED's chat over the stage: T opens the mod's box to write)
+                # (an event without driving aids, its run on the start line: the mod switches them off, main.lua)
+                'aidsOff': 1 if self._aids_off() else 0,
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}
+
+    def _aids_off(self):
+        try:
+            return bool(self.app.aids_to_force())
+        except Exception:
+            return False
 
     def page(self):
         m = self.module('prep' if self.prep else self.tab)       # (DRIVE's set-up screen over the tab: ig_prep.py)

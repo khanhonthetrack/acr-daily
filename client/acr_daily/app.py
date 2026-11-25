@@ -80,6 +80,17 @@ AIDS_LINE = _("Doesn't count · driving aids not allowed")
 DURING_LINE = _("On the stage, switching to anything the event doesn't allow is a DNF")
 STAGE_HEAD = _('THIS STAGE COUNTS')
 STAGE_RULES = (DURING_LINE, _('Restart or quit is a DNF'))
+# The pre-start check (the user, 25 Nov 2026: "the user before running the stage should know that it will be a dnf
+# unless they change settings"): on the start line, what of the game's settings and driving aids isn't as the event
+# says, one row each (what, now, must be), read again twice a second, so it changes as they do (problems_alert)
+CHECK_HEAD_COUNT = _("THIS RUN WON'T COUNT")
+CHECK_HEAD_DNF = _('THIS RUN WILL BE A DNF')
+CHECK_TITLE = _('PRE-START CHECK · CHANGE BEFORE THE START')
+CHECK_FIX_SETTINGS = _("Settings: quit to the game's main menu, then DRIVE or CONTINUE in ACR DAILY sets them for you")
+CHECK_FIX_AIDS = _("Driving aids: switch them off in the game's Driving Assists")
+CHECK_OK = _('Pre-start check: settings and driving aids as the event says')
+CHECK_ROWS = 8                # rows the check shows at most (7 settings and 3 aids can't all be wrong at once)
+CONFIRM_S = 1.0               # a setting read as changed this long before a run is judged by it (settings_judged)
 SETTINGS_HINT = _("%s: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.")
 AIDS_HINT = _("%s: not counted, driving aids not allowed here (%s). Switch them off in the game's Driving Assists.")
 # A daily counts only from a run the driver commits to (the 0.1.5.x test builds on): START OFFICIAL RALLY on the commit
@@ -630,7 +641,17 @@ class Overlay:
         self.alert_rows = [(tk.Label(self.alert_list, text='•', bg=PANEL2, anchor='n'),
                             tk.Label(self.alert_list, text='', bg=PANEL2, anchor='w', justify='left'))
                            for _i in range(ALERT_LINES)]
-        self._alert_key = ('', (), None)
+        # the pre-start check's rows (problems_alert): what, now, must be; under the heading, over the points
+        self.alert_check = tk.Frame(self.alert_box, bg=PANEL2)
+        self.alert_check.columnconfigure(1, weight=1)
+        self.check_title = tk.Label(self.alert_check, text=CHECK_TITLE, bg=PANEL2, anchor='w')
+        self.check_title.grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 2))
+        self.check_rows = [(tk.Frame(self.alert_check, width=6, height=6, bg=ACC),
+                            tk.Label(self.alert_check, text='', bg=PANEL2, anchor='w'),
+                            tk.Label(self.alert_check, text='', bg=PANEL2, anchor='e'),
+                            tk.Label(self.alert_check, text='', bg=PANEL2, anchor='e'))
+                           for _i in range(CHECK_ROWS)]
+        self._alert_key = ('', (), None, ())
         self.alert.bind('<Configure>', self._alert_wrap)     # (its words as wide as it is: the window can be wider)
         # under it, while that time is on its way: a thin bar (set_progress)
         self.prog = tk.Canvas(body, height=4, bg=PANEL2, highlightthickness=0, bd=0)
@@ -685,6 +706,12 @@ class Overlay:
         for dot, text in self.alert_rows:
             dot.configure(font=(FONT_C, int(13 * s)))
             text.configure(font=(FONT_C, int(13 * s)), wraplength=int(238 * q))
+        self.check_title.configure(font=(FONT_C, int(10 * s)))
+        for mark, what, now, want in self.check_rows:
+            mark.configure(width=max(4, int(6 * q)), height=max(4, int(6 * q)))
+            what.configure(font=(FONT_C, int(13 * s)))
+            now.configure(font=(FONT_C, int(12 * s)))
+            want.configure(font=(FONT_C, int(13 * s)))
         self._alert_wrap()
         self.prog.configure(width=int(276 * q), height=max(3, int(4 * q)))
         self.win.minsize(int(300 * q), 1)    # same width in every state, so it never jumps around
@@ -760,22 +787,39 @@ class Overlay:
         if not self.panel.winfo_manager():
             self.panel.pack(anchor='w', fill='x')
 
-    def set_alert(self, head, lines=(), kind='warn'):
+    def set_alert(self, head, lines=(), kind='warn', checks=()):
         """A note under the time: a heading in big letters, and up to ALERT_LINES short points under it as bullets;
-        kind: one of ALERT_KINDS (head '' takes it away). The line under the time hides meanwhile (_sync_line)."""
+        kind: one of ALERT_KINDS (head '' takes it away). checks: the pre-start check's rows, (what, now, must be) each,
+        between the two (App.problems_alert). The line under the time hides meanwhile (_sync_line)."""
         lines = tuple(lines)[:ALERT_LINES]
-        if (head, lines, kind) == self._alert_key:
+        checks = tuple(tuple(r) for r in checks or ())[:CHECK_ROWS]
+        if (head, lines, kind, checks) == self._alert_key:
             return
-        self._alert_key = (head, lines, kind)
+        self._alert_key = (head, lines, kind, checks)
         if not head:
             self.alert.pack_forget()
             self._sync_line()
             return
         bg, head_fg, fg, dot_fg, bar = ALERT_KINDS[kind]
-        for w in (self.alert, self.alert_box, self.alert_list):
+        for w in (self.alert, self.alert_box, self.alert_list, self.alert_check, self.check_title):
             w.configure(bg=bg)
         self.alert_head.configure(text=head, bg=bg, fg=head_fg)
-        self.alert_head.pack_configure(pady=(5, 1 if lines else 5))
+        self.alert_head.pack_configure(pady=(5, 1 if lines or checks else 5))
+        self.check_title.configure(fg=fg)
+        for i, (mark, what, now, want) in enumerate(self.check_rows):
+            if i < len(checks):
+                w_, n_, m_ = checks[i]
+                mark.configure(bg=dot_fg)
+                what.configure(text=w_, bg=bg, fg=fg)
+                now.configure(text='%s  →' % n_, bg=bg, fg=fg)
+                want.configure(text=m_, bg=bg, fg=head_fg)
+                mark.grid(row=i + 1, column=0, sticky='w', padx=(0, 6))
+                what.grid(row=i + 1, column=1, sticky='w')
+                now.grid(row=i + 1, column=2, sticky='e', padx=(8, 4))
+                want.grid(row=i + 1, column=3, sticky='e')
+            else:
+                for w in (mark, what, now, want):
+                    w.grid_remove()
         if bar:
             self.alert_bar.configure(bg=bar)
             if not self.alert_bar.winfo_manager():
@@ -795,6 +839,10 @@ class Overlay:
             self.alert_list.pack(anchor='w', fill='x', padx=(10, 8), pady=(0, 6))
         elif not lines and self.alert_list.winfo_manager():
             self.alert_list.pack_forget()
+        if checks:                             # (always right under the heading)
+            self.alert_check.pack(anchor='w', fill='x', padx=(10, 8), pady=(2, 4), after=self.alert_head)
+        elif self.alert_check.winfo_manager():
+            self.alert_check.pack_forget()
         if not self.alert.winfo_manager():
             self.alert.pack(anchor='w', fill='x', pady=(6, 0), after=self.line if self.line.winfo_manager() else self.row)
         self._alert_wrap()                     # (the bar on or off: its width the same, so no <Configure>)
@@ -867,11 +915,11 @@ class Overlay:
              'ms': ms, 'running': running, 'pen': self.pen.cget('text') if on(self.pen) else '',
              'line': (self.line.cget('text'), self.line.cget('fg')) if on(self.line) else None, 'alert': None, 'panel': None,
              'progress': getattr(self, '_prog', None) if on(self.prog) else None}
-        head, lines, kind = self._alert_key
+        head, lines, kind, checks = self._alert_key
         if head and on(self.alert):
             bg, head_fg, fg, dot_fg, bar = ALERT_KINDS[kind]
             s['alert'] = {'head': head, 'lines': list(lines), 'bg': bg, 'head_fg': head_fg, 'fg': fg, 'dot_fg': dot_fg,
-                          'bar': bar}
+                          'bar': bar, 'checks': [list(r) for r in checks], 'check_title': CHECK_TITLE if checks else ''}
         if on(self.panel):
             s['panel'] = {'title': self.p_title.cget('text'), 'pos': self.p_pos.cget('text'),
                           'rows': [(p.cget('text'), n.cget('text'), g.cget('text'), n.cget('fg') == ACC_TEXT)
@@ -1505,31 +1553,96 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         menu, or driving aids on that the event forbids -> [what] (leagues.RULE_NAMES / AID_NAMES, in English), [] when
         all is as it must be, None when it can't be told (game_settings)."""
         s = self.game_settings()
-        if s is None:
+        if s is None or not leagues.plausible(s):   # (not a Rally Weekend's settings: a misread, not a change)
             return None
         try:
             out = leagues.live_changed(s, rules)
         except saveslot.SaveError:                  # (rules the app can't read: the save check after the stage says it)
             return None
-        return out + leagues.aids_broken(self._pulse().aids(), self._pulse().dash(), rules)
+        out = out + leagues.aids_broken(self._pulse().aids(), self._pulse().dash(), rules)
+        self._seen_since(rules, out)
+        return out
+
+    def _seen_since(self, rules, got):
+        """Since when the game has said `got` for these rules, read after read (settings_judged) -> monotonic s."""
+        seen = self.__dict__.setdefault('_judged', {})
+        key, now = repr(rules), time.monotonic()
+        if not got:
+            seen.pop(key, None)
+            return now
+        was = seen.get(key)
+        if was is None or was[0] != list(got):
+            seen[key] = was = (list(got), now)
+        return was[1]
+
+    def settings_judged(self, rules):
+        """settings_changed for a decision (a DNF, a run not counted): only what the game has said CONFIRM_S on end,
+        the same at each read (the start line's check reads it twice a second): a reading of a moment, as a stage loads
+        or restarts, is no change (Rally Madeira Legend SS7, 25 Nov 2026: a DNF the stewards cancelled). -> [what], []
+        (nothing, or not for long enough yet: the next reads tell), None (can't be told)."""
+        got = self.settings_changed(rules)
+        if not got:
+            return got
+        return got if time.monotonic() - self._seen_since(rules, got) >= CONFIRM_S else []
+
+    def check_rows(self, rules):
+        """The pre-start check: each setting or driving aid not as the event says -> [(what, now, must be)] in the
+        app's language (leagues.live_check), [] when all is as it must be or it can't be told."""
+        s = self.game_settings()
+        if s is None or not leagues.plausible(s):
+            return []
+        try:
+            rows = leagues.live_check(s, self._pulse().aids(), self._pulse().dash(), rules)
+        except saveslot.SaveError:
+            return []
+        return [(local(a), local(b), local(c)) for a, b, c in rows]
+
+    def start_line_rules(self):
+        """The rules of the run waiting on its start line (armed, or driving up to it; not once its clock runs): a
+        league stage's event's, a time trial stage's or a daily's -> the rules ({} for the defaults), or None."""
+        def waits(j):
+            return j is not None and (j.state == 'armed' or getattr(j, 'approaching', False))
+        target = getattr(self, 'drive_target', 'daily')
+        if target == 'league':
+            run = getattr(self, 'league_run', None)
+            if run and not run.get('wait') and not run.get('over') and waits(run.get('judge')):
+                return run['ev'].get('rules') or {}
+            return None
+        for _slot, t in sorted((getattr(self, 'tt', None) or {}).items()):
+            if waits(t.get('judge')):
+                return (t.get('ch') or {}).get('weekend') or {}
+        for _slot, d in sorted((getattr(self, 'dailies', None) or {}).items()):
+            if waits(d.get('judge')):
+                return (d.get('ch') or {}).get('weekend') or {}
+        return None
+
+    def aids_to_force(self):
+        """Should the game mod switch the driving aids off now (main.lua force_aids_off)? Yes while a run of an event
+        without them waits on its start line: DRIVE sets up everything the event says, the aids too (the user, 25 Nov
+        2026). Never once the clock runs: switching one on during the stage stays a DNF (_watch_run)."""
+        rules = self.start_line_rules()
+        return rules is not None and dict(rallyweekend.RULES, **rules).get('assists') == 'off'
 
     @staticmethod
-    def problems_alert(problems):
-        """The start line's note for what's wrong (settings_changed: settings changed in the game's menu, driving aids
-        the event forbids): the run won't count, what, and how to put it right -> (head, points, 'stop')."""
+    def problems_alert(problems, rows=(), dnf=False):
+        """The pre-start check on the start line, for what's wrong (settings_changed: settings changed in the game's
+        menu, driving aids the event forbids): whether the run won't count or will be a DNF (dnf: a league stage after
+        its first, a ranked session's), what to change, one row each (rows: check_rows: what, now, must be), and how ->
+        (head, points, 'stop', rows). Without rows (none read) the points name what instead."""
         aids = set(leagues.AID_NAMES.values())
         changed = [x for x in problems if x not in aids]
         on = [x for x in problems if x in aids]
+        rows = tuple(rows or ())[:CHECK_ROWS]
         points = []
+        if not rows and changed:
+            points.append(_('Changed in the game: %s') % ', '.join(local(x) for x in changed))
+        if not rows and on:
+            points.append(_('Not allowed here: %s') % ', '.join(local(x) for x in on))
         if changed:
-            points.append(SETTINGS_POINTS[0] % ', '.join(local(x) for x in changed))
+            points.append(CHECK_FIX_SETTINGS)
         if on:
-            points.append(AIDS_POINTS[0] % ', '.join(local(x) for x in on))
-        if changed:
-            points.append(SETTINGS_POINTS[1])
-        if on:
-            points.append(AIDS_POINTS[1])
-        return (SETTINGS_HEAD if changed else AIDS_HEAD), tuple(points[:ALERT_LINES]), 'stop'
+            points.append(CHECK_FIX_AIDS)
+        return (CHECK_HEAD_DNF if dnf else CHECK_HEAD_COUNT), tuple(points[:ALERT_LINES]), 'stop', rows
 
     @staticmethod
     def problems_hint(label, problems):
@@ -1558,7 +1671,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return []
         if not holder.get('watch') or j.state != 'running':
             return []
-        what = self.settings_changed(rules)
+        what = self.settings_judged(rules)
         if not what:
             return []
         holder['watch'] = False
@@ -3547,7 +3660,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         d['voided'] = False                            # (the run before it didn't count: _void_daily)
         uncommitted = COMMIT_REQUIRED and not (c and c.get('date') == (d['ch'] or {}).get('date'))
         # its settings as the game runs them (the game mod: settings_changed), changed in the game's menu: doesn't count
-        changed = self.settings_changed(d['ch'].get('weekend')) if is_weekend(d['ch']) and rw is not False else None
+        changed = self.settings_judged(d['ch'].get('weekend')) if is_weekend(d['ch']) and rw is not False else None
         d['changed'] = changed or None
         # not taken there by ACR DAILY (a Rally Weekend set up or resumed by hand in the game's menus, even with the
         # daily's settings): never counts, not even with the game's result in its save at the finish (21 Nov 2026)
@@ -3887,9 +4000,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if d.get('rw_pre') is False:
                 return START_HEAD_NORALLY, START_NORALLY, 'stop'
             if d.get('changed_pre'):                   # (the race's settings changed in the game's menu: the game mod)
-                return self.problems_alert(d['changed_pre'])
+                return self.problems_alert(d['changed_pre'], self.check_rows(d['ch'].get('weekend')))
             if not COMMIT_REQUIRED and d.get('rw_pre') is True:     # (the game mod says: its Rally Weekend)
-                return START_HEAD_COMMITTED, START_COMMITTED[1:], 'warn'
+                ok = (CHECK_OK,) if d.get('changed_pre') == [] else ()   # (the pre-start check read, all as it must be)
+                return START_HEAD_COMMITTED, ok + START_COMMITTED[1:], 'warn'
             if not COMMIT_REQUIRED:                    # (nothing to press, the mode not known: what makes it count)
                 return START_HEAD_WEEKEND, START_WEEKEND, 'warn'
             return START_HEAD_COMMITTED, START_COMMITTED, 'warn'

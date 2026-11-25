@@ -650,6 +650,7 @@ class NoButtonToPress(unittest.TestCase):
             d = CommitToOfficialRally.start(self, a)
             self.assertEqual((d['norally'], d['practice_why']), (practice, 'rally' if practice else None), mode)
 
+    @mock.patch.object(app_mod, 'CONFIRM_S', 0)       # (as read for a while already: settings_judged)
     def test_settings_changed_in_the_game_said_on_the_start_line_and_not_counted(self):
         """The game mod reads the race's settings as the game runs them (main.lua read_settings): changed in the game's
         own menu before START RALLY (damage off for a daily with damage), the start line says so in red and that run
@@ -674,9 +675,17 @@ class NoButtonToPress(unittest.TestCase):
         a.drive_target, a._driven = 'daily', (lambda slot: False)
         a.dailies[1]['judge'].state = 'armed'
         a.dailies[1]['rw_pre'], a.dailies[1]['changed_pre'] = True, ['damage', 'wear']
-        head, points, kind = a._rules_alert()
-        self.assertEqual((head, kind), ('SETTINGS CHANGED', 'stop'))
-        self.assertEqual(points[0], "This run won't count. Changed in the game: damage, wear")
+        head, points, kind, rows = a._rules_alert()
+        self.assertEqual((head, kind), ("THIS RUN WON'T COUNT", 'stop'))
+        self.assertEqual(rows, ())                                   # (no settings read here: the points say what)
+        self.assertEqual(points, ('Changed in the game: damage, wear', app_mod.CHECK_FIX_SETTINGS))
+        # the pre-start check: a row for each, what the game runs and what it must be, read as the game runs it now
+        daily_ = dict(daily, damage=0, wear=3)
+        a._mod_pulse = mock.Mock(settings=lambda: daily_, aids=lambda: None, dash=lambda: None)
+        head, points, kind, rows = a._rules_alert()
+        self.assertEqual(rows, (('damage', 'Off', 'On'), ('wear', 'Realistic', 'Light')))
+        daily_.update(wear=1)                                       # (put right: its row goes)
+        self.assertEqual(a._rules_alert()[3], (('damage', 'Off', 'On'),))
         a._league_overlay_state = a._tt_overlay_state = lambda f: None
         a.active, a.recorder, a.net_msg = 1, None, ''                 # (the timer's daily: SS1)
         a.dailies[1]['ch']['slot'] = 1
@@ -687,13 +696,17 @@ class NoButtonToPress(unittest.TestCase):
     def test_aids_an_event_forbids_said_with_their_own_fix(self):
         """Driving aids on that the event forbids: the player's own settings (DRIVE can't set them): the note says to
         switch them off in the game; a setting changed too: both, and DRIVE again."""
-        head, points, kind = App.problems_alert(['ABS', 'traction control'])
-        self.assertEqual((head, kind), ('DRIVING AIDS NOT ALLOWED', 'stop'))
-        self.assertEqual(points, ("This run won't count. Not allowed here: ABS, traction control",
-                                  "Switch them off in the game's Driving Assists"))
-        head, points, _k = App.problems_alert(['damage', 'ABS'])
-        self.assertEqual(head, 'SETTINGS CHANGED')
+        head, points, kind, rows = App.problems_alert(['ABS', 'traction control'])
+        self.assertEqual((head, kind, rows), ("THIS RUN WON'T COUNT", 'stop', ()))
+        self.assertEqual(points, ('Not allowed here: ABS, traction control',
+                                  "Driving aids: switch them off in the game's Driving Assists"))
+        head, points, _k, _r = App.problems_alert(['damage', 'ABS'], dnf=True)
+        self.assertEqual(head, 'THIS RUN WILL BE A DNF')
         self.assertEqual(len(points), 3)
+        # with the pre-start check's rows: they say what, the points only how
+        rows = (('damage', 'Off', 'On'), ('ABS', 'On', 'Off'))
+        head, points, _k, got = App.problems_alert(['damage', 'ABS'], rows)
+        self.assertEqual((got, points), (rows, (app_mod.CHECK_FIX_SETTINGS, app_mod.CHECK_FIX_AIDS)))
         self.assertEqual(App.problems_line(['ABS'])[0], "Doesn't count · driving aids not allowed")
         self.assertEqual(App.problems_line(['wear', 'ABS'])[0], app_mod.SETTINGS_LINE)
         self.assertIn('Driving Assists', App.problems_hint('SS2', ['ABS']))
@@ -710,7 +723,7 @@ class NoButtonToPress(unittest.TestCase):
                                                                                          'clutch': 1}
         a._mod_pulse = mock.Mock(settings=lambda: settings, aids=lambda: aids, dash=lambda: dash)
         route = {'id': 'x', 'track': 'T', 'car': 'C', 'route': [[0, 0], [0, 100], [0, 200]]}
-        with mock.patch('acr_daily.app.waiting.note'):
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch.object(app_mod, 'CONFIRM_S', 0):
             for rules, change, dnf in ((None, {'tc': 1}, False),               # aids left to each driver: TC on, fine
                                        ({'assists': 'off'}, {'abs': 0}, False),  # off, and switched off again: fine
                                        ({'assists': 'off'}, {'tc': 1}, True),    # TC on where the event forbids it
@@ -727,6 +740,59 @@ class NoButtonToPress(unittest.TestCase):
         self.assertIn('damage changed during the stage: not as the event allows', j.result['reason'])
         self.assertEqual(a._watch_run(holder, j, [], None), [])                    # (once)
 
+    def test_a_reading_of_a_moment_is_no_dnf(self):
+        """Rally Madeira Legend SS7 (25 Nov 2026): a stage restarted, the race read as all Off, a DNF the stewards
+        cancelled. A decision takes only what the game has said CONFIRM_S on end; a reading no Rally Weekend can have
+        (penalties Off) is none at all."""
+        a = App.__new__(App)
+        settings = {'respawn': 1, 'damage': 1, 'intensity': 1, 'wear': 1, 'failures': 0, 'penalty': 1, 'hardcore': 0,
+                    'tyres': 2}
+        a._mod_pulse = mock.Mock(settings=lambda: settings, aids=lambda: None, dash=lambda: None)
+        t = [100.0]
+        with mock.patch.object(app_mod.time, 'monotonic', lambda: t[0]):
+            self.assertEqual(a.settings_judged(None), [])
+            settings.update(damage=0)
+            self.assertEqual(a.settings_changed(None), ['damage'])            # (the start line's check: at once)
+            self.assertEqual(a.settings_judged(None), [])                     # (a decision: not yet)
+            t[0] += app_mod.CONFIRM_S
+            self.assertEqual(a.settings_judged(None), ['damage'])
+            settings.update(damage=1, wear=3)                                 # (another change: its own wait)
+            self.assertEqual(a.settings_judged(None), [])
+            settings.update(damage=0, intensity=0, wear=0, penalty=0)         # (as read after the restart)
+            self.assertIsNone(a.settings_changed(None))
+            t[0] += 10
+            self.assertIsNone(a.settings_judged(None))
+            self.assertEqual(a.check_rows(None), [])
+
+    def test_aids_switched_off_on_the_start_line_of_an_event_without_them(self):
+        """DRIVE sets up everything the event says, the driving aids too (the user, 25 Nov 2026): while a run of an
+        event without them waits on its start line, the game mod switches them off (main.lua force_aids_off); never
+        once its clock runs (switching one on then stays a DNF)."""
+        a = App.__new__(App)
+        j = mock.Mock(state='armed', approaching=False)
+        a.drive_target = 'league'
+        a.league_run = {'ev': {'rules': {'assists': 'off'}}, 'judge': j}
+        self.assertTrue(a.aids_to_force())
+        j.state = 'running'
+        self.assertFalse(a.aids_to_force())
+        j.state, j.approaching = 'idle', True                                 # (driving up to the start line)
+        self.assertTrue(a.aids_to_force())
+        a.league_run['ev']['rules'] = {'assists': 'any'}
+        self.assertFalse(a.aids_to_force())
+        a.league_run = None
+        self.assertFalse(a.aids_to_force())
+
+    def test_the_pre_start_check_goes_into_the_game(self):
+        """The note drawn by the game (ingamehud.note) carries the check's rows: what, now, must be."""
+        from acr_daily import ingamehud
+        ov = {'alert': {'head': 'THIS RUN WILL BE A DNF', 'head_fg': '#FFFFFF', 'bg': '#FF4655', 'fg': '#FFFFFF',
+                        'dot_fg': '#FFFFFF', 'bar': None, 'lines': [app_mod.CHECK_FIX_SETTINGS],
+                        'checks': [['damage intensity', 'Light', 'Realistic']], 'check_title': app_mod.CHECK_TITLE}}
+        n = ingamehud.note(ov)
+        self.assertEqual(n['check'], ['damage intensity\tLight\tRealistic'])
+        self.assertEqual(n['check_title'], app_mod.CHECK_TITLE)
+        self.assertNotIn('check', ingamehud.note(dict(ov, alert=dict(ov['alert'], checks=[]))))
+
     def test_a_league_stages_start_line_says_the_rules(self):
         """A league stage's start line: what's wrong in the game in red; else that a change during it is a DNF (not on
         a ranked session: its start board says its rules)."""
@@ -734,8 +800,16 @@ class NoButtonToPress(unittest.TestCase):
         j = mock.Mock(state='armed', approaching=False)
         a.league_run = {'ev': {'rules': {'assists': 'off'}}, 'judge': j}
         a.settings_changed = lambda rules: ['ABS']
-        self.assertEqual(a._league_rules_alert()[0::2], ('DRIVING AIDS NOT ALLOWED', 'stop'))
+        a.check_rows = lambda rules: [('ABS', 'On', 'Off')]
+        self.assertEqual(a._league_rules_alert(), ("THIS RUN WON'T COUNT", (app_mod.CHECK_FIX_AIDS,), 'stop',
+                                                   (('ABS', 'On', 'Off'),)))
+        a.league_run.update(no=2)                                   # (a later stage of an entry: the entry would end)
+        a.league_run['ev']['entry'] = {'status': 'running', 'done': 2}
+        self.assertEqual(a._league_rules_alert()[0], 'THIS RUN WILL BE A DNF')
+        a.league_run['ev'].pop('entry')
         a.settings_changed = lambda rules: []
+        self.assertEqual(a._league_rules_alert(), (app_mod.STAGE_HEAD, (app_mod.CHECK_OK,) + app_mod.STAGE_RULES, 'warn'))
+        a.settings_changed = lambda rules: None                     # (can't be told: no check said done)
         self.assertEqual(a._league_rules_alert(), (app_mod.STAGE_HEAD, app_mod.STAGE_RULES, 'warn'))
         self.assertEqual(app_mod.STAGE_RULES[0], "On the stage, switching to anything the event doesn't allow is a DNF")
         a.league_run['ev']['kind'] = 'live'

@@ -978,6 +978,10 @@ class LeaguesUI:
             self.sub_l.configure(text=(why + ' ' if why else '') + _('Click CONTINUE again from the game\'s main menu.'))
         self.sub_l.configure(text=_('Taking you back to %s...') % ev['name'])
         back = {'resume': True}
+        try:                                         # (the event's rules set again on its rally before RESUME: drive.lua)
+            back['rules'] = rallyweekend.rule_values(ev.get('rules'))
+        except saveslot.SaveError:
+            pass
         lv = gear.for_setup(self.s, ev, car['id']).get('livery')
         if lv:                                       # (the livery picked: put on the car again for the stages to come)
             back['livery'] = lv
@@ -1079,6 +1083,13 @@ class LeaguesUI:
                 changed = True
                 self._render_strip()
             new = leagues.apply_plan(ev, car, action, details, b)
+            if action in ('resume', 'missed', 'unpark', 'unpark-own'):
+                # its rally goes on as it is in the game: with the event's rules, whatever was changed in the game's
+                # menus since (DRIVE / CONTINUE always sets them: the user, 25 Nov 2026)
+                fixed = leagues.rules_back(new if new is not None else b, ev)
+                if fixed is not None:
+                    waiting.note('%s: the event\'s rules put back on its rally in the game' % ev['name'])
+                    new = fixed
             if new is not None or changed:
                 saveslot.replace(new if new is not None else b)
             if action in ('setup', 'reset', 'unpark') or leagues.is_parked(ev['id']) and action == 'resume':
@@ -1425,7 +1436,7 @@ class LeaguesUI:
                 ok, read = False, False
         # what the race runs now, as the game mod reads it: settings changed in the game's menu, driving aids the event
         # forbids (before SS1: the run doesn't count; later, the rally ran with them: the entry ends, as below)
-        live_said = self.settings_changed(ev.get('rules')) or []
+        live_said = self.settings_judged(ev.get('rules')) or []
         changed = changed + [x for x in live_said if x not in changed]
         live = ev.get('kind') == 'live'
         if live and not again and read and (not ok or changed and (k == 0 or not ev.get('entry'))):
@@ -1881,12 +1892,16 @@ class LeaguesUI:
         c = _c()
         if run['ev'].get('kind') != 'live' and self.set_up_here() is False:      # (not started from ACR DAILY)
             return c.START_HEAD_NORALLY, (_("This run won't count"), _('CONTINUE on the event in ACR DAILY')), 'stop'
-        problems = self.settings_changed(run['ev'].get('rules'))
+        ev = run['ev']
+        problems = self.settings_changed(ev.get('rules'))
         if problems:
-            return self.problems_alert(problems)
-        if run['ev'].get('kind') == 'live':
+            # (a ranked session: any start counts; a later stage of a started entry: the rally ran with them, the entry
+            # ends; else the run just doesn't count: _league_started)
+            dnf = ev.get('kind') == 'live' or (run.get('no', 0) > 0 and bool(ev.get('entry')))
+            return self.problems_alert(problems, self.check_rows(ev.get('rules')), dnf=dnf)
+        if ev.get('kind') == 'live':
             return None
-        return c.STAGE_HEAD, c.STAGE_RULES, 'warn'
+        return c.STAGE_HEAD, ((c.CHECK_OK,) if problems == [] else ()) + c.STAGE_RULES, 'warn'
 
     def _league_overlay_state(self, f):
         """While following an event: (status, sub-line, overlay args) for its stage, else None."""

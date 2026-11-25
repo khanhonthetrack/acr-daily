@@ -610,7 +610,7 @@ class TimeTrialUI:
                     if t['here'] is False:
                         t['norally'] = True
                     # its settings as the game runs them, changed in the game's menu (the game mod): doesn't count
-                    changed = None if t['norally'] else self.settings_changed(t['ch'].get('weekend'))
+                    changed = None if t['norally'] else self.settings_judged(t['ch'].get('weekend'))
                     t['changed'] = changed or None
                     if changed:
                         t['norally'] = True
@@ -868,7 +868,7 @@ class TimeTrialUI:
                 continue
             problems = self.settings_changed((t.get('ch') or {}).get('weekend'))
             if problems:
-                return self.problems_alert(problems)
+                return self.problems_alert(problems, self.check_rows((t.get('ch') or {}).get('weekend')))
             cp = getattr(self, 'copilot', None) if slot == CP_SLOT else None
             if cp is not None:                     # (COPILOT: one go; the game's own co-driver must be off)
                 if cp.game_codriver_off() is False:

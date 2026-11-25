@@ -142,12 +142,14 @@ steps[3] = function(t)
     return true
 end
 
-steps[4] = function(t)
-    -- the rules (the daily's / the event's), on the event's settings; read back
-    local r, s = job.setup.rules or {}, job.setup
+-- the rules (the daily's / the event's) on the race event's settings in the game's menu, read back (error if they
+-- didn't take). Used by DRIVE (a new rally) and by CONTINUE (a rally in progress, before RESUME: whatever was changed
+-- in the game's menus since, it goes on with the event's rules; the user, 25 Nov 2026)
+local function put_rules(r)
     local L = lib()
     local pc = UEHelpers.GetPlayerController()
     local set = L:GetRaceEventRaceSettingsComponent(pc)
+    if not (set and set:IsValid()) then error("no race settings") end
     local o = set.RaceOptions
     o.Respawn.ManualRespawn = r.respawn
     o.CarDamage.bDamagesEnabled = r.damage == 1
@@ -156,16 +158,25 @@ steps[4] = function(t)
     o.CarDamage.MechanicalFailures = r.failures
     set.RacePenaltyOptions.RacePenalty = r.penalty
     set.HardCoreOptions.bHardCore = r.hardcore == 1
-    set.AIOptions.NumOfOpponents = s.opponents or 1
+    local s2 = L:GetRaceEventRaceSettingsComponent(pc)
+    local o2 = s2.RaceOptions
+    local d = o2.CarDamage
+    local got = string.format("%d%d%d%d%d%d%d", o2.Respawn.ManualRespawn, d.bDamagesEnabled and 1 or 0, d.Collisions, d.Wear,
+                              d.MechanicalFailures, s2.RacePenaltyOptions.RacePenalty, s2.HardCoreOptions.bHardCore and 1 or 0)
+    local want = string.format("%d%d%d%d%d%d%d", r.respawn, r.damage, r.collisions, r.wear, r.failures, r.penalty,
+                               r.hardcore == 1 and 1 or 0)
+    if got ~= want then error("the rules didn't take: " .. got .. " not " .. want) end
+end
+
+steps[4] = function(t)
+    local r, s = job.setup.rules or {}, job.setup
+    local L = lib()
+    local pc = UEHelpers.GetPlayerController()
+    put_rules(r)
+    L:GetRaceEventRaceSettingsComponent(pc).AIOptions.NumOfOpponents = s.opponents or 1
     local rally = L:GetRaceEventRaceSettingsRallyComponent(pc)
     rally.RunningOrderOptions.RunningOrderType = s.order_type or 1   -- custom
     rally.RunningOrderOptions.RunningOrder = s.order or 1             -- first on the road
-    local o2 = L:GetRaceEventRaceSettingsComponent(pc).RaceOptions
-    local d = o2.CarDamage
-    local got = string.format("%d%d%d%d%d%d", o2.Respawn.ManualRespawn, d.bDamagesEnabled and 1 or 0, d.Collisions, d.Wear,
-                              d.MechanicalFailures, L:GetRaceEventRaceSettingsComponent(pc).RacePenaltyOptions.RacePenalty)
-    local want = string.format("%d%d%d%d%d%d", r.respawn, r.damage, r.collisions, r.wear, r.failures, r.penalty)
-    if got ~= want then error("the rules didn't take: " .. got .. " not " .. want) end
     step_said("rules")
     return true
 end
@@ -431,6 +442,13 @@ local resume_steps = {
         if #btns < 1 or not asked then
             if t - job.at > WAIT_DIALOG_S then error("no rally in progress in the game") end
             return false
+        end
+        -- the event's rules on the rally the menu loaded (its RALLY WEEKEND screen loads it from the save), before it
+        -- goes on: a setting changed in the game's menus since DRIVE doesn't carry into the stages to come
+        if type(job.setup.rules) == "table" then
+            local ok, e = pcall(put_rules, job.setup.rules)
+            step_said(ok and "rules" or ("rules not set " .. tostring(e)))
+            log("CONTINUE %s: rules %s", tostring(job.n), ok and "set" or tostring(e))
         end
         press(btns[1], "resume")
         log("CONTINUE %s: resumed", tostring(job.n))

@@ -103,6 +103,10 @@ def note(ov):
         return None
     out = {'head': _t(a['head']), 'head_c': _c(a['head_fg']), 'bg': _c(a['bg']), 'fg': _c(a['fg']),
            'dot_c': _c(a['dot_fg']), 'edge': _c(a.get('bar')), 'point': [_t(x) for x in a.get('lines') or [] if _t(x)]}
+    rows = [r for r in a.get('checks') or [] if len(r) == 3]
+    if rows:                                           # (the pre-start check: what, now, must be; app.problems_alert)
+        out['check'] = [cells(*r) for r in rows]
+        out['check_title'] = _t(a.get('check_title')) or '-'
     prog = (ov or {}).get('progress')
     if prog and (prog[0] == 'wait' or (prog[1] or 0) < 1):      # (a full one says nothing the note doesn't)
         mode, frac, colour = prog

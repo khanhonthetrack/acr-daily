@@ -813,8 +813,25 @@ local function may_search(what)
     return true
 end
 local function search_missed(what) missed_at[what] = os.clock() end
+local SETTINGS_LIB = nil
+local function game_settings_comp(ev)
+    -- the race's settings component as the game itself gets it (what DRIVE writes, drive.lua), if it is this race
+    -- event's. A search by owner alone can find another settings component of the same race event (a stage restarted,
+    -- 25 Nov 2026: read as all Off, a DNF the stewards cancelled)
+    if not (SETTINGS_LIB and SETTINGS_LIB:IsValid()) then
+        SETTINGS_LIB = StaticFindObject("/Script/acr.Default__RaceEventUtilsFunctionLibrary")
+    end
+    local c = SETTINGS_LIB:GetRaceEventRaceSettingsComponent(UEHelpers.GetPlayerController())
+    if c and c:IsValid() and c:GetOuter():GetAddress() == ev:GetAddress() then return c end
+    return nil
+end
+local rules_comp, rules_event = nil, nil         -- (game_settings_comp's, for the values; settings_comp: the calendar too)
 local function read_settings(ev)
     local at = ev:GetAddress()
+    if rules_event ~= at or not (rules_comp and rules_comp:IsValid()) then
+        local ok, c = pcall(game_settings_comp, ev)
+        rules_comp, rules_event = ok and c or nil, at
+    end
     if (settings_event ~= at or not (settings_comp and settings_comp:IsValid())) and
             (settings_event ~= at or may_search("settings")) then
         settings_comp, settings_event = nil, at
@@ -827,7 +844,7 @@ local function read_settings(ev)
         end
         if not settings_comp then search_missed("settings") end
     end
-    local s = settings_comp
+    local s = (rules_comp and rules_comp:IsValid()) and rules_comp or settings_comp
     if not s then return nil end
     local o = s.RaceOptions
     local d = o.CarDamage
@@ -885,6 +902,28 @@ local function read_aids(ev)
     return a, v
 end
 local aids_now, dash_now = nil, nil
+
+-- An event without driving aids (the app's aidsOff, appui.lua -> _G.ACRDAILY_AIDS_OFF: only while its run waits on the
+-- start line, never once its clock runs): ABS, traction control and the starting handbrake assist switched off for the
+-- player, the game's own way (the participant's DrivingAids, then OnRep_DrivingAids: probed 19 Nov 2026,
+-- docs/hardcore-and-assists.md), so DRIVE is never what makes the run not count (the user, 25 Nov 2026). The player's
+-- own settings (Driving Assists) are left as they are: the next race takes them again. a / v: read_aids'.
+local aids_forced_at = -10
+local function force_aids_off(a, v)
+    local on = (a and (a:sub(2, 2) == "1" or a:sub(3, 3) == "1" or a:sub(4, 4) == "1")) or
+               (v and (v:sub(1, 1) == "1" or v:sub(2, 2) == "1"))
+    if not on or not (aid_part and aid_part:IsValid()) then return end
+    local now = os.clock()
+    if now - aids_forced_at < 1.0 then return end         -- (once a second at most: the game applies it at once)
+    aids_forced_at = now
+    local d = aid_part.DrivingAids
+    d.bABSEnabled = false
+    d.bTCSEnabled = false
+    d.bHandbrakeStartingHelp = false
+    aid_part:OnRep_DrivingAids()
+    log("aids: ABS, TC and the starting handbrake assist switched off (the event has none; were %s %s)",
+        tostring(a), tostring(v))
+end
 
 -- The Rally Weekend's stage being driven as the game runs it (0.2): its track, weather, start time, time speed,
 -- wetness, grip, random / dynamic weather, and its place in the calendar, to %APPDATA%\ACR Daily\ingame-setup.txt
@@ -945,6 +984,10 @@ local function race_mode()
         end
         local aok, a, v = pcall(read_aids, ev)
         if aok then aids_now, dash_now = a, v end
+        if aok and rawget(_G, "ACRDAILY_AIDS_OFF") then
+            local fok, fe = pcall(force_aids_off, a, v)
+            if not fok then log("aids: %s", tostring(fe)) end
+        end
         local at = ev:GetAddress()
         if at == mode_event and mode_now ~= "unknown" and mode_now ~= "none" then return mode_now end
         mode_event = at

@@ -328,6 +328,35 @@ def aids_broken(aids, dash, rules):
     return [AID_NAMES[k] for k in OFF_AIDS if k in on]
 
 
+# The pre-start check (app.check_rows): each setting not as the event says, what the game runs and what it must be, in
+# the words of the game's own menus
+_LEVEL_WORDS = {0: N_('Off'), 1: N_('Light'), 2: N_('Severe'), 3: N_('Realistic')}
+_ON_OFF = {0: N_('Off'), 1: N_('On')}
+VALUE_WORDS = {'respawn': {0: N_('Off'), 1: N_('On'), 2: N_('Realistic')}, 'damage': _ON_OFF, 'intensity': _LEVEL_WORDS,
+               'wear': _LEVEL_WORDS, 'failures': _LEVEL_WORDS, 'penalty': {0: N_('Off'), 1: N_('Light'), 2: N_('Realistic')},
+               'hardcore': _ON_OFF}
+CHECK_ORDER = ('hardcore', 'damage', 'intensity', 'wear', 'failures', 'penalty', 'respawn')   # (the game's menu order)
+
+
+def live_check(s, aids, dash, rules):
+    """live_changed + aids_broken, one row each: [(what, now, must be)], in English (N_: the app shows them in its
+    language), in the game's menu order, the aids last; empty when all is as the event says."""
+    want = {_SAVE_AT[o]: v for o, v in rallyweekend._rules(rules).items()}
+    out = []
+    for k in CHECK_ORDER:
+        if k in want and s.get(k, want[k]) != want[k]:
+            words = VALUE_WORDS[k]
+            out.append((RULE_NAMES[k], words.get(s[k], str(s[k])), words.get(want[k], str(want[k]))))
+    return out + [(name, N_('On'), N_('Off')) for name in aids_broken(aids, dash, rules)]
+
+
+def plausible(s):
+    """Settings the mod read (ingamehud.SETTINGS) that a Rally Weekend can have: its menu has no penalties Off. A race
+    read as all Off (damage, its levels, penalties: a stage restarted, 25 Nov 2026, Rally Madeira Legend SS7, a DNF the
+    stewards cancelled) is not a reading to judge a run by."""
+    return s.get('penalty') in (1, 2)
+
+
 def daily_changed(w, item):
     """changed_in_game for a daily or a time trial stage: a one-stage Rally Weekend, as DRIVE wrote it (its stage,
     weather, start time and rules: the waiting run's item, app._await_official). -> [what], empty when nothing changed or
@@ -645,6 +674,13 @@ def plan(ev, b, events=()):
         return 'reset', None
     ev['_split'] = DAYS
     return 'setup', None
+
+
+def rules_back(b, ev):
+    """The save b with the event's rules put back on the rally in it (rallyweekend.put_rules: what DRIVE wrote, before
+    anything was changed in the game's menus) -> the new save, or None when it holds them already. Raises SaveError."""
+    out = rallyweekend.put_rules(b, ev.get('rules'))
+    return out if out != b else None
 
 
 def apply_plan(ev, car, action, details, b):

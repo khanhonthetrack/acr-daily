@@ -28,7 +28,8 @@ local DIR = (os.getenv("APPDATA") or ".") .. "\\ACR Daily\\"
 local FILE = DIR .. "ingame-hud.txt"
 local STALE_S = 3.0
 local AHEAD_S = 0.8              -- a running clock carried on at most this long past the app's last word
-local LISTS = {row = true, point = true, split = true, other = true, ghost = true, key = true}
+local LISTS = {row = true, point = true, split = true, other = true, ghost = true, key = true, check = true}
+local CHECK_ROWS = 8             -- the note's pre-start check: its rows at most (what, now, must be)
 
 -- the look: the game's HUD is flat, dark, see-through, in Rajdhani; these follow it, with ACR Daily's red
 local INK, PANEL, PANEL2, RULE = "0B0C10", "0B0C10", "17181D", "2B2B31"
@@ -251,6 +252,28 @@ local function build_column(r)
     K.add(nrow, nbody, {pad = {14, 9, 16, 11}, fill = true})
     A.note_head = text(tree, 22, "bold", ORANGE, {wrap = true, spacing = 30})
     K.add(nbody, A.note_head)
+    -- the pre-start check (app.problems_alert): a small title, then a row for each setting or driving aid not as the
+    -- event says: [mark] what · now › must be. Read again twice a second: a row goes as soon as it is put right
+    A.check_title = text(tree, 13, "semi", WHITE, {spacing = 120})
+    K.add(nbody, A.check_title, {pad = {0, 7, 0, 1}})
+    A.check_rows = {}
+    for i = 1, CHECK_ROWS do
+        local box = K.panel(tree, {fill = INK, alpha = 0.35, radius = 2, pad = {8, 3, 9, 3}})
+        K.add(nbody, box, {pad = {0, 3, 0, 0}, h = 0})        -- (the note's width: the values in one column)
+        local r = K.hbox(tree)
+        box:SetContent(r)
+        local mark = K.panel(tree, {fill = WHITE, radius = 1})
+        K.add(r, K.size(tree, mark, 4, 16), {v = 2, pad = {0, 0, 9, 0}})
+        local what = text(tree, 17, "semi", WHITE)
+        K.add(r, what, {fill = true, v = 2})
+        local now = text(tree, 16, "medium", SOFT)
+        K.add(r, now, {v = 2, pad = {10, 0, 6, 0}})
+        local arrow = text(tree, 16, "bold", SOFT, {text = "›"})
+        K.add(r, arrow, {v = 2, pad = {0, 0, 6, 0}})
+        local want = text(tree, 17, "bold", WHITE)
+        K.add(r, want, {v = 2})
+        A.check_rows[i] = {box = box, mark = mark, what = what, now = now, want = want}
+    end
     A.note_lines = {}
     for i = 1, 3 do
         local lr = K.hbox(tree)
@@ -829,6 +852,23 @@ local function put_column(A, p, note, bd, cd, hud, clock, t, dt)
         K.fill(c, "n.bg", A.note, note.bg, 0.94)
         K.say(c, "n.head", A.note_head, note.head)
         K.tint(c, "n.head_c", A.note_head, note.head_c)
+        local checks = note.check or {}
+        K.show(c, "n.ct", A.check_title, #checks > 0)
+        if #checks > 0 then
+            K.say(c, "n.ct_t", A.check_title, note.check_title ~= "-" and note.check_title or "")
+            K.tint(c, "n.ct_c", A.check_title, note.fg)
+        end
+        for i, r in ipairs(A.check_rows) do
+            local s = checks[i]
+            K.show(c, "n.k" .. i, r.box, s ~= nil)
+            if s then
+                local x = split(s, "\t")
+                K.say(c, "n.kw" .. i, r.what, x[1] or "")
+                K.say(c, "n.kn" .. i, r.now, x[2] or "")
+                K.say(c, "n.km" .. i, r.want, x[3] or "")
+                K.fill(c, "n.kd" .. i, r.mark, note.dot_c)
+            end
+        end
         for i, l in ipairs(A.note_lines) do
             local s = note.point[i]
             K.show(c, "n.row" .. i, l.row, s ~= nil)

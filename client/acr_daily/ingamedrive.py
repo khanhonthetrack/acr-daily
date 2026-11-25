@@ -272,6 +272,12 @@ class Drives:
             w['step'] = parts[2] if len(parts) > 2 else ''
             if w['step'].startswith('tyres auto'):
                 self.said = w['step']              # (the tyres picked didn't fit: the caller says so)
+            elif w['step'].startswith('rules not set'):
+                try:                               # (CONTINUE: the start line's check says what is wrong, if anything)
+                    from . import waiting
+                    waiting.note('in-game DRIVE %s: %s' % (parts[0], w['step']))
+                except Exception:
+                    pass
         elif parts[1] == 'ok':
             del self.waiting[int(parts[0])]
             w['ok']()

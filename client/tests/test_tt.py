@@ -486,6 +486,7 @@ class Hotlap(Harness):
         a.api.tt_live.assert_called()
         self.assertEqual([x.get('practice') for x in a.awaiting], [False])
 
+    @mock.patch.object(app_mod, 'CONFIRM_S', 0)       # (as read for a while already: app.settings_judged)
     def test_settings_changed_in_the_game_not_counted(self):
         """The game mod reads the race's settings (main.lua read_settings): damage switched off in the game's menu for
         a stage with damage: that run is not counted, nothing on the live map, nothing waited for, and it says why."""

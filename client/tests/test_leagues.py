@@ -367,6 +367,23 @@ class ChangedInGame(TempDirs):
         plain = rw.read_weekend(leagues.apply_plan(ev, CAR, 'setup', None, b))
         self.assertEqual(plain['hardcore'], 0)
 
+    def test_drive_on_a_rally_in_progress_puts_the_events_rules_back(self):
+        """CONTINUE on a rally in progress (the game closed): whatever was changed in the game's menus since DRIVE, it
+        goes on with the event's rules (the user, 25 Nov 2026: "DRIVE should never be a problem"); its calendar and
+        progress as they were. Nothing to change: nothing written."""
+        hc = dict(event(2, B_IDS), rules={'hardcore': True, 'assists': 'off'})
+        b = fake_save(THREE_DAYS, done=1)
+        w = rw.read_weekend(b)
+        self.assertTrue(w['in_progress'])
+        rules = set(leagues.RULE_NAMES.values())                   # (its calendar isn't the event's: the rules alone)
+        self.assertNotEqual([x for x in leagues.changed_in_game(w, hc) if x in rules], [])
+        fixed = leagues.rules_back(b, hc)
+        back = rw.read_weekend(fixed)
+        self.assertEqual([x for x in leagues.changed_in_game(back, hc) if x in rules], [])
+        self.assertEqual((back['stages'], back['in_progress'], len(fixed)), (w['stages'], True, len(b)))
+        self.assertEqual(rw.progress(fixed), rw.progress(b))
+        self.assertIsNone(leagues.rules_back(fixed, hc))
+
 
 class LiveChecks(unittest.TestCase):
     """What the game mod reads (ingamehud.SETTINGS / AIDS / DASH) against an event's rules: before the start (the run
@@ -383,6 +400,26 @@ class LiveChecks(unittest.TestCase):
         self.assertEqual(leagues.aids_broken(dict(off, handbrake=0), dict(self.DASH, abs=0), {'assists': 'off'}),
                          ['traction control'])                                              # (switched on in the car)
         self.assertEqual(leagues.aids_broken(None, None, {'assists': 'off'}), [])           # (not told)
+
+    def test_the_pre_start_check_says_now_and_must_be(self):
+        """The pre-start check (app.check_rows): one row a setting or aid not as the event says, in the game's menu
+        order, what the game runs and what it must be."""
+        hc = {'hardcore': True, 'assists': 'off'}
+        self.assertEqual(leagues.live_check(dict(self.DAILY, hardcore=1, intensity=3, wear=3, failures=3, penalty=2),
+                                            None, None, hc), [])
+        rows = leagues.live_check(self.DAILY, self.AIDS, self.DASH, hc)
+        self.assertEqual(rows, [('Hardcore Mode', 'Off', 'On'), ('damage intensity', 'Light', 'Realistic'),
+                                ('wear', 'Light', 'Realistic'), ('mechanical failures', 'Off', 'Realistic'),
+                                ('penalties', 'Light', 'Realistic'), ('ABS', 'On', 'Off'),
+                                ('traction control', 'On', 'Off')])
+        self.assertEqual({r[0] for r in rows[:5]}, set(leagues.live_changed(self.DAILY, hc)))   # (what the judge says)
+
+    def test_a_reading_no_rally_weekend_can_have_is_no_change(self):
+        """Rally Madeira Legend SS7 (25 Nov 2026): after a restart of the stage the race read as all Off (damage, its
+        levels, penalties): a DNF the stewards cancelled. The game's Rally Weekend has no penalties Off."""
+        self.assertTrue(leagues.plausible(self.DAILY))
+        self.assertFalse(leagues.plausible({'respawn': 1, 'damage': 0, 'intensity': 0, 'wear': 0, 'failures': 0,
+                                            'penalty': 0, 'hardcore': 0, 'tyres': 0}))
 
 
 class OfficialResult(unittest.TestCase):
