@@ -1060,6 +1060,54 @@ def registry_tools(game, reg, say=None):
     return t
 
 
+# The set's Rally Weekend (its list has none: Oxmod's stages showed in Free Practice only, and the app's DRIVE for a time
+# trial or a daily sets up a Rally Weekend; the user, 25 Nov 2026: "to be run in rally weekend, i need them to work in the
+# app for time trial"): the game's calendar table with three of the set's location (1, 2 and 3 days, copies of Wales',
+# each day on its stages: stagecalendars.add_calendars, as for WRC Generations'), keyed <key>Weekend<length> as
+# rallyweekend.location_preset names an AcrXs stage's (AcrXsThi04FullForward -> AcrXsThiWeekendShort). Read from the
+# player's own game (its own containers only: own_paks), edited with UaTool, packed into the set's list.
+def add_registry_calendars(game, tools, legacy, cal, work):
+    from . import stagecalendars as sc
+    with own_paks(game) as paks:
+        _run([tools['retoc'], 'to-legacy', '--version', 'UE5_6', '--no-shaders', '--filter', 'DT_RallyWeekendCalendarPreset',
+              paks, legacy], "reading the game's calendars")
+    for root, _d, files in os.walk(legacy):                     # (only the calendars: not the game's filters beside them)
+        for f in files:
+            if f.startswith('DT_RallyWeekendCalendarPresetFilters.'):
+                _rm(os.path.join(root, f))
+    js = {}
+    for k in ('calendars', 'tracks'):
+        src = os.path.join(legacy, *sc.TABLES[k].split('/')) + '.uasset'
+        if not os.path.isfile(src):
+            raise CommunityError('assemble', '%s is not where it should be' % sc.TABLES[k].rsplit('/', 1)[-1])
+        out = os.path.join(work, k + '.json')
+        _run([tools['uatool'], 'dumpjson', src, tools['usmap'], out], 'reading %s' % sc.TABLES[k].rsplit('/', 1)[-1])
+        with open(out, encoding='utf-8') as f:
+            js[k] = json.load(f)
+    variants = []
+    for row in sc._rows(js['tracks']):
+        loc = sc._prop(row, 'Location')
+        if loc is not None and sc._ref(loc)[1] == cal['location']:
+            variants += [sc._ref(v)[1] for v in (sc._prop(row, 'Variants') or {}).get('Value') or []]
+    if not variants:
+        raise CommunityError('assemble', 'no stages of %s in its list' % cal['location'])
+    keys = [r['Name'] for r in sc._rows(js['calendars'])]
+    if not any(k.startswith(cal['key'] + 'Weekend') for k in keys):     # (its own list had them: as they are)
+        try:
+            sc.add_calendars(js['calendars'], {cal['location']: variants}, {cal['location']: cal['name']},
+                             {cal['location']: cal['key']}, text=cal.get('text') or sc.TEXT)
+        except sc.CalendarError as e:
+            raise CommunityError('assemble', str(e))
+    jp = os.path.join(work, 'calendars.edited.json')
+    with open(jp, 'w', encoding='utf-8') as f:
+        json.dump(js['calendars'], f)
+    dst = os.path.join(legacy, *sc.TABLES['calendars'].split('/')) + '.uasset'
+    for x in ('.uasset', '.uexp'):
+        _rm(dst[:-len('.uasset')] + x)
+    _run([tools['uatool'], 'fromjson', jp, tools['usmap'], dst], 'writing the calendars')
+    return variants
+
+
 def place_registry(game, reg, tools):
     """The set's stage list for its items installed now, packed again under its own name into ~mods (none installed:
     taken out). Raises CommunityError ('tools', 'assemble')."""
@@ -1085,6 +1133,8 @@ def place_registry(game, reg, tools):
         for x in ('pak', 'ucas', 'utoc'):
             shutil.copy2('%s.%s' % (src, x), os.path.join(paks, '%s.%s' % (os.path.basename(src), x)))
         _run([tools['retoc'], 'to-legacy', '--version', 'UE5_6', '--no-shaders', paks, legacy], 'reading its stage list')
+        if reg.get('calendars'):
+            add_registry_calendars(game, tools, legacy, reg['calendars'], work)
         out = os.path.join(work, 'out')
         os.makedirs(out)
         _run([tools['retoc'], 'to-zen', '--no-parallel', '--version', 'UE5_6', legacy, os.path.join(out, reg['name'] + '.utoc')],

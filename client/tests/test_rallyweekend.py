@@ -371,6 +371,8 @@ class Calendars(unittest.TestCase):
                          ('AcrXsLnWeekendShort', ['AcrXsLn02r0FullForward'], 'ServiceParkDefault'))
         self.assertEqual(rw.location_preset('AcrXsLn02r1FullForward'), 'AcrXsLnWeekendShort')
         self.assertEqual(rw.location_preset('AcrXsPtLousaFullForward'), 'AcrXsPtWeekendShort')
+        self.assertEqual(rw.location_preset('AcrXsThi04FullForward'), 'AcrXsThiWeekendShort')     # (Oxmod's: a code of three)
+        self.assertEqual(rw.location_preset('AcrXsThi06FullForward'), 'AcrXsThiWeekendShort')
         res = results_list('DefaultRally', [entry('AcrXsLn02r0FullForward', [run('Peugeot208Rally4', [101.5, 240.25], 0)], T0)])
         self.assertEqual([r['stage'] for r in rw.results(b'junk' + res)], ['AcrXsLn02r0FullForward'])
         for bad in ('AcrXsFullForward', 'LondonS1WestminsterFullForward'):

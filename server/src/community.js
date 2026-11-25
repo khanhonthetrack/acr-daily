@@ -195,6 +195,9 @@ const OXMOD_REGISTRY = {
     'oxmod-chemin-erables+oxmod-thierache-s1': 'menu/S1_et_Chemin/zz_acrxs_registry_P' },
   sha256: OXMOD_ZIP_SUMS,
   tools: STAGE_EXPORTER.base.download,           // (retoc packs it: Sando's tool, unless his tools are on the PC already)
+  // its Rally Weekend (none in his list: Free Practice only): three calendars of Thierache added to it on the PC, keyed
+  // as the app names an AcrXs stage's (rallyweekend.location_preset: AcrXsThi04FullForward -> AcrXsThiWeekendShort)
+  calendars: { location: 'Thierache', key: 'AcrXsThi', name: 'Thiérache', text: 'Stages by Oxmod (patreon.com/cw/oxmod).' },
 };
 const oxFile = (name, size, sha256) => ({ name, from: `~mods/${name}`, size, sha256 });
 const OXMOD_PAK = '75e7144577253917f6da7312ef5e585b12fb728226a22b0938323751a6b555cd';

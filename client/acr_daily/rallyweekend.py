@@ -115,9 +115,10 @@ WRCG_LOCATIONS = {'Es': 'WrcgSpain', 'Fr': 'WrcgFrance', 'Gr': 'WrcgGreece', 'It
 
 
 # A community stage built with acr-extrastages (ACR DAILY's London AcrXsLn02r0FullForward, Hattori Rally's Lousã
-# AcrXsPtLousaFullForward) is in its own location, AcrXs + two letters, with its own calendars (AcrXsLnWeekendShort...).
+# AcrXsPtLousaFullForward, Oxmod's Thierache AcrXsThi04FullForward) is in its own location, AcrXs + its code (a capital
+# and one or two small letters: Ln, Pt, Thi), with its own calendars (AcrXsLnWeekendShort, AcrXsThiWeekendShort...).
 # (Wales' calendar with London in it crashed the game at the tyre allocation, 18 Nov 2026: London is its own level.)
-ACRXS_RE = re.compile(r'^AcrXs([A-Z][a-z])[A-Z0-9][A-Za-z0-9]*$')
+ACRXS_RE = re.compile(r'^AcrXs([A-Z][a-z]{1,2})(?=[A-Z0-9])[A-Za-z0-9]*$')
 
 
 def location_preset(stage_id):
