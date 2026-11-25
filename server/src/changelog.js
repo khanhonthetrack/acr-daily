@@ -77,14 +77,18 @@ export const CHANGELOG = [
   {
     // CODRIVER (9594476..58f1c07, 01d8b02), special events (b9e29e8, 18a97d3), Oxmod's Thierache (b44aa6d, ef7475a),
     // Steam sign-in (a4722ca), the broadcast feed (548ed1c), event settings at DRIVE/CONTINUE (0b15df7); its test
-    // builds (0.2.1.X) show it under their own number
-    version: '0.2.2', date: '2026-11-25', title: N_("CODRIVER, special events and Thiérache"), photo: 'thierache',
+    // builds (0.2.1.X) show it under their own number; the wheel in ACR DAILY, the tile after another mode, the start
+    // line naming the conditions (release-0.2.2); required from the 26 Nov dailies
+    version: '0.2.2', date: '2026-11-26', title: N_("CODRIVER, special events and Thiérache"), photo: 'thierache',
     changes: [
       NEW(N_("CODRIVER: a daily for two. One drives, the other reads the pacenotes, and you hear each other like a crew in the car.")),
       NEW(N_("Special events: the Skoda Saturday Challenge, Saturday 28 November at 12:00 UK time. Free to enter, 50 credits for every finish. Sign up any time in RANKED.")),
       NEW(N_("WATCH LIVE in RANKED: watch any stage of a ranked session under way.")),
       NEW(N_("New in COMMUNITY: Oxmod's Thiérache stages, S1 and Chemin des Érables. They work in time trials, dailies and events too.")),
       BETTER(N_("DRIVE and CONTINUE always set the game to the event's settings. Before the start, the app lists any setting or aid that would make the run a DNF.")),
+      BETTER(N_("On the start line, the check names what the stage runs with: Hardcore Mode, damage and driving aids.")),
+      FIX(N_("Wheel and pad: OK in ACR DAILY presses only what is highlighted, and the game's own menu no longer moves behind it.")),
+      FIX(N_("The ACR DAILY tile is back on MULTIPLAYER after you come back from another mode.")),
       BETTER(N_("Sign-in: with Steam running, you sign in on Steam's own page in one click, no password.")),
       NEW(N_("Streaming: SETTINGS › Streaming overlay gives OBS the stage you WATCH, with the car's gauge.")),
     ],

@@ -52,7 +52,7 @@ class Languages(unittest.TestCase):
                 continue
             i18n.load(code)
             for en, tr in i18n._words.items():
-                if '%' not in en or re.fullmatch(r'[%a-zA-Z.:,\-年月日() ]+', en):   # (a date's format: strftime's)
+                if '%' not in en or re.fullmatch(r'[%a-zA-Z.:,·\-年月日() ]+', en):   # (a date's format: strftime's)
                     continue
                 args = tuple(sample[m.group(2)] for m in spec.finditer(en) if m.group(2) != '%')
                 for form in (tr if isinstance(tr, list) else [tr]):
