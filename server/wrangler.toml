@@ -89,6 +89,10 @@ DISCORD_URL = "https://discord.gg/6kq6h6FVGb"
 # wrangler secret put TWITCH_CLIENT_SECRET
 TWITCH_CHANNEL = "acrdaily"
 TWITCH_CLIENT_ID = "iwkgfzezx259vj13rg2c1oxn8dk7nu"
+# The dailies overlay's commentator (src/commentary.js writes, src/speech.js speaks): Claude Haiku writes each line
+# (secret ANTHROPIC_API_KEY), an Azure AI Speech voice says it (secret AZURE_SPEECH_KEY; its resource's region here, e.g.
+# "westeurope"). Either missing: no commentator, the overlay's HIGHLIGHTS go on.
+AZURE_SPEECH_REGION = ""
 # The Discord server's id: with its widget on (Server Settings > Widget, invite channel set), /discord hands out the
 # widget's invite, which names nobody; DISCORD_URL is the fallback.
 DISCORD_GUILD_ID = "1556808894205141145"

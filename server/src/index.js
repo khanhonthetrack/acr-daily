@@ -80,7 +80,8 @@ import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
 import { twitchStatus } from './twitch.js';
-import { dailiesCommentary } from './commentary.js';
+import { dailiesCommentary, lineById } from './commentary.js';
+import { speech, speechOn } from './speech.js';
 import { SERIES_IMAGES } from './seriesimages.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
@@ -1705,8 +1706,16 @@ async function route(req, env, ctx, L) {
         const r = await route(new Request(url.origin + p), env, ctx, L);
         return r.ok ? r.json() : null;
       };
-      const out = own ? await dailiesCommentary(env, ask, { lang: L }) : { on: false };
+      // (the lines are spoken now, in English: no voice, no lines; src/speech.js)
+      const out = own && speechOn(env) ? { ...(await dailiesCommentary(env, ask, { lang: 'en' })), speech: true } : { on: false };
       return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+    }
+    if (path === '/api/broadcast/dailies/speech' && req.method === 'GET') {   // that line's voice (src/speech.js)
+      const id = url.searchParams.get('id') || '';
+      const own = !env.SITE_URL || new URL(env.SITE_URL).origin === url.origin;
+      const r = own ? await speech(env, id, await lineById(id)) : { status: 404, body: 'no voice', type: 'text/plain' };
+      return new Response(r.body, { status: r.status, headers: { 'Content-Type': r.type,
+        'Cache-Control': r.status === 200 ? 'public, max-age=3600' : 'no-store' } });
     }
     if (path === '/api/live') {
       if (req.method === 'POST') return postLive(req, env);

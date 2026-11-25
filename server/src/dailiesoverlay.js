@@ -14,15 +14,17 @@
 // gaps, the conditions, how long is left), in the plain voice of the website's old live ticker.
 // Options: bg=1 (a stand-in picture where the game goes, to look at it in a browser), accent=RRGGBB, lang=xx, feed=1
 // (served by the ACR DAILY app on the streamer's PC, client broadcastfeed.py: its /feed.json is the car WATCH follows),
-// rows=4..8 (a board's rows, 6 by default), page=<seconds> (a board's page, 8 by default), ai=0 (no Claude lines:
-// src/commentary.js writes the lines on what happens when the server has a Claude key; without one, the rules above).
+// rows=4..8 (a board's rows, 6 by default), page=<seconds> (a board's page, 8 by default), ai=0 (no commentator's
+// voice: src/commentary.js writes a spoken line on what happens, src/speech.js says it, when the server has a Claude key
+// and an Azure Speech key). The box is the HIGHLIGHTS (the user, 25 Nov 2026: "instead of commentary text on the bottom
+// right, just keep it as HIGHLIGHTS"); the commentary is the voice.
 
 import { N_, langTag, t } from './i18n.js';
 import { BROADCAST_HEADERS } from './broadcast.js';
 
 export { BROADCAST_HEADERS };
 
-const WORDS = [N_('DAILIES'), N_('NEW DAILIES IN'), N_('ON STAGE'), N_('ON CAM'), N_('BETWEEN CARS'), N_('COMMENTARY'),
+const WORDS = [N_('DAILIES'), N_('NEW DAILIES IN'), N_('ON STAGE'), N_('ON CAM'), N_('BETWEEN CARS'), N_('HIGHLIGHTS'),
   N_('{0} drivers'), N_('Nobody on the board yet.'), N_('P{0}–{1} of {2}'), N_('Not available'), N_('LIVE'),
   N_('The next car on a stage comes on by itself.'),
   // the commentary's lines
@@ -115,7 +117,7 @@ export function dailiesOverlayPage(q, site) {
 .com .on .pb{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}.com .on .pb b{display:block;height:3px;background:#fff;transition:width 1s linear}
 .com .tt{display:flex;align-items:center;gap:8px;height:26px;font-size:15px;font-weight:700;letter-spacing:.16em;color:var(--soft);border-bottom:1px solid var(--line);flex:none}
 .com .tt i{width:4px;height:14px;background:var(--red);transform:skewX(-18deg)}
-.com .tt .eq{display:flex;gap:2px;align-items:flex-end;height:12px;margin-left:4px}.com .tt .eq u{width:3px;background:var(--red);animation:eq 1s infinite ease-in-out}
+.com .tt .eq{display:flex;gap:2px;align-items:flex-end;height:12px;margin-left:4px}.com .tt .eq u{width:3px;height:3px;background:var(--red);opacity:.5}.com .tt.talk .eq u{opacity:1;animation:eq 1s infinite ease-in-out}
 .com .tt .eq u:nth-child(2){animation-delay:.2s}.com .tt .eq u:nth-child(3){animation-delay:.4s}
 @keyframes eq{0%,100%{height:3px}50%{height:12px}}
 .lines{flex:1;overflow:hidden;position:relative;padding-top:4px}
@@ -135,7 +137,7 @@ export function dailiesOverlayPage(q, site) {
   <div class="board" id="b1" style="left:352px"></div>
   <div class="board" id="b2" style="left:870px"></div>
   <div class="com"><div class="on" id="on"></div>
-    <div class="tt"><i></i><span>${esc(words.COMMENTARY)}</span><span class="eq"><u></u><u></u><u></u></span><span class="url">${esc(String(site || '').replace(/^https?:\/\//, ''))}</span></div>
+    <div class="tt"><i></i><span>${esc(words.HIGHLIGHTS)}</span><span class="eq"><u></u><u></u><u></u></span><span class="url">${esc(String(site || '').replace(/^https?:\/\//, ''))}</span></div>
     <div class="lines" id="lines"></div></div>
 </div></div>
 <script>
@@ -187,13 +189,20 @@ function conds(s){var i=s.info;if(!i||!i.weather)return null;return [T('SS{0} co
 function fillers(){var out=[];[1,2].forEach(function(n){var s=D.slots[n];if(!s||!s.info)return;out.push(leads(s),closest(s))});
   [1,2].forEach(function(n){var s=D.slots[n];if(s&&s.info)out.push(count(s),conds(s),[opener(s),[]])});
   if(D.endsAt)out.push([T('{0} left to drive today\\'s dailies.',hoursLeft(D.endsAt-Date.now())),[]]);return out.filter(function(x){return x&&x[0]})}
-// Claude's lines (src/commentary.js; ai=0: off): while the server has them on, they say what happens, in place of the
-// lines above; the day's facts still fill the quiet. The server not answering three times: back to the lines above.
-var AI={on:false,id:null,fails:0};
-function ev(text,hi){if(!AI.on)say(text,hi)}
-function claude(){fetch('/api/broadcast/dailies/commentary'+(C.lq?'?lang='+C.lq:''),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
-  .then(function(j){AI.fails=0;AI.on=!!(j&&j.on);if(AI.on&&j.id&&j.line&&j.id!==AI.id){AI.id=j.id;say(j.line,j.names||[])}})
-  .catch(function(){if(++AI.fails>=3)AI.on=false}).then(function(){setTimeout(claude,10000)})}
+// The commentator (src/commentary.js writes, src/speech.js speaks; ai=0: off): Claude's line on what happens, spoken
+// by an excited rally voice, played here (OBS: the browser source's "Control audio via OBS" puts it in the mix). The box
+// keeps the HIGHLIGHTS above whatever the voice says. A line already a minute old when first seen is not played; a line
+// coming while one plays waits for it (only the newest waits).
+var AI={id:null,au:null,next:null};
+function ev(text,hi){say(text,hi)}
+function talk(on){var t=document.querySelector('.com .tt');if(t)t.classList.toggle('talk',!!on)}
+function play(id){if(AI.au&&!AI.au.ended&&!AI.au.paused){AI.next=id;return}
+  var a=new Audio('/api/broadcast/dailies/speech?id='+encodeURIComponent(id));AI.au=a;talk(true);
+  function done(){talk(false);var n=AI.next;AI.next=null;if(n)play(n)}
+  a.onended=done;a.onerror=done;var p=a.play();if(p&&p.catch)p.catch(done)}
+function claude(){fetch('/api/broadcast/dailies/commentary',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
+  .then(function(j){if(j&&j.on&&j.speech&&j.id&&j.line&&j.id!==AI.id){var first=AI.id===null;AI.id=j.id;if(!first||Date.now()-(j.at||0)<60000)play(j.id)}})
+  .catch(function(){}).then(function(){setTimeout(claude,10000)})}
 function filler(){var f=fillers();if(!f.length)return;var x=f[fillI%f.length];fillI++;if(L[0]&&L[0].text===x[0]&&f.length>1){x=f[fillI%f.length];fillI++}say(x[0],x[1])}
 
 // what changed on a board since the last look: finishes (a new fastest time, the first one), better times, drivers out

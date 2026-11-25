@@ -8,6 +8,15 @@ import { dailiesOverlayPage } from '../src/dailiesoverlay.js';
 import { dailiesCommentary } from '../src/commentary.js';
 
 const SITE = 'https://acrdaily.com';
+// a 1.5 s 440 Hz tone (8 kHz, 8-bit WAV): the stand-in voice
+const TONE = (() => {
+  const n = 12000, b = Buffer.alloc(44 + n);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22); b.writeUInt32LE(8000, 24); b.writeUInt32LE(8000, 28); b.writeUInt16LE(1, 32); b.writeUInt16LE(8, 34);
+  b.write('data', 36); b.writeUInt32LE(n, 40);
+  for (let i = 0; i < n; i++) b[44 + i] = 128 + Math.round(40 * Math.sin((2 * Math.PI * 440 * i) / 8000));
+  return b;
+})();
 const MEM = new Map();
 const CACHE = { match: async (r) => (MEM.has(r.url) ? new Response(MEM.get(r.url)) : undefined), put: async (r, x) => { MEM.set(r.url, await x.text()); } };
 const STAND_IN = { beta: { messages: { create: async (body) => {
@@ -29,12 +38,18 @@ http.createServer(async (req, res) => {
     res.end(dailiesOverlayPage(url.searchParams, SITE));
     return;
   }
-  // HARNESS_CLAUDE=1: Claude's lines (src/commentary.js) on the live boards, written by a stand-in (no key needed)
+  // HARNESS_CLAUDE=1: the commentator (src/commentary.js, src/speech.js) on the live boards: the line by a stand-in
+  // Claude, its voice a stand-in tone (no keys needed)
+  if (url.pathname === '/api/broadcast/dailies/speech') {
+    res.writeHead(200, { 'Content-Type': 'audio/wav' });
+    res.end(TONE);
+    return;
+  }
   if (url.pathname === '/api/broadcast/dailies/commentary') {
-    const out = process.env.HARNESS_CLAUDE ? await dailiesCommentary({}, async (p) => {
+    const out = process.env.HARNESS_CLAUDE ? { ...(await dailiesCommentary({}, async (p) => {
       const r = await fetch(SITE + p, { headers: { 'User-Agent': 'acr-daily-overlay-check' } });
       return r.ok ? r.json() : null;
-    }, { client: STAND_IN, cache: CACHE }) : { on: false };
+    }, { client: STAND_IN, cache: CACHE })), speech: true } : { on: false };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(out));
     return;

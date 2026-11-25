@@ -39,7 +39,7 @@ import { N_, langTag, t } from './i18n.js';
 
 export const BROADCAST_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'X-Content-Type-Options': 'nosniff',
   'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src https://fonts.gstatic.com; img-src 'self' https://flagcdn.com data:; connect-src 'self'; frame-ancestors *; base-uri 'none'; form-action 'none'",
+    "font-src https://fonts.gstatic.com; img-src 'self' https://flagcdn.com data:; connect-src 'self'; media-src 'self'; frame-ancestors *; base-uri 'none'; form-action 'none'",
   'Referrer-Policy': 'strict-origin-when-cross-origin', 'Cache-Control': 'public, max-age=300', 'Vary': 'Accept-Language, Cookie' };
 
 const WORDS = [N_("TODAY'S BEST"), N_("THIS WEEK'S BEST"), N_('STAGE BEST'), N_('ON STAGE'), N_('LIVE'), N_('BETWEEN CARS'),
