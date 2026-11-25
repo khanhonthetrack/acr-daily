@@ -210,7 +210,7 @@ ${siteHeader(env)}
 <a class="cupstrip tw" id="twstrip" hidden target="_blank" rel="noopener"></a>
   <a class="cupstrip" id="tcupstrip" hidden></a>
   <div class="dayline"><nav class="datenav"><button id="prev" aria-label="${t('Previous day')}" title="${t('The day before')}">‹</button><h1 id="dayname">${t("Today's stages")}</h1><button id="next" aria-label="${t('Next day')}" title="${t('The day after')}">›</button></nav><div id="ends"></div></div>
-  <nav class="dtabs" id="dtabs" hidden><button id="tab-official" class="on">${t('Official')}</button><button id="tab-codriver">${t('Codriver daily')}</button></nav>
+  <nav class="dtabs" id="dtabs" hidden><button id="tab-official" class="on">${t('Official')}</button><button id="tab-codriver">${t('Codriver')}</button></nav>
   <div class="stages" id="stages"></div>
   <div id="cpday" hidden></div>
   ${spotlight()}
@@ -375,12 +375,12 @@ ${STAGE_MAP_JS()}
     $('ends').innerHTML=F(${tq('Stages close in {0}')},'<b class="num">'+h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+'</b>');
     if(l===0){today=new Date().toISOString().slice(0,10);cur=today;load()}
   }
-  // ---- CODRIVER DAILY (src/copilot.js): today's crews' standings to everyone; the stage, its map and the crews on it
+  // ---- CODRIVER (src/copilot.js: the daily for two): today's crews' standings to everyone; the stage, its map and the crews on it
   // only to someone who has driven it (as driver or co-driver): it stays hidden until then (the user, 26 Nov 2026)
   var tab='official',cpOn=false,cpShown=false,cpLive=0;
   function setTab(t){tab=t;$('tab-official').className=t==='official'?'on':'';$('tab-codriver').className=t==='codriver'?'on':'';
     $('stages').hidden=t!=='official';$('cpday').hidden=t!=='codriver';$('prev').hidden=$('next').hidden=t!=='official';
-    $('dayname').textContent=t==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):${tq("Today's CODRIVER DAILY")};
+    $('dayname').textContent=t==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):${tq("Today's CODRIVER")};
     try{history.replaceState(null,'',t==='codriver'?'#codriver':location.pathname)}catch(e){}
     if(t==='codriver')cpLoad()}
   $('tab-official').onclick=function(){setTab('official')};
@@ -417,7 +417,7 @@ ${STAGE_MAP_JS()}
         b.entries.forEach(function(e){var dnf=e.status!=='finished';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));
           if(mid&&((e.driver||{}).steamId===mid||(e.codriver||{}).steamId===mid))tr.classList.add('me');
           tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
-          [[e.driver,'drv'],[e.codriver,'drv co']].forEach(function(p){var c=el('td',p[1]),who=p[0]||{};flag(c,who.country);
+          [[e.driver,'drv'],[e.codriver,'drv co']].forEach(function(p){var c=el('td',p[1]),who=p[0]||{};flag(c,who.country);tagEl(c,who.look);
             var a=el('a',null,who.name||'?');a.href='/d/'+who.steamId;c.appendChild(a);tr.appendChild(c)});
           var tt=el('td','t r',dnf?${tq('DNF')}:fmt(e.totalMs));if(dnf)tt.title=e.reason||'';tr.appendChild(tt);
           tr.appendChild(el('td','gap r',dnf||e.rank===1||e.gapMs==null?'':'+'+(e.gapMs/1000).toFixed(3)));tb.appendChild(tr)});

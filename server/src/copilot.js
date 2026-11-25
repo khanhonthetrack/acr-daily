@@ -452,8 +452,11 @@ export const boardKey = (date) => `cpboard:${date}`;
 export async function buildBoard(env, date) {
   const { results } = await env.DB.prepare(`SELECT r.id AS runId, r.status, r.reason, r.total_ms AS totalMs, r.clock_ms AS clockMs, r.splits,
       r.created, r.driver, r.codriver, d.name AS dName, d.avatar AS dAvatar, d.country AS dCountry,
-      c.name AS cName, c.avatar AS cAvatar, c.country AS cCountry
+      c.name AS cName, c.avatar AS cAvatar, c.country AS cCountry,
+      dt.tag AS dTag, dt.color AS dTagColor, dt.tag_fmt AS dTagFmt, ct.tag AS cTag, ct.color AS cTagColor, ct.tag_fmt AS cTagFmt
     FROM copilot_runs r JOIN players d ON d.steam_id = r.driver JOIN players c ON c.steam_id = r.codriver
+      LEFT JOIN team_members dm ON dm.steam_id = r.driver LEFT JOIN teams dt ON dt.id = dm.team_id
+      LEFT JOIN team_members cm ON cm.steam_id = r.codriver LEFT JOIN teams ct ON ct.id = cm.team_id
     WHERE r.date = ? AND d.banned = 0 AND c.banned = 0
     ORDER BY CASE r.status WHEN 'finished' THEN 0 ELSE 1 END, r.total_ms, r.created, r.id`).bind(date).all();
   const lead = results.find((r) => r.status === 'finished');
@@ -463,8 +466,11 @@ export async function buildBoard(env, date) {
     rank: r.status === 'finished' ? ++rank : null, totalMs: r.totalMs, clockMs: r.clockMs,
     splits: r.status === 'finished' && r.splits ? (() => { try { return JSON.parse(r.splits); } catch { return null; } })() : null,
     gapMs: r.status === 'finished' && lead ? r.totalMs - lead.totalMs : null, created: r.created,
-    driver: { steamId: r.driver, name: r.dName, avatar: r.dAvatar || null, country: r.dCountry || null },
-    codriver: { steamId: r.codriver, name: r.cName, avatar: r.cAvatar || null, country: r.cCountry || null },
+    // (each one's team: its tag, as the dailies' sheets show it; the user, 26 Nov 2026: "both ... should show teams")
+    driver: { steamId: r.driver, name: r.dName, avatar: r.dAvatar || null, country: r.dCountry || null,
+      ...(r.dTag ? { look: { tag: { text: r.dTag, color: r.dTagColor, fmt: r.dTagFmt || null } } } : {}) },
+    codriver: { steamId: r.codriver, name: r.cName, avatar: r.cAvatar || null, country: r.cCountry || null,
+      ...(r.cTag ? { look: { tag: { text: r.cTag, color: r.cTagColor, fmt: r.cTagFmt || null } } } : {}) },
   }));
   return { date, entries, crews: entries.length, finished: rank };
 }

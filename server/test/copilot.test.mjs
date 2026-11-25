@@ -293,3 +293,17 @@ test('the website\'s dailies page has the two tabs', async () => {
   const script = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
   assert.doesNotThrow(() => new Function(script), 'its script parses');
 });
+
+test('CODRIVER\'s standings: the driver\'s and the co-driver\'s teams', async () => {
+  const w = world();
+  w.db.prepare("INSERT INTO teams (id, name, tag, tag_key, color, captain, code, created) VALUES ('t1', 'Red Crew', 'RED', 'RED', '#E30613', ?, 'c1', 0)").run(sid(1));
+  w.db.prepare("INSERT INTO team_members (steam_id, team_id, joined) VALUES (?, 't1', 0)").run(sid(1));
+  const a = (await w.call('POST', '/api/copilot/lobbies', { who: 1, body: { role: 'driver' } })).data.lobby.id;
+  await w.call('POST', '/api/copilot/join', { who: 2, body: { id: a } });
+  await w.call('POST', `/api/copilot/lobbies/${a}/ready`, { who: 1, body: { ready: true } });
+  await w.call('POST', `/api/copilot/lobbies/${a}/ready`, { who: 2, body: { ready: true } });
+  await w.call('POST', `/api/copilot/lobbies/${a}/leave`, { who: 1, body: {} });
+  const e = (await w.call('GET', '/api/copilot/board')).data.entries[0];
+  assert.deepEqual(e.driver.look, { tag: { text: 'RED', color: '#E30613', fmt: null } });
+  assert.equal(e.codriver.look, undefined, 'no team: no tag');
+});
