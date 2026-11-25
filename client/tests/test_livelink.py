@@ -573,6 +573,44 @@ class CheckedNames(Relay):
                 if x:
                     x.close()
 
+class FinishTime(unittest.TestCase):
+    """The time held at the finish (the user, 26 Nov 2026: "the times are still running even if the car already
+    finished"): past the line the samples' clock is made up (the car rolling on), the dash's says where it stopped."""
+
+    def test_the_sender_s_dash_keeps_the_stopped_clock_while_the_car_rolls_on(self):
+        ll = livelink.LiveLink('ws://127.0.0.1:1/none', 'Me')
+        ll.on = False
+        out = []
+        ll._put = out.append
+        ll.state = 'live'
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 0.6:                       # (driving: the clock runs)
+            ms = int((time.monotonic() - t0) * 1000) + 1
+            ll.feed(frame(ms, 0.0, ms / 50.0))
+            time.sleep(0.01)
+        stop = ll._last_clock
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < 1.6:                       # (past the line: the clock stopped, the car rolling on)
+            ll.feed(frame(stop, 0.0, stop / 50.0 + (time.monotonic() - t1) * 15))
+            time.sleep(0.01)
+        late = [m for m in out if m.get('t') == 's' and m['s'][-1][0] > stop + 500]
+        self.assertTrue(late, 'samples on a made-up clock past the finish (the car seen rolling on)')
+        self.assertTrue(all(m['d'][0] == stop for m in late), [m['d'][0] for m in late])
+
+    def test_those_watching_hold_the_time_at_the_finish(self):
+        d = livelink.LiveDriver(1, 'A', 'Car', 1)
+        now = time.monotonic()
+        d.add([[k * 20, 0, 0, k, 0, 0, 0] for k in range(1, 251)], now)       # (to 5.0 s on the samples' clock)
+        d.add_dash([4000, 80, 3, 5000, 1, 0, 0])                                # (the stage clock stopped at 4.0 s)
+        self.assertEqual(d.fin_ms, 4000)
+        self.assertEqual(d.shown_clock(4800), 4000)
+        self.assertEqual(d.shown_clock(3500), 3500)
+        self.assertGreater(d.clock_now(now + 10), 4000, 'the car\'s own playback goes on past the line')
+        e = livelink.LiveDriver(2, 'B', 'Car', 1)
+        e.add([[k * 20, 0, 0, k, 0, 0, 0] for k in range(1, 51)], now)
+        e.add_dash([1000, 80, 3, 5000, 1, 0, 0])                                # (an ordinary dash: no finish)
+        self.assertIsNone(e.fin_ms)
+
 
 if __name__ == '__main__':
     unittest.main()

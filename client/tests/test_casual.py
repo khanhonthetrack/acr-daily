@@ -577,6 +577,9 @@ class CoDriverBroadcast(unittest.TestCase):
         for want in ('123', 'Km/h', 'THROTTLE', 'BRAKE', 'ME', '1:01', 'P1', 'PACENOTES'):
             self.assertIn(want, words)
         self.assertNotIn('Good luck!', words, 'the car on its way: no good luck left over')
+        top = json.dumps(ov['c'][0], ensure_ascii=False)          # (the driver's bar along the top, the user 26 Nov 2026)
+        self.assertIn('ME', top)
+        self.assertNotIn('Km/h', top, 'the dial stays at the bottom')
         w.followed.return_value = None                   # (the driver's car not on the relay yet: the notes alone)
         words = json.dumps(ig_copilot.overlay(ig))
         self.assertNotIn('Km/h', words)

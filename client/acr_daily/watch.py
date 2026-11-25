@@ -175,6 +175,13 @@ class Watch:
             return None
         idx, _dist = j.route.nearest(pose[0], pose[2])
         progress = j.route.cum[idx] / j.route.length
+        # (their time held at the finish: past it their samples' clock runs on, the car rolling to a stop; the user,
+        # 26 Nov 2026: "the times are still running even if the car already finished". Their app says where it
+        # stopped (LiveDriver.fin_ms); an older app doesn't: held where they reach the end of the route)
+        if getattr(d, 'fin_ms', None) is None and idx >= len(j.route.cum) - 1:
+            d.fin_ms = ms
+        if hasattr(d, 'shown_clock'):
+            ms = d.shown_clock(ms)
         gap = None
         if j.ghost is not None:
             best = j.ghost.total_at(idx)

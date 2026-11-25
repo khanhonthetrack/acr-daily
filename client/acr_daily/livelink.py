@@ -33,6 +33,7 @@ CREW_SEND_S = 0.05       # ... on a COPILOT crew's stage (its own room): sooner,
 #                          under the relay's 25)
 DELAY_MS = 30            # (the gap to them: their clock this far in the past, clock_now)
 AHEAD_MS = 250           # past their newest sample: carried on at their speed this long at most, then held
+FIN_SLACK_MS = 400       # a dash's clock this far behind their samples': their stage clock has stopped (the finish)
 STALE_S = 5.0            # nothing from a driver for this long: gone
 RETRY_S = (2, 5, 10, 30)
 # their playback, behind their newest sample by how late it comes (all but the very latest of the last LATE_KEEP
@@ -207,6 +208,7 @@ class LiveDriver:
         self.seen = time.monotonic()
         self._late = collections.deque(maxlen=LATE_KEEP)   # how late their newest sample was, as each batch came
         self.play_ms, self._play_at = None, None           # where their playback is on their clock, and when
+        self.fin_ms = None           # their stage clock as it stopped at the finish (their samples' clock runs on after it)
 
     def add(self, samples, now):
         if self.trace.ms and self.start_wall is not None:
@@ -241,6 +243,10 @@ class LiveDriver:
         """Their dash as their app sent it ([clockMs, km/h, gear, rpm, throttle, brake, steering]; a relay or an app
         without it: none)."""
         if not (isinstance(x, list) and len(x) == 7 and all(isinstance(v, (int, float)) and math.isfinite(v) for v in x)):
+            return
+        if self.trace.ms and x[0] > 0 and x[0] + FIN_SLACK_MS < self.trace.ms[-1]:
+            # (its clock well behind their samples': the stage clock stopped, the samples' made up past the finish)
+            self.fin_ms = x[0] if self.fin_ms is None else min(self.fin_ms, x[0])
             return
         dash = self.__dict__.setdefault('dash', collections.deque(maxlen=DASH_KEEP))
         if dash and x[0] <= dash[-1][0]:
@@ -295,10 +301,15 @@ class LiveDriver:
                 'guess': True}
 
     def clock_now(self, now):
-        """Their stage clock now, as best known (never further than AHEAD_MS past their last sample): for the gap."""
+        """Their stage clock now, as best known (never further than AHEAD_MS past their last sample): for the gap and
+        their car's path (past the finish too: the time shown is shown_clock's)."""
         if self.start_wall is None or not self.trace.ms:
             return None
         return min((now - self.start_wall) * 1000.0 - DELAY_MS, self.trace.ms[-1] + AHEAD_MS)
+
+    def shown_clock(self, ms):
+        """A clock of theirs as shown (their time on screen): held at their finish once past it."""
+        return None if ms is None else (min(ms, self.fin_ms) if self.fin_ms is not None else ms)
 
     def delay_ms(self):
         """How far behind their stage clock they are played back: as late as their samples have come lately (further
@@ -595,7 +606,10 @@ class LiveLink:
             # your dash now (WATCH's broadcast shows the followed car's: speed, gear, revs, pedals): [clockMs, km/h,
             # gear (0 R, 1 N, 2 first...), rpm, throttle, brake, steering]
             g = lambda k: getattr(f, k, 0) or 0
-            m['d'] = [self._batch[-1][0], round(float(g('speed')), 1), int(g('gear')), int(g('rpm')),
+            # (past the finish the samples' clock is made up, the car rolling on: the dash then carries the stage
+            # clock as it stopped, so those watching hold the time there: LiveDriver.add_dash, 26 Nov 2026)
+            dclock = self._last_clock if self._roll is not None and self._last_clock > 0 else self._batch[-1][0]
+            m['d'] = [dclock, round(float(g('speed')), 1), int(g('gear')), int(g('rpm')),
                       round(float(g('gas')), 2), round(float(g('brake')), 2), round(float(g('steer')), 2)]
             self._put(m)
             self._tee(m)

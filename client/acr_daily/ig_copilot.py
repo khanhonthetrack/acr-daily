@@ -521,11 +521,14 @@ def _notes(cp):
                bg=ACC, p=[14, 5, 14, 5])
     foot = box(txt(_('↑ ↓  one note   ·   ← →  five'), 13, 'semi', 'D4D4D8'), bg=NAVY, a=0.85, p=[14, 4, 14, 4])
     warn = _warning(cp, cp.game_codriver_off() is False)
-    bottom = _broadcast(cp)
-    panel = size(col(head, _driver_bar(cp, full=_car_running(cp) if bottom is not None else False), *lines, foot, warn),
+    parts = _broadcast(cp)
+    dial, bar = parts if parts is not None else (None, None)
+    panel = size(col(head, _driver_bar(cp, full=_car_running(cp) if parts is not None else False), *lines, foot, warn),
                  w=620)
-    return col(sp(fill=1), row(sp(30), _icons(cp), sp(fill=1), panel, sp(40)), sp(fill=1),
-               row(sp(30), bottom, sp(40), va='b') if bottom is not None else None, sp(h=24) if bottom is not None else None)
+    # (the driver's bar along the top, the dial bottom left: the user, 26 Nov 2026 "put at the top rather bottom")
+    top = row(sp(30), _icons(cp), sp(20) if bar is not None else None, bar, sp(fill=1), va='t', pad=[0, 24, 0, 0])
+    return col(top, sp(fill=1), row(sp(fill=1), panel, sp(40)), sp(fill=1),
+               row(sp(30), dial, sp(fill=1), va='b') if dial is not None else None, sp(h=24) if dial is not None else None)
 
 
 def _car_running(cp):
@@ -541,7 +544,7 @@ def _broadcast(cp):
     """The co-driver's view of the car, as WATCH's broadcast has it (ig_watch.py; the user, 26 Nov 2026: "the codriver
     basically has no game overlay"): the dial (speed, revs, gear, the pedals) and the driver's bar (the stage across with
     its splits, where the car is, the gap to the day's #1 and the place it would have: daily only, the time, a split's
-    time as it is passed). None until the driver's car is on the relay."""
+    time as it is passed). -> (dial, bar), or None until the driver's car is on the relay."""
     import time as _t
     from . import ig_watch
     w = getattr(cp.app, 'watch', None)
@@ -553,8 +556,8 @@ def _broadcast(cp):
     now = _t.monotonic()
     ch = w.ch() or {}
     country = (cp.partner() or {}).get('country')
-    return row(ig_watch._dash(fol.dash_at(now), ch.get('carId')), sp(20),
-               ig_watch._driver_bar(w, fol, now, {}, country, None, ch.get('carId')), sp(fill=1), va='b')
+    return (ig_watch._dash(fol.dash_at(now), ch.get('carId')),
+            ig_watch._driver_bar(w, fol, now, {}, country, None, ch.get('carId'), pop_below=True))
 
 
 def _driver_line(ig, cp):

@@ -172,7 +172,8 @@ def _splits_panel(w, fol, now, leader_name, codes):
                bg=NAVY2, a=NA, p=[12, 6, 12, 6])
     g_now = (w.where(fol, now) or {}).get('gap')
     now_row = box(row(size(txt(_('NOW'), 15, 'bold', WHITE, va='c'), w=70),
-                      txt(_clock(fol.clock_now(now)), 15, 'semi', WHITE, va='c', fill=1),
+                      txt(_clock(fol.shown_clock(fol.clock_now(now)) if hasattr(fol, 'shown_clock') else fol.clock_now(now)),
+                          15, 'semi', WHITE, va='c', fill=1),
                       size(box(txt(_gap_s(g_now) if g_now is not None else '', 15, 'bold', WHITE, j=1),
                                bg=(SLOW if (g_now or 0) > 0 else FAST) if g_now is not None else NAVY,
                                a=1.0 if g_now is not None else 0.0, p=[8, 1, 8, 1], lv=True), minw=64)),
@@ -429,7 +430,7 @@ def _fit(name, most=18):
     return name if len(name) <= most else name[:most - 1].rstrip() + '…'
 
 
-def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
+def _driver_bar(w, fol, now, codes, country, team=None, car_id=None, pop_below=False):
     at = w.where(fol, now) or {}
     splits = w.splits_of(fol, now)
     g = at.get('gap')
@@ -471,6 +472,8 @@ def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
                           box(txt(_gap_s(s['gap']), 20, 'bold', WHITE), bg=SLOW if s['gap'] > 0 else FAST, p=[10, 1, 10, 1],
                               va='c')),
                       bg=NAVY2, a=0.95, p=[14, 6, 10, 6], al='r')
+    if pop_below:                               # (the bar at the top of the screen: the split's time under it)
+        return size(col(bar, row(sp(fill=1), pop, pad=[0, 6, 0, 0]) if pop else None), w=BAR_W)
     return size(col(row(sp(fill=1), pop, pad=[0, 0, 0, 6]) if pop else None, bar), w=BAR_W)
 
 
