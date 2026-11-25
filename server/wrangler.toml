@@ -86,7 +86,7 @@ SOURCE_URL = "https://github.com/khanhonthetrack/acr-daily"
 DISCORD_URL = "https://discord.gg/6kq6h6FVGb"
 # ACR Daily's Twitch channel (src/twitch.js: the home page's LIVE ON TWITCH strip while it streams); empty: off. Its
 # app's credentials are secrets: wrangler secret put TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET (dev.twitch.tv)
-TWITCH_CHANNEL = ""
+TWITCH_CHANNEL = "acrdaily"
 # The Discord server's id: with its widget on (Server Settings > Widget, invite channel set), /discord hands out the
 # widget's invite, which names nobody; DISCORD_URL is the fallback.
 DISCORD_GUILD_ID = "1556808894205141145"
