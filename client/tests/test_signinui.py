@@ -43,7 +43,7 @@ class Screen(unittest.TestCase):
         click(a._gate_b)                                     # (once at a time)
         a.api.login.assert_called_once()
         self.assertEqual((a._gate_b.cget('text'), a._gate_msg.cget('text')),
-                         ('  WAITING FOR STEAM…', 'Waiting for Steam in your browser…'))
+                         ('  WAITING FOR STEAM…', 'Waiting for Steam: confirm on its page (in the Steam app, or your browser)…'))
         done = a.api.login.call_args.args[0]
         a.s['token'] = 't' * 64                              # (api.login keeps the token, then says so)
         done(True, 'Ann')

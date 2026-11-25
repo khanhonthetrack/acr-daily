@@ -32,6 +32,9 @@ class SignIn(unittest.TestCase):
         p = mock.patch('acr_daily.api.webbrowser.open', side_effect=self.opened.append)
         p.start()
         self.addCleanup(p.stop)
+        p = mock.patch('acr_daily.api.steam_running', return_value=False)    # (never the real Steam client)
+        p.start()
+        self.addCleanup(p.stop)
 
     def on_done(self, ok, info):
         self.result.append((ok, info))
@@ -103,6 +106,36 @@ class SignIn(unittest.TestCase):
             self.assertTrue(self.done.wait(10))
         self.assertTrue(self.opened[0].startswith('https://acrdaily.com/auth/steam/start?'), self.opened)
         self.assertEqual(self.a.base, 'https://acr-daily.acr-daily-server.workers.dev')
+
+
+
+
+class InSteam(unittest.TestCase):
+    """Steam's sign-in page in the Steam client's own browser when Steam runs (signed in there already: one click, no
+    password; Nov 2026), else the PC's browser; the setting signInBrowser keeps it in the browser."""
+
+    def setUp(self):
+        p = mock.patch.object(settings, 'DIR', tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_steam_when_it_runs_else_the_browser(self):
+        url = 'https://acrdaily.com/auth/steam/start?state=x'
+        with mock.patch('acr_daily.api.os.name', 'nt'), mock.patch('acr_daily.api.steam_running', return_value=True), \
+                mock.patch('acr_daily.api.os.startfile', create=True) as sf, mock.patch('acr_daily.api.webbrowser.open') as wb:
+            self.assertEqual(api_mod.open_signin(url), 'steam')
+            sf.assert_called_once_with('steam://openurl/' + url)
+            wb.assert_not_called()
+            settings.save({'signInBrowser': True})
+            self.assertEqual(api_mod.open_signin(url), 'browser')
+            wb.assert_called_once_with(url)
+        with mock.patch('acr_daily.api.steam_running', return_value=False), mock.patch('acr_daily.api.webbrowser.open') as wb:
+            self.assertEqual(api_mod.open_signin(url), 'browser')
+        with mock.patch('acr_daily.api.os.name', 'nt'), mock.patch('acr_daily.api.steam_running', return_value=True), \
+                mock.patch('acr_daily.api.os.startfile', create=True, side_effect=OSError('no handler')), \
+                mock.patch('acr_daily.api.webbrowser.open') as wb:
+            settings.save({})
+            self.assertEqual(api_mod.open_signin(url), 'browser')       # (no steam:// handler: the browser)
 
 
 if __name__ == '__main__':

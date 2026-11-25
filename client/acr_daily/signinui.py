@@ -54,8 +54,11 @@ class SignInUI:
             tk.Label(top, image=logo, bg=c.PANEL, bd=0).pack(side='left')
         tk.Label(top, text='ACR DAILY', bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 26)).pack(side='left', padx=(14, 0))
         tk.Label(box, text=_('SIGN IN TO START'), bg=c.PANEL, fg=c.ACC_TEXT, font=(c.FONT, 8, 'bold')).pack(anchor='w', padx=28, pady=(18, 4))
+        # (where the sign-in happens, said plainly: Steam's own page, in the Steam app when it runs, never a password
+        # here; a player, Nov 2026: "wary about signing into steam through some unsigned .exe")
         tk.Label(box, text=_('ACR Daily runs on your Steam account: your times on the boards, your profile, credits, '
-                           'leagues, 1V1s and cups. Steam opens in your browser to confirm it is you.'),
+                           'leagues, 1V1s and cups. Steam confirms it is you on its own page, in the Steam app (or your '
+                           'browser): one click if you are signed in there. ACR Daily never sees your password.'),
                  bg=c.PANEL, fg=c.SOFT, font=(c.FONT, 10), justify='left', anchor='w',
                  wraplength=round(380 * k)).pack(anchor='w', padx=28)
         self._gate_b = b = tk.Label(box, text=('  ' + _('SIGN IN WITH STEAM')), image=getattr(self, '_steam_img', None) or '',
@@ -121,7 +124,7 @@ class SignInUI:
             messagebox.showinfo('ACR Daily', _('No server is set yet. See SETUP.md.'))
             return
         self._signing_in = True
-        self._gate_say(_('Waiting for Steam in your browser…'), busy=True)
+        self._gate_say(_('Waiting for Steam: confirm on its page (in the Steam app, or your browser)…'), busy=True)
         self.steam_b.configure(text=(' ' + _('WAITING FOR STEAM...')))
         ui = _c().ui
         self.api.login(lambda ok, info: ui(self.root, self._signed_in if ok else self._sign_in_failed, info))

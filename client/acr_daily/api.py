@@ -37,6 +37,31 @@ def _signin_page(title, text):
             '</p></div>' % (html.escape(title), html.escape(text))).encode('utf-8')
 
 
+def steam_running():
+    """The Steam client is running on this PC (False away from Windows)."""
+    try:
+        from .modinstall import _game_pids, _kernel32
+        return bool(_game_pids(_kernel32(), 'steam.exe'))
+    except Exception:
+        return False
+
+
+def open_signin(url):
+    """Steam's sign-in page: in the Steam client's own browser when Steam is running (steam://openurl), where the
+    player is signed in to Steam already: one click on Steam's own page, no password typed anywhere (a player, Nov
+    2026: "wary about signing into steam through some unsigned .exe"); else in the PC's browser. Either way the page
+    is Steam's (steamcommunity.com, OpenID), and ACR DAILY gets the Steam ID and name it gives, never a password.
+    (settings signInBrowser: always the PC's browser.) -> 'steam' or 'browser'."""
+    if os.name == 'nt' and steam_running() and not settings.load().get('signInBrowser'):
+        try:
+            os.startfile('steam://openurl/' + url)          # noqa: S606  (Steam's own URL handler)
+            return 'steam'
+        except OSError:
+            pass
+    webbrowser.open(url)
+    return 'browser'
+
+
 def _signin_handler(api, state, verifier, got):
     """The request handler for the browser coming back after Steam: /signed-in?state&code -> the token (into got)."""
 
@@ -208,7 +233,7 @@ class Api:
             on_done(False, _('Sign-in could not start (%s)') % e)
             return
         srv.timeout = 1                           # (handle_request returns each second: the wait can end)
-        webbrowser.open('%s/auth/steam/start?%s' % (self.site, urllib.parse.urlencode({
+        open_signin('%s/auth/steam/start?%s' % (self.site, urllib.parse.urlencode({
             'state': state, 'port': srv.server_address[1], 'challenge': hashlib.sha256(verifier.encode()).hexdigest()})))
 
         def wait():
