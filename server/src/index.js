@@ -76,7 +76,8 @@ import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
 import { developersPage } from './developerspage.js';
 import { broadcastPage, BROADCAST_HEADERS } from './broadcast.js';
-import { rankedPage } from './rankedpage.js';
+import { rankedPage, specialPage } from './rankedpage.js';
+import { SPECIALS } from './liverallies.js';
 import { SERIES_IMAGES } from './seriesimages.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
@@ -1634,9 +1635,23 @@ async function route(req, env, ctx, L) {
       return new Response(inLang(L, () => broadcastPage(bm[1], bm[2], url.searchParams, env.SITE_URL || url.origin)),
         { headers: BROADCAST_HEADERS });
     }
+    // ...a ranked session (one, or a series' / a special event's session under way or next: /broadcast/ranked/skoda),
+    // and a championship's event open now (/broadcast/championship/<id>)
+    const brm = req.method === 'GET' && path.match(/^\/broadcast\/ranked\/([a-z0-9]+)(?:\/(\d{13}))?$/);
+    if (brm) {
+      return new Response(inLang(L, () => broadcastPage('ranked', brm[1] + (brm[2] ? '/' + brm[2] : ''), url.searchParams,
+        env.SITE_URL || url.origin)), { headers: BROADCAST_HEADERS });
+    }
+    const bcm = req.method === 'GET' && path.match(/^\/broadcast\/championship\/([a-z0-9]{8})$/);
+    if (bcm) {
+      return new Response(inLang(L, () => broadcastPage('championship', bcm[1], url.searchParams, env.SITE_URL || url.origin)),
+        { headers: BROADCAST_HEADERS });
+    }
     if (path === '/developers' && req.method === 'GET') return html(inLang(L, () => developersPage(env)));
     if (path === '/ranked' && req.method === 'GET') return html(inLang(L, () => rankedPage(env)));   // (src/rankedpage.js)
-    const sim = req.method === 'GET' && path.match(/^\/series\/(rally2|junior|classic|sixties)(-logo)?\.webp$/);
+    const spm = req.method === 'GET' && path.match(/^\/ranked\/([a-z0-9]+)$/);     // a special event's own page
+    if (spm && SPECIALS.some((s) => s.key === spm[1])) return html(inLang(L, () => specialPage(env, spm[1])));
+    const sim = req.method === 'GET' && path.match(/^\/series\/(rally2|junior|classic|sixties|skoda)(-logo|-banner)?\.webp$/);
     if (sim && SERIES_IMAGES[sim[1] + (sim[2] || '')]) {   // the ranked series' tiles and logos (src/seriesimages.js)
       return new Response(Uint8Array.from(atob(SERIES_IMAGES[sim[1] + (sim[2] || '')]), (c) => c.charCodeAt(0)),
         { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800' } });
@@ -1866,6 +1881,8 @@ async function route(req, env, ctx, L) {
       if (res) return res;
     }
     if (path === '/api/liverallies' || path.startsWith('/api/liverallies/')) {   // live rallies, in the app (src/liverallies.js)
+      // (the website registers for a special event with its cookie: from this site's own pages only)
+      if (req.method === 'POST' && !sameSite(req, url)) return err('not from this site', 403);
       const res = await liveApi(req, env, path, await playerFrom(req, env));
       if (res) return res;
     }

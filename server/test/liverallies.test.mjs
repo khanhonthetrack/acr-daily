@@ -6,7 +6,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { driverRanked, driverRankedStmt, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
+import { driverRanked, driverRankedStmt, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween, SPECIALS } from '../src/liverallies.js';
 import { leaguesApi } from '../src/leaguesapi.js';
 import { MENU_NAMES } from '../src/stages.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -462,4 +462,53 @@ test('the first session at LIVE_FROM\'s time: every hour from it, Rally2 first (
   assert.deepEqual([o.sessions[0].series, o.sessions[0].starts, o.sessions[0].phase], ['rally2', at, 'upcoming']);
   assert.equal((await ask(`/api/liverallies/rally2/${at}/signup`, at - 20 * 60000, { car: 'VW Polo GTI R5' })).status, 200);
   assert.equal((await ask(`/api/liverallies/rally2/${at - 1800000}`, at)).status, 404);   // (off the grid: none)
+});
+
+// ---------------------------------------------------------------- special events (SPECIALS: the Skoda Saturday Challenge)
+test('a special event: registration open for days, its one car, four stages of its country drawn at its hour, 50 credits a finisher', async () => {
+  const sp = SPECIALS.find((s) => s.key === 'skoda');
+  assert.equal(new Date(sp.starts).toISOString(), '2026-11-28T12:00:00.000Z');    // (Saturday, midday in the UK)
+  const f = world();
+  f.env.CREDITS_FROM = '2026-10-12';
+  const P = `/api/liverallies/skoda/${sp.starts}`;
+  const early = Date.UTC(2026, 10, 25, 9);
+  // listed on RANKED from its announcement: its own card, and first of the series (an older app: a row with REGISTER)
+  const o = (await live(f, '/api/liverallies', ANN, early)).body;
+  assert.equal(o.series[0].key, 'skoda');
+  assert.deepEqual(o.series[0].cars.map((c) => c.name), ['Skoda Fabia RS Rally2']);
+  assert.deepEqual(o.specials.map((s) => [s.key, s.phase, s.starts, s.stages, s.prize, s.rally]),
+    [['skoda', 'signup', sp.starts, 4, 50, 'Greece']]);
+  assert.ok(o.sessions.some((s) => s.series === 'skoda' && s.special && s.phase === 'signup'));
+  // registration three days ahead, whatever car is sent: the Skoda
+  const r = await live(f, `${P}/signup`, ANN, early, { car: 'VW Polo GTI R5' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([r.body.me.signedUp, r.body.me.car, r.body.special], [true, 'Skoda Fabia RS Rally2', true]);
+  for (const [w, k] of [[BEN, 1], [CAT, 2]]) await live(f, `${P}/signup`, w, early + k * MIN, {});
+  assert.equal((await live(f, '/api/liverallies', DAN, early + 5 * MIN)).body.specials[0].signups, 3);
+  // nothing of the rally before its hour; no other hour is a session of it
+  assert.equal((await live(f, P, ANN, sp.starts - MIN)).body.event, undefined);
+  assert.equal((await live(f, `/api/liverallies/skoda/${sp.starts + 3600000}`, ANN, early)).status, 404);
+  // at the hour: four stages of Greece, one car, the start list by rating
+  const v = (await live(f, P, ANN, sp.starts + 1000)).body;
+  assert.equal(v.event.rally, 'Greece');
+  assert.equal(v.event.car, 'Skoda Fabia RS Rally2');
+  assert.equal(v.event.stages.length, 4);
+  assert.equal(v.live.stages, 4);
+  assert.deepEqual(v.queues[0].map((q) => q.name), ['Cat', 'Ben', 'Ann']);
+  assert.equal(v.closes - v.starts, sp.openMs);
+  // the results: Ann and Cat finished, Ben a DNF: 50 each to Ann and Cat, once, however often it is looked at
+  const id = v.eventId;
+  for (const [w, st] of [[ANN, 'finished'], [CAT, 'finished'], [BEN, 'dnf']]) {
+    f.db.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, done, total_ms, started, updated)
+      VALUES (?, ?, 'Skoda Fabia RS Rally2', ?, 4, 1000, ?, ?)`).run(id, w, st, sp.starts, sp.starts);
+  }
+  const after = sp.starts + sp.openMs + MIN;
+  for (let k = 0; k < 2; k++) await live(f, '/api/liverallies', DAN, after + k * 1000);
+  await live(f, P, ANN, after + 5000);
+  const paid = f.db.prepare("SELECT steam_id, delta FROM credit_ledger WHERE kind = 'special-prize' ORDER BY steam_id").all();
+  assert.deepEqual(paid.map((x) => [x.steam_id, x.delta]), [[ANN, 50], [CAT, 50]]);
+  assert.equal(f.db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(CAT).balance, 50);
+  // in RESULTS, by its own name
+  const rec = (await live(f, '/api/liverallies', ANN, after)).body.recent.find((x) => x.series === 'skoda');
+  assert.deepEqual([rec.special, rec.name, rec.mine], [true, 'Skoda Saturday Challenge', true]);
 });

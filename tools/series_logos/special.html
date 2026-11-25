@@ -1,0 +1,83 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- The special events' logos (client/acr_daily/series/<key>-logo.png, <key>.png): drawn for ACR Daily, original
+     artwork, no brand's emblem (the car maker's name only, as the event is called). Fonts from Google Fonts (SIL Open
+     Font License): Saira Condensed, Bebas Neue. Rendered by render-special.ps1 (headless Edge). -->
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800;900&family=Bebas+Neue&display=block" rel="stylesheet">
+<style>
+html,body{margin:0;background:transparent}
+.logo{width:600px;height:340px;display:flex;align-items:center;justify-content:center}
+.tile{width:640px;height:360px;position:relative;overflow:hidden;background:#04140E}
+.tile .bg{position:absolute;inset:-40px;filter:blur(26px);background:radial-gradient(circle at 22% 30%,#1A7F4B,transparent 55%),radial-gradient(circle at 82% 72%,#0D5EAF,transparent 50%),radial-gradient(circle at 70% 18%,#78FAAE55,transparent 42%),#04140E}
+.tile .lines{position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.05) 0 2px,transparent 2px 22px)}
+.tile .shade{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,transparent 30%,rgba(0,0,0,.55) 100%)}
+.tile .in{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.98)}
+.big{width:1200px;height:630px;position:relative;overflow:hidden;background:#04140E}
+.big .bg{position:absolute;inset:-60px;filter:blur(40px);background:radial-gradient(circle at 18% 28%,#1A7F4B,transparent 50%),radial-gradient(circle at 85% 75%,#0D5EAF,transparent 48%),radial-gradient(circle at 72% 15%,#78FAAE44,transparent 40%),#04140E}
+.big .lines{position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.045) 0 2px,transparent 2px 26px)}
+.big .in{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(1.6)}
+</style></head><body>
+<template id="crest">
+<svg width="560" height="340" viewBox="0 0 560 340" xmlns="http://www.w3.org/2000/svg">
+ <defs>
+  <linearGradient id="g_face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F4D33"/><stop offset=".55" stop-color="#082E1F"/><stop offset="1" stop-color="#041A12"/></linearGradient>
+  <linearGradient id="g_sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1D6FC2"/><stop offset="1" stop-color="#7CC4F2"/></linearGradient>
+  <linearGradient id="g_band" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3FBF6F"/><stop offset=".5" stop-color="#78FAAE"/><stop offset="1" stop-color="#3FBF6F"/></linearGradient>
+  <pattern id="key" width="24" height="16" patternUnits="userSpaceOnUse">
+   <rect width="24" height="16" fill="#0A2A1C"/>
+   <path d="M1 15 V3 H17 V11 H9 V7 H13" fill="none" stroke="#78FAAE" stroke-width="2.4" stroke-linejoin="miter"/>
+   <path d="M17 15 H23 V3" fill="none" stroke="#78FAAE" stroke-width="2.4"/>
+  </pattern>
+  <clipPath id="c_win"><path d="M164 60 H396 L414 150 H146 Z"/></clipPath>
+  <clipPath id="c_face"><path d="M150 18 H410 L452 58 L430 255 L280 323 L130 255 L108 58 Z"/></clipPath>
+ </defs>
+ <!-- the crest: an octagonal shield, its shadow, a white rim and a dark rim -->
+ <path d="M150 24 H410 L452 64 L430 262 L280 330 L130 262 L108 64 Z" fill="#000" opacity=".45"/>
+ <path d="M150 12 H410 L458 56 L436 258 L280 330 L124 258 L102 56 Z" fill="#FFFFFF"/>
+ <path d="M150 18 H410 L452 58 L430 255 L280 323 L130 255 L108 58 Z" fill="#06150F"/>
+ <path d="M154 24 H406 L445 60 L424 251 L280 316 L136 251 L115 60 Z" fill="url(#g_face)"/>
+ <!-- Greece in a window: the sky, the sea, a white temple on a hill, the gravel road down -->
+ <g clip-path="url(#c_win)">
+  <rect x="140" y="56" width="290" height="100" fill="url(#g_sky)"/>
+  <circle cx="356" cy="86" r="17" fill="#FFF3C4"/><circle cx="356" cy="86" r="26" fill="#FFF3C4" opacity=".25"/>
+  <path d="M140 128 Q210 112 260 120 T430 116 V160 H140 Z" fill="#0B4F8C"/>
+  <path d="M140 140 Q230 118 300 132 T430 126 V160 H140 Z" fill="#C9A36A"/>
+  <g fill="#FFFFFF" transform="translate(206,86)">
+   <path d="M0 14 L34 2 L68 14 Z"/><rect x="0" y="15" width="68" height="4"/>
+   <rect x="4" y="20" width="5" height="20"/><rect x="16" y="20" width="5" height="20"/><rect x="28" y="20" width="5" height="20"/>
+   <rect x="40" y="20" width="5" height="20"/><rect x="52" y="20" width="5" height="20"/><rect x="62" y="20" width="5" height="20"/>
+   <rect x="-2" y="40" width="72" height="4"/>
+  </g>
+  <path d="M268 160 C 300 150 322 146 360 136 L 372 138 C 330 150 312 156 300 160 Z" fill="#E9D7B0"/>
+ </g>
+ <path d="M164 60 H396 L414 150 H146 Z" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+ <!-- the Greek key band across the crest -->
+ <g clip-path="url(#c_face)">
+  <rect x="100" y="150" width="360" height="16" fill="url(#key)"/>
+  <rect x="100" y="149" width="360" height="2" fill="#FFFFFF"/><rect x="100" y="166" width="360" height="2" fill="#FFFFFF"/>
+ </g>
+ <!-- the words -->
+ <text x="280" y="216" text-anchor="middle" font-family="Saira Condensed" font-weight="900" font-size="60" fill="#FFFFFF" letter-spacing="6">SKODA</text>
+ <text x="280" y="248" text-anchor="middle" font-family="Saira Condensed" font-weight="800" font-size="24" fill="#78FAAE" letter-spacing="5">SATURDAY CHALLENGE</text>
+ <!-- the ribbon over the foot: SPECIAL EVENT · GREECE -->
+ <path d="M56 272 L176 272 L190 290 L176 308 L56 308 L70 290 Z" fill="#0D5EAF"/>
+ <path d="M504 272 L384 272 L370 290 L384 308 L504 308 L490 290 Z" fill="#0D5EAF"/>
+ <path d="M156 266 H404 L418 289 L404 312 H156 L142 289 Z" fill="url(#g_band)"/>
+ <path d="M156 266 H404 L418 289 L404 312 H156 L142 289 Z" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+ <text x="280" y="298" text-anchor="middle" font-family="Bebas Neue" font-size="23" fill="#04140E" letter-spacing="3">SPECIAL EVENT · GREECE</text>
+</svg>
+</template>
+<div class="logo" id="skoda-logo"></div>
+<div class="tile" id="skoda"><div class="bg"></div><div class="lines"></div><div class="shade"></div><div class="in"></div></div>
+<div class="big" id="skoda-banner"><div class="bg"></div><div class="lines"></div><div class="in"></div></div>
+<script>
+var t=document.getElementById('crest').innerHTML;
+// (each copy its own ids: a gradient in a hidden copy draws nothing in the others)
+function copy(k){return t.replace(/id="([a-z_]+)"/g,'id="$1_'+k+'"').replace(/url\(#([a-z_]+)\)/g,'url(#$1_'+k+')')}
+document.getElementById('skoda-logo').innerHTML=copy(1);
+document.querySelector('#skoda .in').innerHTML=copy(2);
+document.querySelector('#skoda-banner .in').innerHTML=copy(3);
+// (one at a time for the renderer: ?only=<id> shows that one alone at the top left)
+var only=new URLSearchParams(location.search).get('only');
+if(only)document.querySelectorAll('body>div').forEach(function(d){if(d.id!==only)d.style.display='none'});
+</script>
+</body></html>

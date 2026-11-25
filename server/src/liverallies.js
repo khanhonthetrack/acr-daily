@@ -51,6 +51,7 @@ import { catalog, checkEvent, DEFAULT_RULES, entryState, newCode, OFFICIAL_OWNER
 import { eventOut, eventsRows, holderMemberStmt, matchRows, routesRows } from './leaguesapi.js';
 import { drawWeather } from './officialleagues.js';
 import { badWord } from './wordfilter.js';
+import { clash, giveManyWhenStmts } from './credits.js';
 
 const MIN = 60000, HOUR = 3600000, WEEK = 7 * 24 * HOUR;
 const MONDAY = Date.UTC(1970, 0, 5);          // (a Monday: the weeks start on Mondays, 00:00 UTC, as the time trial's)
@@ -88,12 +89,34 @@ export const SERIES = [
   { key: 'classic', holder: 'livegrp4', name: 'Group 4 Classics', about: 'The 1970s legends', carClass: 'H1', turn: 2, shift: 1 },
   { key: 'sixties', holder: 'livehist', name: 'Sixties Heroes', about: 'Minis, Fulvias and GTAs: the 1960s giant-killers', carClass: 'H3', turn: 3, shift: 3 },
 ];
-const seriesOf = (key) => SERIES.find((s) => s.key === key) || null;
+// Special events: one-off ranked rallies run as a session (the same sign-up, start list, turns, DRIVE, judging and
+// results), each at its own time and not on the hourly grid (the user, 25 Nov 2026: "a one-off SPECIAL EVENT with a
+// special logo ... Skoda Saturday Challenge ... this Saturday 12:00 UK time ... Entry is free but any non-DNF gets 50
+// coins ... people can sign up early, anytime ... 4 stages of Greece (everything else hidden)"). Each:
+//   starts       its hour (ms, UTC)            signupFrom  registration open from then to the start (not 30 min only)
+//   rally        its country, every stage there (drawn at the start, with the weather and the time of day: hidden)
+//   stages       how many                      maxKm      their length together at most
+//   car          the one car (its name)        openMs     how long it runs from its hour
+//   prize        credits for every driver who finishes it (not a DNF or a DSQ), paid once its results are out
+//   listFrom     shown (RANKED, the website's home page) from then; listed until it is over and in RESULTS after
+// logo: client/acr_daily/series/<key>.png / <key>-logo.png and the website's /series/<key>.webp (src/seriesimages.js)
+export const SPECIALS = [
+  { key: 'skoda', holder: 'livesk28', name: 'Skoda Saturday Challenge', special: true,
+    about: 'One car, four stages of Greece: drawn at the start, nobody prepares them',
+    car: 'Skoda Fabia RS Rally2', carClass: 'Rally2/R5', rally: 'Greece', stages: 4, maxKm: 45,
+    starts: Date.UTC(2026, 10, 28, 12, 0), signupFrom: Date.UTC(2026, 10, 25, 0, 0), listFrom: Date.UTC(2026, 10, 25, 0, 0),
+    openMs: 150 * MIN, prize: 50 },
+];
+export const isSpecial = (s) => !!(s && s.special);
+const ALL_SERIES = () => [...SERIES, ...SPECIALS];
+export const seriesOf = (key) => ALL_SERIES().find((s) => s.key === key) || null;
 /** A session's event in /api/me/events (src/leaguesapi.js): its series' key and its hour, for the app. */
 export const liveSessionOf = (ev) => {
-  const s = SERIES.find((x) => x.holder === ev.league_id);
-  return s ? { series: s.key, sessionStarts: ev.opens } : {};
+  const s = ALL_SERIES().find((x) => x.holder === ev.league_id);
+  return s ? { series: s.key, sessionStarts: ev.opens, ...(isSpecial(s) ? { special: true } : {}) } : {};
 };
+/** The special events listed at `now` (from listFrom to their close). */
+export const specialsAt = (now) => SPECIALS.filter((s) => now >= s.listFrom && now < timesOf(s.starts, s).closes);
 
 /** For the testers only, for now: the app's test builds (a four-part version, User-Agent "ACR-Daily/0.1.5.32 public"),
  *  never a release, the website or anyone else, until LIVE_PUBLIC (wrangler.toml) is "1". The app shows LIVE in its test
@@ -125,16 +148,16 @@ export function sessionsBetween(from, to, anchor = 0) {
   return out;
 }
 
-/** The country a series races in the week of `t`. */
-export const rallyOfWeek = (s, t) => RALLIES[(Math.floor((t - MONDAY) / WEEK) + s.shift) % RALLIES.length];
+/** The country a series races in the week of `t` (a special event: its own). */
+export const rallyOfWeek = (s, t) => (s.rally ? s.rally : RALLIES[(Math.floor((t - MONDAY) / WEEK) + s.shift) % RALLIES.length]);
 
-/** A session's times (ms). */
-export const timesOf = (starts) => ({ signupOpens: starts - LIVE.signupMs, starts, firstStart: starts + LIVE.firstStartMs,
-  closes: starts + LIVE.openMs });
+/** A session's times (ms); s: its series (a special event's own sign-up and length). */
+export const timesOf = (starts, s = null) => ({ signupOpens: isSpecial(s) ? Math.min(s.signupFrom, starts) : starts - LIVE.signupMs,
+  starts, firstStart: starts + LIVE.firstStartMs, closes: starts + ((s && s.openMs) || LIVE.openMs) });
 
 /** upcoming (sign-up not open yet) / signup / running / over. */
-export function phaseOf(starts, now) {
-  const t = timesOf(starts);
+export function phaseOf(starts, now, s = null) {
+  const t = timesOf(starts, s);
   return now < t.signupOpens ? 'upcoming' : now < starts ? 'signup' : now < t.closes ? 'running' : 'over';
 }
 
@@ -152,16 +175,19 @@ export function drawSession(s, starts, routes, rand = Math.random) {
   let r = rand() * total, tod = TIMES[TIMES.length - 1];
   for (const x of TIMES) { r -= x.weight; if (r < 0) { tod = x; break; } }
   const [h, m] = tod.hour.split(':').map(Number);
-  for (const rally of [home, ...RALLIES.filter((x) => x !== home)]) {
+  const n = (isSpecial(s) && s.stages) || LIVE.stages;
+  // (a special event: its own country only, its own number of stages and its one car)
+  for (const rally of isSpecial(s) ? [home] : [home, ...RALLIES.filter((x) => x !== home)]) {
     const weather = drawWeather(rally, rand);
-    const template = Array.from({ length: LIVE.stages }, (_, k) => ({ day: 1, service: k === 0, weather,
+    const template = Array.from({ length: n }, (_, k) => ({ day: 1, service: k === 0, weather,
       time: hhmm(h * 60 + m + k * LIVE.stageGapMin) }));
     const pool = (cat.rallies.find((x) => x.name === rally) || { stages: [] }).stages
       .map((x) => ({ track: x.track, stageId: x.stageId, lengthM: x.lengthM }));
-    const stages = drawStages(pool, template, new Set(), LIVE.maxKm, rand, { twice: true });
+    const stages = drawStages(pool, template, new Set(), (isSpecial(s) && s.maxKm) || LIVE.maxKm, rand, { twice: true });
     if (!stages) continue;
-    const c = checkEvent({ name: `${s.name} · ${rally} · ${hhmm(new Date(starts).getUTCHours() * 60)} UTC`, rally,
-      carClass: s.carClass, rules: DEFAULT_RULES, stages, opens: starts, closes: starts + LIVE.openMs }, cat, starts);
+    const name = isSpecial(s) ? `${s.name} · ${rally}` : `${s.name} · ${rally} · ${hhmm(new Date(starts).getUTCHours() * 60)} UTC`;
+    const c = checkEvent({ name, rally, ...(s.car ? { car: s.car } : { carClass: s.carClass }), rules: DEFAULT_RULES, stages,
+      opens: starts, closes: timesOf(starts, s).closes }, cat, starts);
     if (!c.error) return c.value;
   }
   return null;
@@ -204,7 +230,7 @@ export async function publish(env, s, starts, now, rand = Math.random) {
       SELECT ?1, NULL, ?3, ?4, ?5, ?6, ?7, ?8, ?2, ?9, ?10, ?11, NULL
       WHERE NOT EXISTS (SELECT 1 FROM league_events WHERE league_id = ?1 AND opens = ?2)`)
       .bind(s.holder, starts, text(spec.name, 60), spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules),
-        JSON.stringify(spec.stages), starts + LIVE.openMs, now, JSON.stringify(only)),
+        JSON.stringify(spec.stages), timesOf(starts, s).closes, now, JSON.stringify(only)),
     env.DB.prepare(`INSERT OR IGNORE INTO live_slots (event_id, stage_no, steam_id, slot_at, created)
       SELECT ${evId}, 0, j.value, ?3, ?4 FROM json_each(?5) j ORDER BY j.key`)     // (in the start list's order: the turns')
       .bind(s.holder, starts, starts + LIVE.firstStartMs, now, JSON.stringify(only)),
@@ -402,7 +428,7 @@ export async function outRun(env, s, starts, ev, steamId, no, reason, now) {
   const why = text(reason, 120) || `SS${no + 1} driven outside the rally`;
   const up = await env.DB.prepare('SELECT car FROM live_signups WHERE series = ? AND starts = ? AND steam_id = ?')
     .bind(s.key, starts, steamId).first();
-  const car = (entry && entry.car) || (up && up.car) || (CARS.find((c) => c.cls === s.carClass) || {}).name;
+  const car = (entry && entry.car) || (up && up.car) || s.car || (CARS.find((c) => c.cls === s.carClass) || {}).name;
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, reason, done, on_stage, total_ms, started, updated)
         VALUES (?, ?, ?, 'dnf', ?, 0, NULL, 0, ?, ?)
@@ -446,8 +472,40 @@ export async function queueFor(env, ev, steamId, no, finishedAt, now) {
 // ------------------------------------------------------------------ what the app gets
 
 const seriesOut = (s, now) => ({ key: s.key, name: s.name, about: s.about, carClass: s.carClass,
-  cars: CARS.filter((c) => c.cls === s.carClass).map((c) => ({ name: c.name, id: c.id })),
-  rally: rallyOfWeek(s, now), nextRally: rallyOfWeek(s, now + WEEK), everyHours: LIVE.everyMs * SERIES.length / HOUR });
+  cars: CARS.filter((c) => (s.car ? c.name === s.car : c.cls === s.carClass)).map((c) => ({ name: c.name, id: c.id })),
+  rally: rallyOfWeek(s, now), nextRally: rallyOfWeek(s, now + WEEK), everyHours: LIVE.everyMs * SERIES.length / HOUR,
+  ...(isSpecial(s) ? { special: true, starts: s.starts, stages: s.stages, prize: s.prize || 0, free: true } : {}) });
+
+/** A special event's prize (SPECIALS: s.prize credits to every driver who finished it), paid once its results are out:
+ *  one batch, guarded by the ledger (a second look pays nothing), only while credits are on. -> how many were paid. */
+export async function payPrize(env, s, ev, now) {
+  if (!isSpecial(s) || !s.prize || !ev || !ev.id) return 0;
+  if (!env.CREDITS_FROM || new Date(now).toISOString().slice(0, 10) < env.CREDITS_FROM) return 0;
+  const ref = `special:${s.key}:${ev.id}`;
+  const done = await env.DB.prepare("SELECT 1 AS x FROM credit_ledger WHERE kind = 'special-prize' AND ref = ? LIMIT 1").bind(ref).first();
+  if (done) return 0;
+  const { results: fin } = await env.DB.prepare(`SELECT steam_id FROM league_entries WHERE event_id = ? AND status = 'finished'`)
+    .bind(ev.id).all();
+  if (!fin.length) return 0;
+  const cond = "NOT EXISTS (SELECT 1 FROM credit_ledger WHERE kind = 'special-prize' AND ref = ?)";
+  try {
+    const r = await env.DB.batch(giveManyWhenStmts(env, fin.map((x) => ({ to: x.steam_id, amount: s.prize })), 'special-prize',
+      ref, s.name, now, cond, [ref]));
+    return r[1].meta.changes || 0;
+  } catch (e) {
+    if (clash(e)) return 0;
+    throw e;
+  }
+}
+
+/** A special event's session as RANKED's card shows it (GET /api/liverallies `specials`): when, sign-ups, mine, its
+ *  event once out, and whether its results are. */
+function specialOut(s, now, c, p, mine, doneEarly) {
+  let phase = phaseOf(s.starts, now, s);
+  if (phase === 'running' && p && (p.event_id === 0 || doneEarly.has(p.event_id))) phase = 'over';
+  return { ...seriesOut(s, now), series: s.key, ...timesOf(s.starts, s), phase, signups: (c && c.n) || 0,
+    signedUp: !!(c && c.mine), eventId: (p && p.event_id) || null, entry: mine || null };
+}
 
 const slotOut = (r) => (r ? { no: r.stage_no, state: r.state || null, at: r.turnAt ?? r.estAt ?? r.slot_at, readyAt: r.slot_at,
   turnAt: r.turnAt ?? null, deadline: r.deadline ?? null, estAt: r.estAt ?? null, ahead: r.ahead ?? 0, moved: r.moved,
@@ -457,19 +515,24 @@ const slotOut = (r) => (r ? { no: r.stage_no, state: r.state || null, at: r.turn
  *  signed up and whether I did; the ones over in the last LIVE.recentMs with drivers (recent: their results). A session past its hour with sign-ups is published here too. */
 async function overview(env, me, now, rand) {
   const from = Math.max(now - LIVE.openMs, liveFrom(env)), to = now + LIVE.aheadMs;
-  const list = sessionsBetween(from, to, liveFrom(env));
+  // the hourly sessions, and the special events listed now (signed up for days ahead: SPECIALS)
+  const specials = specialsAt(now);
+  const list = [...sessionsBetween(from, to, liveFrom(env)), ...specials.map((s) => ({ series: s, starts: s.starts }))];
+  const spKeys = JSON.stringify(specials.map((s) => s.key));
   const sid = me ? me.steam_id : '';
   const [{ results: counts }, { results: rows }] = await Promise.all([
     env.DB.prepare(`SELECT series, starts, COUNT(*) AS n, MAX(steam_id = ?1) AS mine, MAX(CASE WHEN steam_id = ?1 THEN car END) AS car
-      FROM live_signups WHERE starts >= ?2 AND starts <= ?3 GROUP BY series, starts`).bind(sid, from, to).all(),
-    env.DB.prepare('SELECT * FROM live_sessions WHERE starts >= ? AND starts <= ?').bind(from, to).all(),
+      FROM live_signups WHERE (starts >= ?2 AND starts <= ?3) OR series IN (SELECT value FROM json_each(?4))
+      GROUP BY series, starts`).bind(sid, from, to, spKeys).all(),
+    env.DB.prepare(`SELECT * FROM live_sessions WHERE (starts >= ? AND starts <= ?) OR series IN (SELECT value FROM json_each(?))`)
+      .bind(from, to, spKeys).all(),
   ]);
   const key = (k, t) => `${k}:${t}`;
   const count = new Map(counts.map((c) => [key(c.series, c.starts), c]));
   const pub = new Map(rows.map((r) => [key(r.series, r.starts), r]));
   for (const x of list) {                              // (an hour gone by with sign-ups and nobody asked yet)
     const k = key(x.series.key, x.starts);
-    if (now >= x.starts && now < timesOf(x.starts).closes && count.has(k) && !pub.has(k)) {
+    if (now >= x.starts && now < timesOf(x.starts, x.series).closes && count.has(k) && !pub.has(k)) {
       await publish(env, x.series, x.starts, now, rand);
       pub.set(k, await sessionRow(env, x.series.key, x.starts));
     }
@@ -495,14 +558,27 @@ async function overview(env, me, now, rand) {
   // next one and the list starts at the sessions to come; one with drivers stays under way until they are all done)
   const sessions = list.map(({ series: s, starts }) => {
     const c = count.get(key(s.key, starts)) || {}, p = pub.get(key(s.key, starts)) || null;
-    let phase = phaseOf(starts, now);
+    let phase = phaseOf(starts, now, s);
     if (phase === 'running' && ((p && p.event_id === 0) || (!c.n && !(p && p.event_id)))) phase = 'empty';
     if (phase === 'running' && p && doneEarly.has(p.event_id)) phase = 'empty';      // (in RESULTS, below)
     const e = p && p.event_id ? mine.get(p.event_id) : null;
-    return { series: s.key, starts, ...timesOf(starts), phase, rally: rallyOfWeek(s, starts), signups: c.n || 0,
+    return { series: s.key, starts, ...timesOf(starts, s), phase, rally: rallyOfWeek(s, starts), signups: c.n || 0,
       signedUp: !!c.mine, car: c.car || null, eventId: (p && p.event_id) || null,
-      entry: e ? { status: e.status, done: e.done } : null };
+      entry: e ? { status: e.status, done: e.done } : null, ...(isSpecial(s) ? { special: true } : {}) };
   }).filter((x) => x.phase !== 'empty');
+  // the special events: their own card on RANKED (and the website's), from their listing to their results; a prize
+  // paid once the results are out (their drivers all done, or the session over)
+  const specialCards = specials.map((s) => {
+    const c = count.get(key(s.key, s.starts)), p = pub.get(key(s.key, s.starts)) || null;
+    const e = p && p.event_id ? mine.get(p.event_id) : null;
+    return specialOut(s, now, c, p, e ? { status: e.status, done: e.done } : null, doneEarly);
+  });
+  for (const s of SPECIALS) {
+    const closes = timesOf(s.starts, s).closes;
+    if (!s.prize || now < s.starts || now >= closes + 24 * HOUR) continue;
+    const p = pub.get(key(s.key, s.starts)) || (now >= closes ? await sessionRow(env, s.key, s.starts) : null);
+    if (p && p.event_id && (now >= closes || doneEarly.has(p.event_id))) await payPrize(env, s, { id: p.event_id }, now);
+  }
   // the sessions over in the last LIVE.recentMs that had drivers: their results (newest first, whether I drove), each
   // with its winner and where I came (the RESULTS list), from their standings in one look: the last RECENT_N, and mine
   // of the week besides (MY RESULTS whole, however many others drove since)
@@ -521,13 +597,14 @@ async function overview(env, me, now, rand) {
   const past = [...new Map([...early, ...last, ...minePast].map((r) => [r.event_id, r])).values()].sort((a, b) => b.starts - a.starts);
   const table = await eventsRows(env, past.map((r) => r.event_id), now);
   const recent = past.map((r) => {
-    const s = SERIES.find((x) => x.key === r.series), only = JSON.parse(r.only_ids || '[]');
+    const s = seriesOf(r.series), only = JSON.parse(r.only_ids || '[]');
     const rows = table.get(r.event_id) || [];
     const won = rows.find((x) => x.rank === 1), me = sid ? rows.find((x) => x.steamId === sid) : null;
     return s ? { series: s.key, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id, drivers: only.length,
       mine: !!sid && only.includes(sid),
       winner: won ? { steamId: won.steamId, name: won.name, country: won.country || null, totalMs: won.totalMs } : null,
-      me: me ? { rank: me.rank || null, status: me.status, totalMs: me.totalMs ?? null } : null } : null;
+      me: me ? { rank: me.rank || null, status: me.status, totalMs: me.totalMs ?? null } : null,
+      ...(isSpecial(s) ? { special: true, name: s.name } : {}) } : null;
   }).filter(Boolean);
   // the series in the order of their next session (the app's series rows, top to bottom by time): the one under way
   // if I'm in it, else the next to register for (one under way without me after them)
@@ -537,8 +614,10 @@ async function overview(env, me, now, rand) {
       || ss.find((x) => x.phase === 'running');
     return n ? n.starts : Infinity;
   };
-  const series = SERIES.map((s) => seriesOut(s, now)).sort((a, b) => nextAt(a.key) - nextAt(b.key));
-  return { now, on: true, series, sessions, recent, live: LIVE_RULES, pollS: LIVE.pollS.idle };
+  // (a special event listed first: an app before special events shows it as a series, with REGISTER)
+  const series = [...specials.map((s) => seriesOut(s, now)),
+    ...SERIES.map((s) => seriesOut(s, now)).sort((a, b) => nextAt(a.key) - nextAt(b.key))];
+  return { now, on: true, series, sessions, specials: specialCards, recent, live: LIVE_RULES, pollS: LIVE.pollS.idle };
 }
 
 const RECENT_N = 20;           // the RESULTS list: the last this many sessions over, and as many of mine besides
@@ -559,7 +638,7 @@ export async function driverRanked(env, sid, rows, now = Date.now()) {
   if (!rows || !rows.length) return [];
   const table = await eventsRows(env, rows.map((r) => r.event_id), now);
   return rows.map((r) => {
-    const s = SERIES.find((x) => x.key === r.series);
+    const s = seriesOf(r.series);
     if (!s) return null;
     const me = (table.get(r.event_id) || []).find((x) => x.steamId === sid) || null;
     return { series: s.key, seriesName: s.name, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id,
@@ -575,15 +654,17 @@ const LIVE_RULES = { signupMin: LIVE.signupMs / MIN, firstStartMin: LIVE.firstSt
 /** One session: before its hour its sign-ups; from then its rally (as /api/me/events gives an event: the app drives it
  *  through the leagues' DRIVE), each stage's queue (start list on SS1), the standings and my next slot. */
 async function sessionView(env, s, starts, me, now, rand) {
-  const t = timesOf(starts);
+  const t = timesOf(starts, s);
   let row = await sessionRow(env, s.key, starts);
   if (now >= starts && now < t.closes && (!row || row.event_id == null)) {
     await publish(env, s, starts, now, rand);
     row = await sessionRow(env, s.key, starts);
   }
   const sid = me ? me.steam_id : null;
-  const phase = phaseOf(starts, now);
-  const out = { now, series: seriesOut(s, starts), starts, ...t, phase, rally: rallyOfWeek(s, starts), live: LIVE_RULES };
+  const phase = phaseOf(starts, now, s);
+  const out = { now, series: seriesOut(s, starts), starts, ...t, phase, rally: rallyOfWeek(s, starts),
+    live: isSpecial(s) ? { ...LIVE_RULES, stages: s.stages || LIVE.stages } : LIVE_RULES,
+    ...(isSpecial(s) ? { special: true } : {}) };
   if (!row || row.event_id == null) {                  // sign-up (or being published, or an hour gone by with nobody)
     // the registered as the start list will have them: the rating, best first (the world ranking's place beside it, as
     // src/rating.js RANK_SQL counts it), the drivers without one after, by registration
@@ -653,6 +734,10 @@ async function sessionView(env, s, starts, me, now, rand) {
     pollS: phase !== 'running' || !only.includes(sid) ? LIVE.pollS.signup : near ? LIVE.pollS.turn
       : next ? LIVE.pollS.wait : LIVE.pollS.running });
   if (phase === 'over' || resultsOut) out.pollS = LIVE.pollS.idle;
+  if (isSpecial(s)) {
+    o.special = true;
+    if (s.prize) out.prize = { each: s.prize, paid: resultsOut ? (await payPrize(env, s, ev, now), true) : false };
+  }
   return withTeams(env, out);
 }
 
@@ -688,7 +773,7 @@ async function chatApi(req, env, s, starts, me, post, now) {
   if (!me) return err('sign in first', 401);
   if (me.banned) return err('banned', 403);
   if (!(await isEntrant(env, s, starts, me.steam_id))) return err('not in this session', 403);
-  const C = LIVE.chat, closes = timesOf(starts).closes;
+  const C = LIVE.chat, closes = timesOf(starts, s).closes;
   if (!post) {
     const after = Math.floor(+new URL(req.url).searchParams.get('after'));
     const { results } = after > 0
@@ -732,18 +817,23 @@ export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.
   const m = path.match(/^\/api\/liverallies\/([a-z0-9]+)\/(\d{13})(?:\/([a-z]+))?$/);
   const s = m && seriesOf(m[1]);
   const starts = m ? +m[2] : NaN;
-  if (!s || seriesAt(starts, from) !== s || starts < from) return err('no such session', 404);
+  // (a special event: at its own time only; a series: on the hourly grid)
+  if (!s || (isSpecial(s) ? starts !== s.starts : (seriesAt(starts, from) !== s || starts < from))) return err('no such session', 404);
   const action = m[3] || '';
   if (action === 'chat') return chatApi(req, env, s, starts, me, post, now);
   if (!post) return action ? err('not found', 404) : json(await sessionView(env, s, starts, me, now, rand));
   if (!me) return err('sign in first', 401);
   if (me.banned) return err('banned', 403);
   const b = await readBody(req);
-  const t = timesOf(starts);
+  const t = timesOf(starts, s);
   if (action === 'signup') {
-    if (now < t.signupOpens) return err(`sign-up opens at ${hhmmss(t.signupOpens).slice(0, 5)} UTC, 30 minutes before the start`, 409);
+    if (now < t.signupOpens) {
+      return err(isSpecial(s) ? `registration opens on ${new Date(t.signupOpens).toISOString().slice(0, 10)}`
+        : `sign-up opens at ${hhmmss(t.signupOpens).slice(0, 5)} UTC, 30 minutes before the start`, 409);
+    }
     if (now >= starts) return err('sign-up closed at the start', 409);
-    const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
+    // (a special event's one car: given or not, it is the car; a series: one of its class)
+    const car = s.car ? carByName(s.car) : carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || car.cls !== s.carClass) return err(`pick a ${s.carClass} car`, 422);
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO live_signups (series, starts, steam_id, car, at) VALUES (?, ?, ?, ?, ?)

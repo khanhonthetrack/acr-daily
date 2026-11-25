@@ -169,7 +169,8 @@ export const LABELS = { welcome: N_('Welcome bonus'), daily: N_('Daily bonus'), 
   wager: N_('Wager staked'), 'wager-win': N_('Wager won'), 'wager-refund': N_('Wager refunded'), shop: N_('Shop'),
   'h2h-stake': N_('1V1 stake'), 'h2h-win': N_('1V1 won'), 'h2h-refund': N_('1V1 stake back'),
   'cup-fee': N_('Cup entry'), 'cup-refund': N_('Cup entry back'), 'cup-prize': N_('Cup prize'), 'daily-set': N_('A daily of your own'),
-  'tt-fee': N_('Time trial entry'), 'tt-prize': N_('Time trial prize'), 'tt-refund': N_('Time trial entry back') };
+  'tt-fee': N_('Time trial entry'), 'tt-prize': N_('Time trial prize'), 'tt-refund': N_('Time trial entry back'),
+  'special-prize': N_('Special event finished') };
 
 /** The free daily finished: its counted run is in, CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

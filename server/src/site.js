@@ -75,6 +75,8 @@ a{color:inherit}
 .cupstrip .cs{color:var(--fg2);font-size:13px}
 .cupstrip .coin{display:inline-block;width:1.1em;height:1.1em;margin-left:.3em;vertical-align:-.2em}
 .cupstrip .go{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acct,#FF4655)}
+.cupstrip.sp{border-left-color:#78FAAE;padding:0 14px 0 0;overflow:hidden}.cupstrip.sp .tag{background:#78FAAE;color:#04140E}.cupstrip.sp .go{color:#78FAAE}
+.cupstrip.sp img{display:block;height:76px;width:auto;aspect-ratio:480/270;object-fit:cover}
 
 
 /* stages */
@@ -232,13 +234,21 @@ ${PAGER_JS()}
   // claimed here if it still is to be (src/bonus.js)
   var MEP=fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null});
   MEP.then(function(me){headerMe(me);if(me&&me.signedIn&&me.credits)claimBonus($('crhost'),me.credits)}).catch(function(){});
-  // ACR Daily's own cup, open for entries or under way (src/cups.js): a strip over the stages, to its page
-  get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
+  // a special event (src/liverallies.js SPECIALS: the Skoda Saturday Challenge) in the official cup's place while it is listed (the user,
+  // 25 Nov 2026: "Put the announcement of this special event in the place of mini challenge"); else ACR Daily's own cup, open for
+  // entries or under way (src/cups.js): a strip over the stages, to its page
+  var SPP=get('/api/liverallies').then(function(j){var x=j&&j.specials&&j.specials[0];if(!x)return false;var s=$('cupstrip');s.className='cupstrip sp';
+    s.href='/ranked/'+x.key;s.innerHTML='';var im=el('img');im.src='/series/'+x.key+'.webp';im.alt='';s.appendChild(im);
+    s.appendChild(el('span','tag',${tq('SPECIAL EVENT')}));s.appendChild(el('span','cn',x.name));
+    var d=new Date(x.starts),when=d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'})+' '+d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'});
+    var cs=el('span','cs');coined(cs,F(${tq('{0} · {1} stages of {2} · free entry · {3} registered · every finisher gets {4}')},when,x.stages,x.rally,x.signups||0,x.prize));s.appendChild(cs);
+    s.appendChild(el('span','go',x.phase==='signup'?${tq('Register ›')}:x.phase==='running'?${tq('Watch it live ›')}:${tq('Results ›')}));s.hidden=false;return true}).catch(function(){return false});
+  SPP.then(function(sp){if(sp)return;get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
     s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL CUP')}));s.appendChild(el('span','cn',c.name));
     var cs=el('span','cs'),said=open?F(${tq('Entries open · {0} of {1} drivers · starts {2}')},c.entrants,c.size,
       FDATE(c.starts,{wd:true})):F(${tq('Under way · {0}')},P(${tqp('{0} driver', '{0} drivers')},c.entrants));
     if(c.prize)coined(cs,said+' · '+F(${tq('prize {0}')},c.prize));else cs.textContent=said;s.appendChild(cs);
-    s.appendChild(el('span','go',open?${tq('Join ›')}:${tq('Bracket ›')}));s.hidden=false}).catch(function(){});
+    s.appendChild(el('span','go',open?${tq('Join ›')}:${tq('Bracket ›')}));s.hidden=false}).catch(function(){})});
   // ACR Daily's own team cup (src/teamcups.js): the same, for teams
   get('/api/tcups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('tcupstrip'),open=c.status==='open';
     s.href='/tcup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL TEAM CUP')}));s.appendChild(el('span','cn',c.name));
