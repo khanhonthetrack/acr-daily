@@ -27,9 +27,9 @@ test('a split: up or down on the leader and the place it makes; splits already b
   const { moments, onStage } = look(t, 0.51, 199000);              // the leader was at 204000 here: 5 s up; 400 m in 10 s
   assert.equal(moments.length, 1);
   assert.deepEqual(moments[0], { what: 'split 2 of 3', stage: 'SS1', driver: 'Kalle', where: '5.1 km in', clock: '3:19.0',
-    vsLeader: '-5.000', leader: 'uzuramcrae', onCourseFor: 'P1' });
+    vsLeader: '5.000 s up', leader: 'uzuramcrae', onCourseFor: 'P1' });
   assert.deepEqual(onStage[1][0], { name: 'Kalle', where: '5.1 km in', of: '10.0 km', clock: '3:19.0', speedKmh: 144, stopped: false,
-    vsLeaderHere: '-5.000', onCourseFor: 'P1' });
+    vsLeaderHere: '5.000 s up', onCourseFor: 'P1' });
 });
 
 test('a stop: told once; moving again: told with the time it cost, not again as a sudden loss', () => {
@@ -65,7 +65,7 @@ test('a sudden loss against the leader\'s pace: 4 s more within a look', () => {
   assert.equal(m.length, 1);
   assert.match(m[0].what, /^lost time suddenly/);
   assert.equal(m[0].lost, '7.000 s in the last few seconds');
-  assert.equal(m[0].nowVsLeader, '+6.000');
+  assert.equal(m[0].nowVsLeader, '6.000 s down');
 });
 
 test('the moments reach Claude as events, and are cleared once told', async () => {

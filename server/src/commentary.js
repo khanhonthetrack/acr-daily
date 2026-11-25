@@ -140,7 +140,8 @@ export function leaderAt(lead, p) {
   }
   return lead.totalMs;
 }
-const signed = (v) => `${v < 0 ? '-' : '+'}${secs(v)}`;
+// (in words: "+32.320" was read out as "plus thirty two ... down")
+const signed = (v) => `${secs(v)} s ${v < 0 ? 'up' : 'down'}`;
 
 /** One look at the cars on the stages: track (kept between looks: each car's last positions and what was told)
  *  updated; -> {moments: the new ones, onStage: per slot, each car as Claude reads it}. */
