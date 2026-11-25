@@ -5,7 +5,7 @@ ones with their code); today's results, one table: place, driver, co-driver, tim
 settings are in SETTINGS (settings_panel). Over the stage: the co-driver's notes to scroll, the rules (what is a DNF);
 for the driver, the co-driver's voice and the link."""
 from .copilot import CP_SLOT, ROLE_NAMES, TALK_MODES, TALK_NAMES, settings_of
-from .i18n import _
+from .i18n import _, n_
 from .ingamekit import (ACC, ACC_TEXT, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, box, btn, chip,
                         col, edit, empty, fmt_ms, kicker, line_row, primary, quiet, row, sheet, size, sp, tab_id, tabs, txt)
 
@@ -230,7 +230,7 @@ def _standings(ig, cp):
         body = txt(_('Loading…'), 17, 'medium', MUTED, pad=[0, 8, 0, 0])
         return box(col(kicker(title, fg=COLOUR), body), bg=PANEL, p=[22, 16, 22, 20])
     entries = b.get('entries') or []
-    head = row(kicker(title, fg=COLOUR), sp(fill=1), kicker(_('%d crews') % len(entries) if entries else ''),
+    head = row(kicker(title, fg=COLOUR), sp(fill=1), kicker(n_('%d crew', '%d crews', len(entries)) % len(entries) if entries else ''),
                pad=[0, 0, 0, 8])
     cols = row(size(kicker('#', j=2), w=40), sp(14), size(kicker(_('Driver')), w=NAME_W), sp(10),
                kicker(_('Co-driver'), fill=1), kicker(_('Time'), j=2), pad=[8, 0, 8, 4])

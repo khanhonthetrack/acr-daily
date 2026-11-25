@@ -208,13 +208,16 @@ class Copilot:
             def go():
                 try:
                     r = self._fetch_lobby(l['id'])
-                    a.root.after(0, self._lobby_in, r.get('lobby'))
+                    a.root.after(0, self._lobby_in, r.get('lobby'), l['id'])
                 except Exception as e:
-                    a.root.after(0, self._lobby_failed, e)
+                    a.root.after(0, self._lobby_failed, e, l['id'])
             threading.Thread(target=go, daemon=True).start()
         link = getattr(getattr(self.app, 'ghostcars', None), 'live', None)
-        if link is not None and self.lobby is None and getattr(link, 'room', None) and str(link.room).startswith('cp:'):
-            link.room = None
+        owner = self.app.crew_owner() if hasattr(self.app, 'crew_owner') else self
+        mine = owner.room() if owner is not None and owner.lobby else None      # (the room of whichever mode has my lobby)
+        if link is not None and self.lobby is None and getattr(link, 'room', None) and str(link.room).startswith('cp:') \
+                and link.room != mine:
+            link.room = None                           # (not the other mode's: both modes tick, one lobby at a time)
         elif link is not None and self.room() and getattr(link, 'room', None) != self.room():
             link.room = self.room()                    # (without live rallies on: liverallyui._lr_room does it too)
         if self.crew is not None:
@@ -285,18 +288,24 @@ class Copilot:
             except ValueError:
                 pass
 
-    def _lobby_in(self, l):
+    def _lobby_in(self, l, lid=None):
         self._polling = False
+        if lid is not None and (self.lobby or {}).get('id') != lid:
+            return                                     # (an answer for a lobby I have left since: never brings it back)
         self._take_lobby(l)
 
-    def _lobby_failed(self, e):
+    def _lobby_failed(self, e, lid=None):
         self._polling = False
+        if lid is not None and (self.lobby or {}).get('id') != lid:
+            return                                     # (the old lobby's 404 must not end the new one)
         if getattr(e, 'code', None) == 404:            # (gone: closed, or not mine any more)
             self._take_lobby(None)
 
     def _take_lobby(self, l):
         was = self.lobby
         self.lobby = l
+        if was and l and l.get('id') != was.get('id') and self.crew is not None:
+            self.stop_link()                           # (another lobby: the old one's links and voice are not its)
         if not l or l.get('state') not in ('open', 'started'):
             if was and (not l or l.get('id') == was.get('id')):
                 self._ended(l or was)
@@ -305,7 +314,10 @@ class Copilot:
             self.notes = l['notes']
         self._signals_in(l)
         if l.get('state') == 'started' and self.started_id != l.get('id'):
-            fresh = time.time() * 1000 - (l.get('started') or 0) < RESUME_S * 1000
+            # (the start seen here, the lobby open a moment ago: set up at once; else by its age, the PC's clock against the
+            # server's: a clock more than RESUME_S ahead would otherwise never start the stage by itself)
+            seen_open = bool(was and was.get('id') == l.get('id') and was.get('state') == 'open')
+            fresh = seen_open or time.time() * 1000 - (l.get('started') or 0) < RESUME_S * 1000
             if fresh:
                 self.go()
 
@@ -320,18 +332,30 @@ class Copilot:
         self.app.root.after(1500, lambda: self.refresh(force=True))
         tt = getattr(self.app, 'tt', None) or {}
         t = tt.get(self.SLOT)
-        if t and not (t.get('judge') and t['judge'].state == 'running'):
-            del tt[self.SLOT]
+        if t and not (t.get('judge') and t['judge'].state == 'running') and not str((t.get('ch') or {}).get('id', '')).startswith('cx:'):
+            del tt[self.SLOT]                           # (not CASUAL's stage: its mode ends it, casual.py)
         w = getattr(self.app, 'watch', None)
         if w is not None and w.on and w.copilot() and (l or {}).get('state') in ('finished', 'dnf', 'closed'):
             pass                                        # (the co-driver sees the finish: WATCH ends as they leave the stage)
 
     # ---- the buttons
+    OTHER = 'casual'                 # (the other mode: one lobby at a time, either mode: the stage's slot, the relay's room)
+
+    def _guard_other_mode(self):
+        o = getattr(self.app, self.OTHER, None)
+        if o is not None and o is not self and (o.lobby or {}).get('state') in ('open', 'started'):
+            self.msg = (_('Leave your CASUAL lobby first.') if self.OTHER == 'casual'
+                        else _('Leave your CODRIVER DAILY lobby first.'))
+            return False
+        return True
+
     def create(self, role, private=False, langs=None):
-        self._bg(lambda: self.app.api.copilot_create(role, private, langs), lambda r: self._take_lobby(r.get('lobby')))
+        if self._guard_other_mode():
+            self._bg(lambda: self.app.api.copilot_create(role, private, langs), lambda r: self._take_lobby(r.get('lobby')))
 
     def join(self, lobby_id=None, code=None):
-        self._bg(lambda: self.app.api.copilot_join(lobby_id, code), lambda r: self._take_lobby(r.get('lobby')))
+        if self._guard_other_mode():
+            self._bg(lambda: self.app.api.copilot_join(lobby_id, code), lambda r: self._take_lobby(r.get('lobby')))
 
     def ready(self, on=True):
         l = self.lobby or {}
@@ -454,6 +478,7 @@ class Copilot:
         if not lid:
             return
         from .crew import Crew
+        self.partner_off, self._partner_on_at, self._codriver_on_at = None, None, None   # (not the last lobby's partner's word)
         self.crew = Crew(self.app, self.my_seat(), self.role() == 'driver', lambda sid, d: self._publish(lid, sid, d),
                          self.peers(), self.voice_args(), on_status=lambda sid, s: self._status_in(s, sid))
         self._signals_in(l)
@@ -463,6 +488,7 @@ class Copilot:
             self.crew.close()
         self.crew = None
         self.driver_state = None
+        self.partner_off, self._partner_on_at = None, None
 
     def voices(self):
         """Every voice that is on (this mode's and the other's): the settings change them all."""
@@ -529,7 +555,7 @@ class Copilot:
                 self.mic_test.close()
             self.mic_test = None
             return
-        if self.voice is not None or self.mic_test is not None:
+        if self.voices() or self.mic_test is not None:       # (a crew's voice of either mode has the microphone)
             return
         from .voice import MicTest
         c = settings_of(self.app.s)
@@ -537,8 +563,9 @@ class Copilot:
 
     def mic_level(self):
         """The microphone's level now, 0..1 (the crew's voice, or the test's), or None when neither is on."""
-        if self.voice is not None:
-            return self.voice.level
+        vs = self.voices()
+        if vs:
+            return vs[0].level
         return self.mic_test.level if self.mic_test is not None else None
 
     def speaking(self):

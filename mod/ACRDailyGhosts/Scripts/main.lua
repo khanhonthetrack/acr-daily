@@ -639,6 +639,7 @@ local function detail(c, me_loc)
         end
         -- (WATCH's cockpit shot keeps its driver away: shown again here, the camera was inside their head, 22 Nov 2026)
         if c.driver_hidden and driver_visible then pcall(driver_visible, c, false) end
+        if c.codriver_hidden and driver_visible then pcall(driver_visible, c, false, true) end   -- (the passenger-seat shot's)
     end
 end
 
@@ -1526,6 +1527,10 @@ function watch_off(pc, me)
         pcall(driver_visible, W.drv_car, true)
         W.drv_car.driver_hidden = false
     end
+    if W.drv_car and W.drv_car.codriver_hidden then          -- (the passenger-seat shot hid the co-driver's figure)
+        pcall(driver_visible, W.drv_car, true, true)
+        W.drv_car.codriver_hidden = false
+    end
     W.drv_car = nil
     pcall(livery_restore)
     LIV.name = nil
@@ -1860,6 +1865,10 @@ function watch_tick(pc, me, t)
     end
     if c.driver_hidden ~= no_driver or W.drv_car ~= c then
         if W.drv_car and W.drv_car ~= c and W.drv_car.driver_hidden then pcall(driver_visible, W.drv_car, true) end
+        if W.drv_car and W.drv_car ~= c and W.drv_car.codriver_hidden then
+            pcall(driver_visible, W.drv_car, true, true)
+            W.drv_car.codriver_hidden = false
+        end
         crumb("watch: driver figure")
         pcall(driver_visible, c, not no_driver)
         c.driver_hidden, W.drv_car = no_driver, c

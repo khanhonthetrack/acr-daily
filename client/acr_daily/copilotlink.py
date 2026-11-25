@@ -158,12 +158,13 @@ class Link:
             if r is not None:
                 r.send_crew('v' + base64.b64encode(tagged).decode())
 
-    def send_status(self, s):
-        """A short status for the other (copilot.py: '1' / '0' / '-', my game's own co-driver off / on / not known)."""
+    def send_status(self, s, relay=True):
+        """A short status for the other (copilot.py: '1' / '0' / '-', my game's own co-driver off / on / not known)
+        (relay False: only straight; crew.py sends a relay one once for all the links: the room has them all)."""
         s = str(s)[:48]
         if self.direct:
             self._send(self._packet(b'C', s.encode('ascii', 'replace')), self.addr)
-        else:
+        elif relay:
             r = self.relay()
             if r is not None:
                 r.send_crew('c' + s)
@@ -201,7 +202,7 @@ class Link:
     def _run(self):
         tid = os.urandom(12)
         published, stun_at, stun_tries = False, -1e9, 0
-        punch_at = ping_at = -1e9
+        punch_at = ping_at = publish_at = -1e9
         try:
             while self.on:
                 now = time.monotonic()
@@ -212,7 +213,8 @@ class Link:
                             self.sock.sendto(stun_request(tid), (socket.gethostbyname(host), port))
                         except OSError:
                             pass
-                if not published and (self.public is not None or stun_tries >= 6 or not self._stun):
+                if not published and (self.public is not None or stun_tries >= 6 or not self._stun) and now - publish_at >= 2.0:
+                    publish_at = now                   # (a refused or unreachable server: tried again every 2 s, not every 50 ms)
                     published = self._publish()
                 if self.peer_key and not self.direct:
                     self.state = 'punching' if now - (self._peer_at or now) < DIRECT_WAIT_S else 'relay'

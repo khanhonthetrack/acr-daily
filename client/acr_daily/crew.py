@@ -47,6 +47,8 @@ class Crew:
             lambda d, sid=sid: self.publish(sid, json.dumps(d, separators=(',', ':'))), samples,
             lambda p, who, sid=sid: self._voice_in(sid, p, who), self.relay,
             on_status=lambda s, sid=sid: self.on_status and self.on_status(sid, s))
+        self.links[sid].peer_sid = str(sid)           # (from the start: the relay's crew messages are told apart by it, so
+                                                      # one member's relayed voice is never taken for another's)
 
     def drop(self, sid):
         link = self.links.pop(sid, None)
@@ -103,8 +105,13 @@ class Crew:
 
     # ---- status lines (copilot.py: the game's own co-driver; the driver's clock)
     def send_status(self, s):
-        for link in self.links.values():
-            link.send_status(s)
+        relay_once = False
+        for link in list(self.links.values()):
+            if link.direct:
+                link.send_status(s, relay=False)
+            elif not relay_once:
+                relay_once = True                      # (the relay's crew message goes to the whole room: once is enough)
+                link.send_status(s)
 
     # ---- the relay's link tied to ours
     def wire(self):

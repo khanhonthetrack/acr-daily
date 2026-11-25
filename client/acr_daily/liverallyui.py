@@ -691,7 +691,7 @@ class LiveRallyUI:
         room = w.room() if w is not None and w.on else None   # (WATCH on a ranked session's stage: its own room)
         if room is None and self._lr_following():
             room = 'live:%d' % run['ev']['id']
-        cp = getattr(self, 'copilot', None)
+        cp = self.crew_owner() if hasattr(self, 'crew_owner') else getattr(self, 'copilot', None)   # (CODRIVER DAILY's or CASUAL's)
         if room is None and cp is not None:       # (a COPILOT crew's stage: its own room, copilot.py)
             room = cp.room()
         if getattr(link, 'room', None) != room:

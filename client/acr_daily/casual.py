@@ -170,12 +170,7 @@ class Casual(Copilot):
         return out
 
     # ---- the buttons
-    def _guard_other_mode(self):
-        d = getattr(self.app, 'copilot', None)
-        if d is not None and (d.lobby or {}).get('state') in ('open', 'started'):
-            self.msg = _('Leave your CODRIVER DAILY lobby first.')
-            return False
-        return True
+    OTHER = 'copilot'
 
     def create(self, opts):
         """opts: {'track', 'car', 'weather', 'time', 'langs': [...], 'private': bool}."""

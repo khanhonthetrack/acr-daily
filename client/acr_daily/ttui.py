@@ -177,6 +177,15 @@ class TimeTrialUI:
             return c
         return getattr(self, 'copilot', None)
 
+    def crew_for(self, cid):
+        """The mode a crew stage ('cx:...' CASUAL's, 'cp:...' the daily crew's) belongs to, even when its lobby is over already
+        (the result arrives after: a CASUAL result must never go to the daily crew's board); else the lobby's owner."""
+        if str(cid or '').startswith('cx:'):
+            return getattr(self, 'casual', None) or self.crew_owner()
+        if str(cid or '').startswith('cp:'):
+            return getattr(self, 'copilot', None) or self.crew_owner()
+        return self.crew_owner()
+
     def _tt_judged(self):
         return self.drive_target == 'tt' or (self.drive_target == 'daily' and not self._tt_clash())
 
@@ -597,7 +606,7 @@ class TimeTrialUI:
                 continue
             evs = j.feed(f, unloaded)
             evs = evs + self._watch_run(t, j, evs, (t.get('ch') or {}).get('weekend'))   # (not allowed: DNF, app.py)
-            cp = self.crew_owner() if slot == CP_SLOT else None
+            cp = self.crew_for((t.get('ch') or {}).get('id')) if slot == CP_SLOT else None
             if cp is not None:                       # (COPILOT: the game's own co-driver on during the stage: a DNF)
                 evs = evs + cp.watch_run(t, j, evs)
             for ev in evs:
@@ -748,8 +757,8 @@ class TimeTrialUI:
     def on_tt_result(self, result):
         """A time trial run with the game's official time (or a DNF without it): sent, or queued for later."""
         settings.append_result(result)
-        if is_cp(result.get('challengeId')) and self.crew_owner() is not None:
-            self.crew_owner().on_result(result)          # (a COPILOT crew's run: its own board, finished or not)
+        if is_cp(result.get('challengeId')) and self.crew_for(result.get('challengeId')) is not None:
+            self.crew_for(result.get('challengeId')).on_result(result)    # (a COPILOT crew's run: its own board, finished or not)
             return
         slot = parse_id(result.get('challengeId')) or 1
         if result.get('status') != 'finished':     # (no official time from the game after all: nothing to send)
@@ -876,7 +885,7 @@ class TimeTrialUI:
             problems = self.settings_changed((t.get('ch') or {}).get('weekend'))
             if problems:
                 return self.problems_alert(problems, self.check_rows((t.get('ch') or {}).get('weekend')))
-            cp = self.crew_owner() if slot == CP_SLOT else None
+            cp = self.crew_for((t.get('ch') or {}).get('id')) if slot == CP_SLOT else None
             if cp is not None:                     # (COPILOT: one go; the game's own co-driver must be off)
                 return cp.start_alert()
         return None
@@ -935,7 +944,7 @@ class TimeTrialUI:
             if problems:                           # (changed in the game's menu, or aids it doesn't allow)
                 return j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems)
             if slot == CP_SLOT:                    # (COPILOT / CASUAL: good luck, and what ends it)
-                cp = self.crew_owner()
+                cp = self.crew_for(ch.get('id'))
                 line, lc = cp.armed_line() if cp is not None else (_('Good luck!'), c.SOFT)
                 return j.message, '', ('ready', stage, 0, 0, line, lc)
             best = (ch.get('me') or {}).get('bestMs')

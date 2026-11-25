@@ -3098,7 +3098,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def _copilot_dnf(self, a, why):
         """A COPILOT crew's run (kind 'tt', CP_SLOT) without a time that counts: the crew's DNF on its board
         (copilot.py; a time trial's run would just not be sent). -> True when it was one."""
-        cp = self.crew_owner()
+        cp = self.crew_for((a.get('result') or {}).get('challengeId') or ((self.tt.get(CP_SLOT) or {}).get('ch') or {}).get('id'))
         if a.get('slot') != CP_SLOT or cp is None:
             return False
         cp.on_result(dict(a.get('result') or {}, status='dnf', reason=str(why), totalMs=None))

@@ -6,7 +6,7 @@ import os
 
 from . import settings
 from .casual import LANG_FLAG, LANGS, MAX_LANGS
-from .i18n import _
+from .i18n import _, n_
 from . import i18n
 from .ingamekit import (ACC, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, box, btn, chip, col, edit,
                         empty, img, kicker, primary, quiet, row, scroll, size, sp, tab_id, txt)
@@ -233,7 +233,8 @@ def _lobby(ig, cs):
                box(txt(l['code'], 26, 'bold', WHITE, sp=200), bg=BG, p=[14, 2, 14, 2], ol=COLOUR),
                sp(12), txt(_('Give it to your co-drivers.'), 15, 'semi', MUTED, va='c'), pad=[0, 10, 0, 0]) if l.get('code') else None
     members = col(*[_member(m, me) for m in cs.members()],
-                  txt(_('%d free seats') % (l.get('free') or 0), 15, 'medium', MUTED, pad=[0, 8, 0, 0]) if not started else None)
+                  txt(n_('%d free seat', '%d free seats', l.get('free') or 0) % (l.get('free') or 0), 15, 'medium', MUTED,
+                      pad=[0, 8, 0, 0]) if not started else None)
     if started:
         say = (_('Your stage is on. Drive it: your co-drivers read the notes.') if host else
                _('The stage is on. You watch from the passenger seat: Up / Down move through the notes (Left / Right: five).'))

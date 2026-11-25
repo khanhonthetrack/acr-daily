@@ -434,7 +434,7 @@ class Voice:
 
     @property
     def hearing_at(self):
-        return max(self._at.values(), default=-1e9)
+        return max(list(self._at.values()), default=-1e9)      # (a copy: the sockets' threads add seats meanwhile)
 
     @property
     def hearing(self):
@@ -443,7 +443,7 @@ class Voice:
     def speaking(self, now=None):
         """Who is talking now: a set of seats heard in the last 0.3 s, and 'me' while I send."""
         now = time.monotonic() if now is None else now
-        out = {s for s, t in self._at.items() if now - t < 0.3}
+        out = {s for s, t in list(self._at.items()) if now - t < 0.3}
         if self.talking:
             out.add('me')
         return out
@@ -453,10 +453,15 @@ class Voice:
         if len(packet) < 5 or seat == self.seat:
             return
         seq = struct.unpack_from('<H', packet, 0)[0]
+        if time.monotonic() - self._at.get(seat, -1e9) > 1.0:
+            self._last.pop(seat, None)               # (silent for a second: a speaker who came back with a new count, an app
+            #                                           restarted or a member re-joined, starts from 1 again: not "late")
         last = self._last.get(seat)
-        if last is not None and ((seq - last) & 0xFFFF) > 0x8000:
-            return                                   # (older than one already played: late, dropped)
+        if last is not None and (((seq - last) & 0xFFFF) > 0x8000 or seq == last):
+            return                                   # (older than one already played: late, dropped; or its copy)
         q = self._in.setdefault(seat, deque())
+        if any(s == seq for s, _p in list(q)):
+            return                                   # (the same packet by two ways, straight and through the relay: once)
         if not q and seat not in self._wait and not self._at.get(seat, -1e9) > time.monotonic() - 0.15:
             self._wait.add(seat)                      # (a new burst of words: JITTER_MS first)
         q.append((seq, packet[2:]))
