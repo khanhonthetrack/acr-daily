@@ -3,8 +3,8 @@
 // from Twitch's own API (Helix: Get Streams, with an app access token), for the strip on the home page and RANKED.
 //
 //   TWITCH_CHANNEL        the channel's login (wrangler.toml); empty: off, nothing asked of Twitch
-//   TWITCH_CLIENT_ID      secrets: a Twitch application's (dev.twitch.tv > Your Console > Applications), its
-//   TWITCH_CLIENT_SECRET  client credentials (no user's sign-in: an app token reads public streams)
+//   TWITCH_CLIENT_ID      the Twitch application's (dev.twitch.tv > Your Console > Applications): wrangler.toml (public)
+//   TWITCH_CLIENT_SECRET  its secret (wrangler secret put): the client credentials (no user's sign-in: an app token reads public streams)
 //
 //   GET /api/twitch -> {live, channel, url, title, game, viewers, startedAt}
 //
