@@ -426,6 +426,7 @@ class Pages(unittest.TestCase):
         cp.notes, cp.cursor = NOTES, 12
         a.watch.on = True
         a.watch.copilot.return_value = True
+        a.watch.followed.return_value = None             # (the driver's car not on the relay: the notes alone)
         ig = self.ig(cp)
         ig.app = a
         a.copilot = cp

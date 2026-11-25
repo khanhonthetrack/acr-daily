@@ -207,6 +207,7 @@ class Copilot:
         self._polling = False
         self.day, self.board = d, b
         self._apply_board((getattr(self.app, 'tt', None) or {}).get(self.SLOT))
+        self._apply_board(getattr(self, 'watch_held', None))
         if r is not None:
             self.ranking = r
         if d.get('lobby') is not None or self.lobby is None:
@@ -453,6 +454,8 @@ class Copilot:
         driver = (self.partner() or {})
         held = {'ch': dict(ch, weekend=None), 'judge': Judge(ch) if ch.get('route') else None, 'live': [], 'board': None,
                 'name': 'CODRIVER', 'eventId': self.room_id(), 'kind': 'copilot', 'cars': []}
+        self.watch_held = held
+        self._apply_board(held)          # (the daily's: the leader's splits for the gap; CASUAL has no board)
         try:
             setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], None)
         except (saveslot.SaveError, KeyError, ValueError):

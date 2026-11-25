@@ -134,3 +134,8 @@ three links at once across real routers.
 Not checked: real voice between two PCs, a real second player, the daily crew's leader gap while driving (the test car
 would not move from the keyboard), Windows' microphone question: it comes up over the game the first time a lobby's voice
 starts (the packaged app asks once for ACR-Daily.exe).
+
+**The co-driver's fuller overlay (26 Nov 2026, checked in the game):** under the notes, WATCH's broadcast parts for the
+driver's car: the dial (speed, revs, gear, brake and throttle) and the driver bar (the stage across with its splits,
+where the car is, the driver, the car, the time; daily: the gap to the day's #1 from the leader's splits and the place it
+would have, a split's time as it is passed). The notes' top line keeps the start ("Good luck!"), the finish and a DNF.

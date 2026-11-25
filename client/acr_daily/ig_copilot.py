@@ -469,14 +469,18 @@ def _logo():
     return box(txt('ACR DAILY', 16, 'bold', 'FFFFFF', sp=60, va='c'), bg=ACC, p=[12, 4, 12, 4], va='c')
 
 
-def _driver_bar(cp):
+def _driver_bar(cp, full=False):
     """The co-driver's view of the driver's stage, as the dailies' timer: GOOD LUCK on the start line; the clock and the gap
     to the leader (daily) while it runs; the finish with its time; a DNF. -> a box."""
     import time as _t
     ds = cp.driver_state
+    if (ds is None or _t.monotonic() - ds['at'] > 6.0) and full == 'running':
+        return None                                      # (no word from the driver's app, their car on its way: the bar has it)
     if ds is None or _t.monotonic() - ds['at'] > 6.0:
         return box(txt(_('Good luck!'), 20, 'bold', 'FFFFFF'), bg=NAVY, a=0.85, p=[14, 6, 14, 6])
     st = ds['state']
+    if st == 'r' and full:
+        return None                                      # (the clock, the gap and the splits: the bar under it)
     if st == 'r':
         ms = ds['ms'] + min(2000, int((_t.monotonic() - ds['at']) * 1000))
         gap = ds.get('gap')
@@ -517,8 +521,40 @@ def _notes(cp):
                bg=ACC, p=[14, 5, 14, 5])
     foot = box(txt(_('↑ ↓  one note   ·   ← →  five'), 13, 'semi', 'D4D4D8'), bg=NAVY, a=0.85, p=[14, 4, 14, 4])
     warn = _warning(cp, cp.game_codriver_off() is False)
-    panel = size(col(head, _driver_bar(cp), *lines, foot, warn), w=620)
-    return col(sp(fill=1), row(sp(30), _icons(cp), sp(fill=1), panel, sp(40)), sp(fill=1))
+    bottom = _broadcast(cp)
+    panel = size(col(head, _driver_bar(cp, full=_car_running(cp) if bottom is not None else False), *lines, foot, warn),
+                 w=620)
+    return col(sp(fill=1), row(sp(30), _icons(cp), sp(fill=1), panel, sp(40)), sp(fill=1),
+               row(sp(30), bottom, sp(40), va='b') if bottom is not None else None, sp(h=24) if bottom is not None else None)
+
+
+def _car_running(cp):
+    """'running' when the driver's car is on its way (its clock past 0, as the relay has it), else True (on the line)."""
+    import time as _t
+    w = getattr(cp.app, 'watch', None)
+    fol = w.followed() if w is not None and w.on else None
+    at = w.where(fol, _t.monotonic()) if fol is not None else None
+    return 'running' if (at or {}).get('ms') else True
+
+
+def _broadcast(cp):
+    """The co-driver's view of the car, as WATCH's broadcast has it (ig_watch.py; the user, 26 Nov 2026: "the codriver
+    basically has no game overlay"): the dial (speed, revs, gear, the pedals) and the driver's bar (the stage across with
+    its splits, where the car is, the gap to the day's #1 and the place it would have: daily only, the time, a split's
+    time as it is passed). None until the driver's car is on the relay."""
+    import time as _t
+    from . import ig_watch
+    w = getattr(cp.app, 'watch', None)
+    if w is None or not w.on:
+        return None
+    fol = w.followed()
+    if fol is None:
+        return None
+    now = _t.monotonic()
+    ch = w.ch() or {}
+    country = (cp.partner() or {}).get('country')
+    return row(ig_watch._dash(fol.dash_at(now), ch.get('carId')), sp(20),
+               ig_watch._driver_bar(w, fol, now, {}, country, None, ch.get('carId')), sp(fill=1), va='b')
 
 
 def _driver_line(ig, cp):

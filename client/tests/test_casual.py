@@ -546,6 +546,55 @@ class Reviewed(unittest.TestCase):
         self.assertEqual(closed, [1])
         self.assertIsNone(cs.crew)
 
+class CoDriverBroadcast(unittest.TestCase):
+    """The co-driver's fuller overlay (26 Nov 2026): the dial and the driver bar of WATCH's broadcast under the notes."""
+
+    def test_the_dial_and_the_driver_bar_under_the_notes(self):
+        from acr_daily.judge import Judge
+        a, cs = made()
+        a.crew_owner = lambda: cs
+        cs.lobby = lobby('2', 'started', n=2)
+        cs.notes = NOTES
+        fol = mock.Mock()
+        fol.name, fol.car = 'Me', 'Skoda Fabia RS Rally2'
+        fol.dash_at.return_value = {'kmh': 123, 'gear': 5, 'rpm_frac': 0.7, 'gas': 1.0, 'brake': 0.0}
+        fol.clock_now.return_value = 31500
+        w = a.watch
+        w.on = True
+        w.copilot.return_value = True
+        w.followed.return_value = fol
+        w.ch.return_value = CX
+        w.judge.return_value = Judge(dict(CX))
+        w.split_marks.return_value = [(60, 0.6), (120, 1.2), (199, 1.99)]
+        w.where.return_value = {'progress': 0.4, 'ms': 61000, 'gap': -1200}
+        w.splits_of.return_value = [{'km': 0.6, 'ms': 30000, 'best': 31000, 'gap': -1000},
+                                    {'km': 1.2, 'ms': None, 'best': None, 'gap': None}, {'km': 1.99, 'ms': None, 'best': None, 'gap': None}]
+        w.running_place.return_value = 1
+        ig = Fake(cs)
+        ov = ig_copilot.overlay(ig)
+        self.assertEqual(check(ov), [])
+        words = json.dumps(ov, ensure_ascii=False)
+        for want in ('123', 'Km/h', 'THROTTLE', 'BRAKE', 'ME', '1:01', 'P1', 'PACENOTES'):
+            self.assertIn(want, words)
+        self.assertNotIn('Good luck!', words, 'the car on its way: no good luck left over')
+        w.followed.return_value = None                   # (the driver's car not on the relay yet: the notes alone)
+        words = json.dumps(ig_copilot.overlay(ig))
+        self.assertNotIn('Km/h', words)
+        self.assertIn('PACENOTES', words)
+
+    def test_the_daily_co_driver_gets_the_leader_for_the_gap(self):
+        a, cs = made()
+        from acr_daily import copilot
+        cp = copilot.Copilot(a)
+        cp.board = {'entries': [{'runId': 9, 'status': 'finished', 'totalMs': 40000, 'splits': [10000, 20000, 30000],
+                                 'driver': {'steamId': '5', 'name': 'A'}, 'codriver': {'steamId': '6', 'name': 'B'}}]}
+        from acr_daily.judge import Judge
+        held = {'ch': dict(CH), 'judge': Judge(dict(CH))}
+        cp.watch_held = held
+        cp._apply_board(held)
+        self.assertIsNotNone(held['judge'].ghost, 'the leader\'s splits: the live gap')
+        self.assertEqual(held['board']['entries'][0]['name'], 'A / B')
+
 
 if __name__ == '__main__':
     unittest.main()
