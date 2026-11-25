@@ -14,7 +14,8 @@
 // gaps, the conditions, how long is left), in the plain voice of the website's old live ticker.
 // Options: bg=1 (a stand-in picture where the game goes, to look at it in a browser), accent=RRGGBB, lang=xx, feed=1
 // (served by the ACR DAILY app on the streamer's PC, client broadcastfeed.py: its /feed.json is the car WATCH follows),
-// rows=4..8 (a board's rows, 6 by default), page=<seconds> (a board's page, 8 by default).
+// rows=4..8 (a board's rows, 6 by default), page=<seconds> (a board's page, 8 by default), ai=0 (no Claude lines:
+// src/commentary.js writes the lines on what happens when the server has a Claude key; without one, the rules above).
 
 import { N_, langTag, t } from './i18n.js';
 import { BROADCAST_HEADERS } from './broadcast.js';
@@ -43,7 +44,8 @@ const LOGO = '<svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 
 export function dailiesOverlayPage(q, site) {
   const words = Object.fromEntries(WORDS.map((w) => [w, t(w)]));
   const accent = /^[0-9a-fA-F]{6}$/.test(q.get('accent') || '') ? '#' + q.get('accent') : '#E30613';
-  const cfg = { bg: q.get('bg') === '1', feed: q.get('feed') === '1', site, lang: langTag(),
+  const cfg = { bg: q.get('bg') === '1', feed: q.get('feed') === '1', site, lang: langTag(), ai: q.get('ai') !== '0',
+    lq: /^[a-z]{2}$/.test(q.get('lang') || '') ? q.get('lang') : '',
     rows: Math.max(4, Math.min(8, +(q.get('rows') || 6) || 6)), page: Math.max(4, Math.min(60, +(q.get('page') || 8) || 8)) };
   return `<!doctype html><html lang="${esc(langTag())}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR DAILY: Dailies</title><meta name="robots" content="noindex">
@@ -185,6 +187,13 @@ function conds(s){var i=s.info;if(!i||!i.weather)return null;return [T('SS{0} co
 function fillers(){var out=[];[1,2].forEach(function(n){var s=D.slots[n];if(!s||!s.info)return;out.push(leads(s),closest(s))});
   [1,2].forEach(function(n){var s=D.slots[n];if(s&&s.info)out.push(count(s),conds(s),[opener(s),[]])});
   if(D.endsAt)out.push([T('{0} left to drive today\\'s dailies.',hoursLeft(D.endsAt-Date.now())),[]]);return out.filter(function(x){return x&&x[0]})}
+// Claude's lines (src/commentary.js; ai=0: off): while the server has them on, they say what happens, in place of the
+// lines above; the day's facts still fill the quiet. The server not answering three times: back to the lines above.
+var AI={on:false,id:null,fails:0};
+function ev(text,hi){if(!AI.on)say(text,hi)}
+function claude(){fetch('/api/broadcast/dailies/commentary'+(C.lq?'?lang='+C.lq:''),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
+  .then(function(j){AI.fails=0;AI.on=!!(j&&j.on);if(AI.on&&j.id&&j.line&&j.id!==AI.id){AI.id=j.id;say(j.line,j.names||[])}})
+  .catch(function(){if(++AI.fails>=3)AI.on=false}).then(function(){setTimeout(claude,10000)})}
 function filler(){var f=fillers();if(!f.length)return;var x=f[fillI%f.length];fillI++;if(L[0]&&L[0].text===x[0]&&f.length>1){x=f[fillI%f.length];fillI++}say(x[0],x[1])}
 
 // what changed on a board since the last look: finishes (a new fastest time, the first one), better times, drivers out
@@ -200,10 +209,10 @@ function boardNews(s,rows){if(!s.seen){s.seen={};rows.forEach(function(r){s.seen
       lines.push([T('{0} improves on SS{1} to {2}, now P{3}.',r.name,s.n,ms(r.totalMs),rank),[r.name]])}
     else if((r.status==='dnf'||r.status==='dsq')&&(!o||(o.status!=='dnf'&&o.status!=='dsq')))lines.push([T('{0} is out of SS{1}.',r.name,s.n),[r.name]]);
     s.seen[r.steamId]={status:r.status,totalMs:r.totalMs}});
-  lines.forEach(function(x){say(x[0],x[1])})}
+  lines.forEach(function(x){ev(x[0],x[1])})}
 function liveNews(s,live){var was={};s.live.forEach(function(d){was[d.steamId]=d});
-  live.forEach(function(d){var o=was[d.steamId];if(!BOOT&&!o)say(T('{0} is away on SS{1}.',d.name,s.n),[d.name]);
-    if(o&&!s.half[d.steamId]&&(o.progress||0)<.5&&(d.progress||0)>=.5){s.half[d.steamId]=1;say(T('{0} is halfway through SS{1}, {2} on the clock.',d.name,s.n,ms(d.totalMs,1)),[d.name])}})}
+  live.forEach(function(d){var o=was[d.steamId];if(!BOOT&&!o)ev(T('{0} is away on SS{1}.',d.name,s.n),[d.name]);
+    if(o&&!s.half[d.steamId]&&(o.progress||0)<.5&&(d.progress||0)>=.5){s.half[d.steamId]=1;ev(T('{0} is halfway through SS{1}, {2} on the clock.',d.name,s.n,ms(d.totalMs,1)),[d.name])}})}
 
 // ---- the data
 function loadDay(){return api('/dailies').then(function(d){
@@ -258,7 +267,7 @@ function feed(){fetch('/feed.json',{cache:'no-store'}).then(function(r){return r
   var m=F.page&&String(F.page).match(/\\/broadcast\\/daily\\/(\\d)/);F.slot=m?+m[1]:null}if(!!(F&&F.on)!==!!was)onStage();
   else if(F&&F.on){var ck=document.querySelector('.com .ck');if(ck&&F.driver&&F.driver.totalMs!=null){ck.setAttribute('data-ms',F.driver.totalMs);ck.setAttribute('data-at',F.at)}
     var pb=document.querySelector('.com .pb b');if(pb&&F.driver)pb.style.width=Math.round(Math.max(0,Math.min(1,F.driver.progress||0))*100)+'%'}}).catch(function(){F=null})}
-all();setTimeout(live,5000);setInterval(tick,100);if(C.feed)setInterval(feed,250);
+all();setTimeout(live,5000);setInterval(tick,100);if(C.feed)setInterval(feed,250);if(C.ai)setTimeout(claude,3000);
 })();
 </script></body></html>`;
 }

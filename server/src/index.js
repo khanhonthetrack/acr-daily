@@ -80,6 +80,7 @@ import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
 import { twitchStatus } from './twitch.js';
+import { dailiesCommentary } from './commentary.js';
 import { SERIES_IMAGES } from './seriesimages.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
@@ -1695,6 +1696,17 @@ async function route(req, env, ctx, L) {
     if (path === '/api/twitch' && req.method === 'GET') {   // ACR Daily live on Twitch now (src/twitch.js): the strip
       return new Response(JSON.stringify(await twitchStatus(env)), { headers: { 'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' } });
+    }
+    // Claude's lines for the dailies' stream overlay (src/commentary.js); only on the site's own address, where
+    // Cloudflare's cache holds the last line (so Claude is asked only when something happens)
+    if (path === '/api/broadcast/dailies/commentary' && req.method === 'GET') {
+      const own = !env.SITE_URL || new URL(env.SITE_URL).origin === url.origin;
+      const ask = async (p) => {
+        const r = await route(new Request(url.origin + p), env, ctx, L);
+        return r.ok ? r.json() : null;
+      };
+      const out = own ? await dailiesCommentary(env, ask, { lang: L }) : { on: false };
+      return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
     }
     if (path === '/api/live') {
       if (req.method === 'POST') return postLive(req, env);
