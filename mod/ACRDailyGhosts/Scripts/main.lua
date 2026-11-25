@@ -1723,6 +1723,25 @@ function watch_tick(pc, me, t)
         for i = 4, 6 do fp[i] = fp[i] + (v[i] or 0) * dt fp[i] = fp[i] + angle(raw[i] - fp[i]) * ka end
     end
     W.fp, W.fp_car = fp, watching.id
+    -- Inside the car (seat, cockpit, in-car) a steadier copy still: its speed averaged over about a third of a second,
+    -- then only gently pulled to where the car is drawn. The playback's speed pulses with each batch from the app (+-20 %
+    -- from one frame to the next, 26 Nov 2026), which the outside cameras' copy fp still carries; from inside the car
+    -- every pulse moved the whole world.
+    local ic = W.ic
+    if not ic or ic.car ~= watching.id or (raw[1] - ic.p[1]) ^ 2 + (raw[2] - ic.p[2]) ^ 2 + (raw[3] - ic.p[3]) ^ 2 > 400 ^ 2 then
+        ic = {car = watching.id, p = {raw[1], raw[2], raw[3], raw[4], raw[5], raw[6]}, v = {0, 0, 0},
+              last = {raw[1], raw[2], raw[3]}}
+    elseif dt > 0 then
+        local kv, kp, ka = math.min(1, dt * 3), math.min(1, dt * 2), math.min(1, dt * 10)
+        for i = 1, 3 do
+            ic.v[i] = ic.v[i] + ((raw[i] - ic.last[i]) / dt - ic.v[i]) * kv
+            ic.p[i] = ic.p[i] + ic.v[i] * dt
+            ic.p[i] = ic.p[i] + (raw[i] - ic.p[i]) * kp
+            ic.last[i] = raw[i]
+        end
+        for i = 4, 6 do ic.p[i] = ic.p[i] + angle(raw[i] - ic.p[i]) * ka end
+    end
+    W.ic = ic
     local p = fp
     -- (which way it goes: from how it moves, not its yaw, whose 0 isn't the model's front on every car: the camera sat
     -- beside the car, 21 Nov 2026; standing still: the last way kept)
@@ -1770,12 +1789,50 @@ function watch_tick(pc, me, t)
     elseif CAR_CAMS[s.name] and (function()
         local okc, comp = pcall(function() return c.actor[CAR_CAMS[s.name]] end)
         if not (okc and comp and comp:IsValid()) then return false end
+        -- Inside the car the camera goes with it, so the car itself is drawn on the in-car copy (W.ic, above).
+        local q = W.ic.p
+        c.shown = {q[1], q[2], q[3], q[4], q[5], q[6]}
+        pcall(function()
+            c.actor:K2_SetActorLocationAndRotation({X = q[1], Y = q[2], Z = q[3]}, {Pitch = q[4], Yaw = q[5], Roll = q[6]},
+                                                   false, {}, false)
+        end)
         local l, r = comp:K2_GetComponentLocation(), comp:K2_GetComponentRotation()
         loc, rot = {l.X, l.Y, l.Z}, {Pitch = r.Pitch, Yaw = r.Yaw, Roll = r.Roll}
         if s.name == "seat" then
-            local ax = rotation(p[4], p[5], p[6])                -- (the car's left)
-            local d = (l.X - p[1]) * ax[1] + (l.Y - p[2]) * ax[2] + (l.Z - p[3]) * ax[3]
-            loc = {l.X - 2 * d * ax[1], l.Y - 2 * d * ax[2], l.Z - 2 * d * ax[3]}
+            -- The passenger seat (the user, 26 Nov 2026: "the screen/car shakes a lot"): the seat's place found once in the
+            -- car's own axes (the driver's eye point mirrored across its centre line) and put each frame on the car as
+            -- drawn (c.shown: mirroring about the steadied copy p slid the camera about in the cabin); the view's
+            -- direction steadied as a head is (the samples' small pitch and roll moved the whole world with them).
+            local raw = c.shown
+            local ax, ay, az = rotation(raw[4], raw[5], raw[6])     -- (the car's left, forward, up)
+            if not (W.seat and W.seat.car == c and W.seat.actor == c.actor) then
+                local d = {l.X - raw[1], l.Y - raw[2], l.Z - raw[3]}
+                local function dot(v, u) return v[1] * u[1] + v[2] * u[2] + v[3] * u[3] end
+                -- (the camera's forward and up in the car's own axes: the car's axes are not the camera's, its pitch
+                -- is the camera's roll; angles taken off each other tilted the view to the roof, 26 Nov 2026)
+                local cf, _cr, cu = rotation(r.Pitch, r.Yaw, r.Roll)
+                W.seat = {car = c, actor = c.actor, off = {-dot(d, ax), dot(d, ay), dot(d, az)},
+                          f = {dot(cf, ax), dot(cf, ay), dot(cf, az)}, u = {dot(cu, ax), dot(cu, ay), dot(cu, az)},
+                          head = {raw[4], raw[5], raw[6]}}
+            end
+            local o, h = W.seat.off, W.seat.head
+            loc = {raw[1] + ax[1] * o[1] + ay[1] * o[2] + az[1] * o[3],
+                   raw[2] + ax[2] * o[1] + ay[2] * o[2] + az[2] * o[3],
+                   raw[3] + ax[3] * o[1] + ay[3] * o[2] + az[3] * o[3]}
+            local kp, ky = math.min(1, dt * 6), math.min(1, dt * 14)  -- (pitch and roll eased more than the heading)
+            h[1] = h[1] + angle(raw[4] - h[1]) * kp
+            h[2] = h[2] + angle(raw[5] - h[2]) * ky
+            h[3] = h[3] + angle(raw[6] - h[3]) * kp
+            local sx, sy, sz = rotation(h[1], h[2], h[3])             -- (the car's axes, steadied as a head)
+            local f, u = W.seat.f, W.seat.u
+            rot = axes_rot(vnorm({sx[1] * f[1] + sy[1] * f[2] + sz[1] * f[3], sx[2] * f[1] + sy[2] * f[2] + sz[2] * f[3],
+                                  sx[3] * f[1] + sy[3] * f[2] + sz[3] * f[3]}),
+                           vnorm({sx[1] * u[1] + sy[1] * u[2] + sz[1] * u[3], sx[2] * u[1] + sy[2] * u[2] + sz[2] * u[3],
+                                  sx[3] * u[1] + sy[3] * u[2] + sz[3] * u[3]}))
+            if rawget(_G, "ACRDAILY_SEAT_LOG") then                -- (a probe's: the camera against the car, each frame)
+                print(string.format("[SEAT] %.4f car %.2f %.2f %.2f cam %.2f %.2f %.2f pos %.1f %.1f %.1f\n", t,
+                    raw[4], raw[5], raw[6], rot.Pitch, rot.Yaw, rot.Roll, loc[1], loc[2], loc[3]))
+            end
         end
         local okf, f = pcall(function() return comp.FieldOfView end)
         fov = (okf and type(f) == "number" and f > 20 and f < 120) and f or 75
