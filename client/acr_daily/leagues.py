@@ -350,6 +350,17 @@ def live_check(s, aids, dash, rules):
     return out + [(name, N_('On'), N_('Off')) for name in aids_broken(aids, dash, rules)]
 
 
+def conditions(rules):
+    """The event's conditions in a few words, for the start line once its check has passed (app.check_ok_line): after a
+    DRIVE or a CONTINUE (a crash, a recovery) the driver sees what the stage is run with (the user, 25 Nov 2026: "UI
+    which warns them about the conditions and potential DNF") -> [(what, value)] in English (N_). Raises SaveError."""
+    v = rallyweekend.rule_values(rules)
+    damage = _LEVEL_WORDS.get(v['collisions'], N_('On')) if v['damage'] else N_('Off')
+    aids_off = dict(rallyweekend.RULES, **(rules or {})).get('assists') == 'off'
+    return [(RULE_NAMES['hardcore'], _ON_OFF[1 if v['hardcore'] else 0]), (RULE_NAMES['damage'], damage),
+            (N_('driving aids'), N_('Off') if aids_off else N_('allowed'))]
+
+
 def plausible(s):
     """Settings the mod read (ingamehud.SETTINGS) that a Rally Weekend can have: its menu has no penalties Off. A race
     read as all Off (damage, its levels, penalties: a stage restarted, 25 Nov 2026, Rally Madeira Legend SS7, a DNF the

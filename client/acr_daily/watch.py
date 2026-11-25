@@ -102,10 +102,29 @@ class Watch:
         floor = (COPILOT_DELAY_MS if self.copilot() else WATCH_DELAY_MS) if self.on else 0
         for d in out:                                # (a broadcast's steady delay: livelink.WATCH_DELAY_MS)
             d.floor_ms = floor
+        # only the cars of what is watched: the relay has everyone on the stage, so a driver practising it in another
+        # car (a Skoda Fabia on a Delta S4 daily, 24 Nov 2026) was followed, timed against the day's board. (Not for a
+        # CODRIVER crew: the co-driver follows their own driver, whatever the car.)
+        if not self.copilot():
+            out = [d for d in out if self.fits(d.car)]
         rows = [(self.where(d), d) for d in out]
         # (the cars driving first, furthest on first; then the ones standing: at the start, or after their finish)
         rows.sort(key=lambda x: (bool(getattr(x[1], 'standing', False)), -(x[0]['progress'] if x[0] else -1)))
         return [d for _w, d in rows]
+
+    def fits(self, car):
+        """A car the watched stage is driven in: the daily's / time trial's own, one of an event's; a driver whose app
+        names no car is kept (nothing to tell by)."""
+        if not car:
+            return True
+        from .names import same_car
+        h = self.held()
+        cars = [{'car': c.get('name'), 'carId': c.get('id'), 'carAliases': c.get('aliases') or []}
+                for c in h.get('cars') or () if isinstance(c, dict)]
+        ch = h.get('ch') or {}
+        if not cars and (ch.get('car') or ch.get('carId')):
+            cars = [ch]
+        return not cars or any(same_car(car, c) for c in cars)
 
     def held(self):
         """The watched daily's / time trial's own dict (its 'live' list: the website's, ig_daily.refresh_live)."""

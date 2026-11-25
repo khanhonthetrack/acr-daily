@@ -1901,7 +1901,8 @@ class LeaguesUI:
             return self.problems_alert(problems, self.check_rows(ev.get('rules')), dnf=dnf)
         if ev.get('kind') == 'live':
             return None
-        return c.STAGE_HEAD, ((c.CHECK_OK,) if problems == [] else ()) + c.STAGE_RULES, 'warn'
+        ok = (self.check_ok_line(ev.get('rules')),) if problems == [] else ()   # (the conditions named, all as they must be)
+        return c.STAGE_HEAD, ok + c.STAGE_RULES, 'warn'
 
     def _league_overlay_state(self, f):
         """While following an event: (status, sub-line, overlay args) for its stage, else None."""

@@ -808,7 +808,16 @@ class NoButtonToPress(unittest.TestCase):
         self.assertEqual(a._league_rules_alert()[0], 'THIS RUN WILL BE A DNF')
         a.league_run['ev'].pop('entry')
         a.settings_changed = lambda rules: []
-        self.assertEqual(a._league_rules_alert(), (app_mod.STAGE_HEAD, (app_mod.CHECK_OK,) + app_mod.STAGE_RULES, 'warn'))
+        # (all as it must be: the conditions named, so the driver knows what a change would cost)
+        ok = 'Checked: Hardcore Mode Off · damage Light · driving aids Off'
+        self.assertEqual(a._league_rules_alert(), (app_mod.STAGE_HEAD, (ok,) + app_mod.STAGE_RULES, 'warn'))
+        a.league_run['ev']['rules'] = {'hardcore': True}
+        self.assertEqual(a._league_rules_alert()[1][0], 'Checked: Hardcore Mode On · damage Realistic · driving aids allowed')
+        a.league_run['ev']['rules'] = {'damage': False, 'assists': 'off'}
+        self.assertEqual(a._league_rules_alert()[1][0], 'Checked: Hardcore Mode Off · damage Off · driving aids Off')
+        a.league_run['ev']['rules'] = {'damageIntensity': 'nonsense'}     # (rules it can't read: the plain line)
+        self.assertEqual(a._league_rules_alert()[1][0], app_mod.CHECK_OK)
+        a.league_run['ev']['rules'] = {'assists': 'off'}
         a.settings_changed = lambda rules: None                     # (can't be told: no check said done)
         self.assertEqual(a._league_rules_alert(), (app_mod.STAGE_HEAD, app_mod.STAGE_RULES, 'warn'))
         self.assertEqual(app_mod.STAGE_RULES[0], "On the stage, switching to anything the event doesn't allow is a DNF")

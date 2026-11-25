@@ -72,6 +72,26 @@ class Following(unittest.TestCase):
         self.assertAlmostEqual(at['progress'], 0.5)
         self.assertEqual(at['gap'], 2000)        # (#1 was there at 50 s)
 
+    def test_only_the_watched_stages_car(self):
+        # (24 Nov 2026: a driver practising the Delta S4 daily's stage in a Skoda Fabia was followed, timed against
+        # the day's board)
+        fabia = Driver(3, 900, 95000)
+        fabia.car = 'Skoda Fabia RS Rally2'
+        nameless = Driver(4, 50, 5000)
+        nameless.car = ''
+        a = app_with([Driver(1, 100, 9000), fabia, nameless])
+        a.dailies[2]['ch'].update(car='Lancia Delta S4 Evo2 Italtecnica', carId='LanciaDeltaS4Evo2',
+                                  carAliases=['Lancia Delta S4', 'Lancia Delta S4 Evo2'])
+        w = watch.Watch(a)
+        w.start('daily', 2)
+        self.assertEqual([d.id for d in w.drivers()], [1, 4])
+        self.assertEqual(w.followed().id, 1)
+        # an event of two cars: either of them
+        w.start('event', 1, event={'ch': {'car': 'Peugeot 208 Rally4'}, 'judge': a.dailies[2]['judge'],
+                                   'cars': [{'name': 'Peugeot 208 Rally4', 'id': 'Peugeot208Rally4'},
+                                            {'name': 'Skoda Fabia RS Rally2', 'id': 'SkodaFabiaRSRally2'}]})
+        self.assertEqual([d.id for d in w.drivers()], [3, 4])
+
     def test_a_driver_gone_another_after_a_while(self):
         ds = [Driver(1, 100, 9000)]
         a = app_with(ds)

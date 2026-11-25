@@ -89,6 +89,7 @@ CHECK_TITLE = _('PRE-START CHECK · CHANGE BEFORE THE START')
 CHECK_FIX_SETTINGS = _("Settings: quit to the game's main menu, then DRIVE or CONTINUE in ACR DAILY sets them for you")
 CHECK_FIX_AIDS = _("Driving aids: switch them off in the game's Driving Assists")
 CHECK_OK = _('Pre-start check: settings and driving aids as the event says')
+CHECK_OK_RULES = _('Checked: %s')       # (the event's conditions named: leagues.conditions, App.check_ok_line)
 CHECK_ROWS = 8                # rows the check shows at most (7 settings and 3 aids can't all be wrong at once)
 CONFIRM_S = 1.0               # a setting read as changed this long before a run is judged by it (settings_judged)
 SETTINGS_HINT = _("%s: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.")
@@ -1596,6 +1597,17 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         except saveslot.SaveError:
             return []
         return [(local(a), local(b), local(c)) for a, b, c in rows]
+
+    @staticmethod
+    def check_ok_line(rules):
+        """The start line's line once its check has passed: the conditions the stage runs with, named ("Checked:
+        Hardcore Mode On · damage Realistic · driving aids Off"), so after a DRIVE or a CONTINUE the driver knows what
+        changing would make a DNF (the user, 25 Nov 2026). CHECK_OK when the rules can't be read."""
+        try:
+            parts = leagues.conditions(rules)
+        except saveslot.SaveError:
+            return CHECK_OK
+        return CHECK_OK_RULES % ' · '.join('%s %s' % (local(a), local(b)) for a, b in parts)
 
     def start_line_rules(self):
         """The rules of the run waiting on its start line (armed, or driving up to it; not once its clock runs): a
@@ -4002,7 +4014,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if d.get('changed_pre'):                   # (the race's settings changed in the game's menu: the game mod)
                 return self.problems_alert(d['changed_pre'], self.check_rows(d['ch'].get('weekend')))
             if not COMMIT_REQUIRED and d.get('rw_pre') is True:     # (the game mod says: its Rally Weekend)
-                ok = (CHECK_OK,) if d.get('changed_pre') == [] else ()   # (the pre-start check read, all as it must be)
+                ok = (self.check_ok_line(d['ch'].get('weekend')),) if d.get('changed_pre') == [] else ()   # (the pre-start
+                # check read, all as it must be: the conditions named)
                 return START_HEAD_COMMITTED, ok + START_COMMITTED[1:], 'warn'
             if not COMMIT_REQUIRED:                    # (nothing to press, the mode not known: what makes it count)
                 return START_HEAD_WEEKEND, START_WEEKEND, 'warn'

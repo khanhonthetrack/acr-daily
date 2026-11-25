@@ -241,16 +241,25 @@ end
 
 local function main_menu()
     -- the game's main menu on screen: the game makes a new one when it comes back from a mode's own screens, the old
-    -- one still there a while, off the screen (the tile went on that one and was never seen: the user, 22 Nov 2026)
-    local any = nil
+    -- one still there a while, off the screen (the tile went on that one and was never seen: the user, 22 Nov 2026).
+    -- The menu itself never says it is in the viewport (the game shows it through its root layout's MenuLayer), so it
+    -- is told by its root layout (WB_RootGameLayout, the menu's outer's outer): only the live one is in the viewport. The
+    -- first one found was taken before, and after a level change that could be the old level's, still there until the
+    -- engine cleared it: the tile went on it, unseen (the user, 25 Nov 2026: "go back - then there is no ACR Daily tile").
+    local any, n = nil, 0
     for _, x in ipairs(FindAllOf("WB_MainMenu_C") or {}) do
         if x:IsValid() and x:GetFullName():find("/Engine/Transient", 1, true) then
-            local ok, on = pcall(function() return x:IsInViewport() end)
+            local ok, on = pcall(function()
+                if x:IsInViewport() then return true end
+                local tree = x:GetOuter()
+                local root = tree and tree:IsValid() and tree:GetOuter()
+                return root ~= nil and root:IsValid() and root:IsInViewport()
+            end)
             if ok and on then return x end
-            any = any or x
+            any, n = any or x, n + 1
         end
     end
-    return any
+    return n == 1 and any or nil                         -- (several, none on screen: none taken until it's clear)
 end
 
 local function multiplayer_layout()
@@ -269,11 +278,20 @@ local function multiplayer_layout()
     if not sw or sw:GetChildrenCount() < 3 then return nil end
     local page = sw:GetChildAt(2)
     if not (page and page:IsValid() and page:GetClass():GetFName():ToString():find("RaceLayout")) then return nil end
-    return main, page
+    return main, page, sel
+end
+
+local function to_multiplayer()
+    -- the game's menu on its MULTIPLAYER tab (the tile's): ACR DAILY closed after a stage left the game on HOME, the
+    -- focus sent to the tile landing in HOME's third place (GARAGE), where the wheel's next OK went (25 Nov 2026)
+    local sel = menu.sel
+    if not (sel and sel:IsValid()) then return end
+    local id = sel:GetTabIdAtIndex(2)
+    if sel:GetSelectedTabId():ToString() ~= id:ToString() then sel:SelectTabByID(id, true) end
 end
 
 local function make_tile(t)
-    local main, page = multiplayer_layout()
+    local main, page, sel = multiplayer_layout()
     if not main then return false end
     local sb = find(page.WidgetTree.RootWidget, TILE_SLOT)
     if not sb then return false end
@@ -290,7 +308,7 @@ local function make_tile(t)
         sb:SetContent(tile)                  -- (in the game's own place for a third tile, its size and spot kept)
         log("ACR DAILY tile on MULTIPLAYER")
     end
-    menu.main, menu.page, menu.tile, menu.sb = main, page, tile, sb
+    menu.main, menu.page, menu.tile, menu.sb, menu.sel = main, page, tile, sb, sel
     menu.made_t, menu.dressed = t, nil
     return true
 end
@@ -339,7 +357,12 @@ local function dress_tile(td)
 end
 
 local function tile_ok()
-    return menu.tile and menu.tile:IsValid() and menu.sb and menu.sb:IsValid() and menu.page and menu.page:IsValid()
+    if not (menu.tile and menu.tile:IsValid() and menu.sb and menu.sb:IsValid() and menu.page and menu.page:IsValid()) then
+        return false
+    end
+    -- (still in its place: the game can fill that place again when it builds the page anew)
+    local ok, inner = pcall(function() return menu.sb:GetContent() end)
+    return ok and inner ~= nil and inner:IsValid() and inner:GetAddress() == menu.tile:GetAddress()
 end
 
 local function menu_moved()
@@ -843,14 +866,22 @@ end
 
 local function game_menu(on)
     -- the game's own menu put away while ours is on screen (none of its buttons under ours), and back
-    local main = main_menu()
+    local main = on and menu.hidden_main or main_menu()  -- (back on: the one put away, not another found meanwhile)
     if main and main:IsValid() then
         if not on and not menu.main_vis then menu.main_vis = main:GetVisibility() end
+        -- The game's menu is a CommonUI screen: while active, its own input (the wheel's / pad's Select, Back, tabs,
+        -- and its navigation set-up) still worked under ours, hidden or not: a wheel's OK took testers to the game's
+        -- own places, its tabs changed behind ours (25 Nov 2026). Deactivated while ours is up, as the game does when
+        -- it covers it with a screen of its own, and active again after (checked in the game: it comes back on the
+        -- same tab, the tile focused).
+        if not on then pcall(function() if main:IsActivated() then main:DeactivateWidget() end end) end
         main:SetVisibility(on and (menu.main_vis or K.VISIBLE) or K.COLLAPSED)
+        if on then pcall(function() if not main:IsActivated() then main:ActivateWidget() end end) end
         if on then menu.main_vis = nil end
         -- (and switched off: hidden, it still took the wheel's own presses, its Down / Select going through the game's
         -- menu behind ours: a stage loading, a leaderboard opening; the user, 22 Nov 2026)
         pcall(function() main:SetIsEnabled(on) end)
+        menu.hidden_main = not on and main or nil
     end
 end
 
@@ -859,11 +890,25 @@ end
 -- So while the pages are on screen, the focus is put back on the last button of theirs that had it (focus_guard);
 -- the wheel's Select clicks the focused button (cmd "press").
 local show, focus_guard          -- (defined below: press_focused / the commands use them)
+-- One press, one click: a wheel's or pad's OK can reach the pages twice, as the game's own press of the focused button
+-- and as the app's cmd "press" a moment later; the second then clicked whatever the first had opened (testers, 25 Nov
+-- 2026: "it moved them to some random places"). A click within ONE_PRESS_S of the last one is dropped.
+local ONE_PRESS_S = 0.6
+local click_t = -1e9
+local function click_once(id)
+    local t = os.clock()
+    if t - click_t < ONE_PRESS_S then
+        print("[ACRDailyApp] second click dropped: " .. tostring(id) .. "\n")
+        return
+    end
+    click_t = t
+    if id == "close" then show(false) else tell("click", id) end
+end
 local function press_focused()
     if not page then return end
     for _, b in ipairs(page.buttons) do
         if b.btn:IsValid() and b.btn:HasKeyboardFocus() and b.id then
-            if b.id == "close" then show(false) else tell("click", b.id) end
+            click_once(b.id)
             return
         end
     end
@@ -945,9 +990,12 @@ function show(on)               -- (the local declared above)
     else
         if page then page.w:SetVisibility(K.COLLAPSED) end
         game_menu(true)
+        local ok, e = pcall(to_multiplayer)
+        if not ok then print("[ACRDailyApp] to MULTIPLAYER: " .. tostring(e) .. "\n") end
         pcall(function()
             if menu.tile and menu.tile:IsValid() then menu.tile:SetKeyboardFocus() end
         end)
+        menu.refocus_t = os.clock() + 0.25           -- (and again once the tab's switch has run: tick)
         tell("close")
     end
 end
@@ -1091,12 +1139,11 @@ local function buttons(t)
                 local p = b.btn:IsPressed()
                 if p ~= b.pressed then
                     if p and b.btn:IsHovered() then menu.mouse_on = true end   -- (a click: the mouse in use)
-                    if b.pressed and not p and (b.btn:IsHovered() or b.btn:HasKeyboardFocus()) and b.id then
-                        if b.id == "close" then
-                            show(false)
-                        else
-                            tell("click", b.id)
-                        end
+                    -- (let go over it with the mouse in use, or with the focus on it: a press "under the mouse" while
+                    -- the wheel / pad was the one in use is not a click: CommonUI can press where the resting cursor is)
+                    if b.pressed and not p and ((menu.mouse_on and b.btn:IsHovered()) or b.btn:HasKeyboardFocus())
+                            and b.id then
+                        click_once(b.id)
                     end
                     b.pressed = p
                 end
@@ -1260,6 +1307,10 @@ function M.tick(t)
         end
     end
     if tile_ok() and alive and t - (menu.made_t or t) > 0.3 then dress_tile(state.data.tile) end
+    if menu.refocus_t and t >= menu.refocus_t then       -- (ACR DAILY closed: the tile focused once its tab is on)
+        menu.refocus_t = nil
+        if not shown and tile_ok() then pcall(function() menu.tile:SetKeyboardFocus() end) end
+    end
 
     if not alive then
         if shown then show(false) end

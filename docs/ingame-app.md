@@ -165,6 +165,20 @@ set-up identical to a daily counted (the save was checked, not who made it).
   cross columns whose rows don't line up. The keyboard's arrows reach it through extra key binds.
 - Checked in the game: keyboard arrows down the COMPETITIONS list, Right to DRIVE, Down through all the standings with
   the panel scrolling. NOT checked: a real wheel's hat and Select on the tile (no wheel to press here).
+- 25 Nov 2026 (testers: the wheel's OK "moved them to random places"; the tile gone after another mode):
+  - The game's main menu (WB_MainMenu_C) is a CommonUI activatable screen with its own navigation set-up
+    (UIScreenWidget SetPageNavigationConfig): while ours was up it stayed active, so the wheel's buttons still worked
+    it underneath. appui `game_menu` now DeactivateWidget()s it while the pages are up and ActivateWidget()s it after
+    (checked in the game: it comes back on its tab, keyboard nav fine). Injected Enhanced Input (InjectInputForAction
+    IA_Select / IA_Up) does nothing to the menus: they read the keys through CommonUI, not the player's input.
+  - One press, one click (`click_once`, 0.6 s): the game's own press of the focused button and the app's cmd "press".
+  - Closing the pages puts the game's menu on MULTIPLAYER (`to_multiplayer`: SelectTabByID) with the tile focused:
+    after a stage it was on HOME, the focus in its third place (GARAGE).
+  - `main_menu()`: the menu never reports IsInViewport; the live one is told by its root layout (WB_RootGameLayout,
+    outer's outer) being in the viewport. Before, the first one found was taken: after a level change it could be the
+    old level's, and the tile went on it, unseen.
+  - Tested with simulated wheel presses (ACR_DAILY_NAV_TEST, nav-test.txt): every HOME tile, header tabs, a card's
+    button, Back. A real wheel's presses still not tried from here.
 
 ## Tyres and liveries for events (built and tested in the game 21 Nov 2026)
 
