@@ -76,6 +76,7 @@ import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
 import { developersPage } from './developerspage.js';
 import { broadcastPage, BROADCAST_HEADERS } from './broadcast.js';
+import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
 import { twitchStatus } from './twitch.js';
@@ -1636,6 +1637,11 @@ async function route(req, env, ctx, L) {
     if (bm && (bm[1] === 'event' || ['1', '2'].includes(bm[2]))) {
       return new Response(inLang(L, () => broadcastPage(bm[1], bm[2], url.searchParams, env.SITE_URL || url.origin)),
         { headers: BROADCAST_HEADERS });
+    }
+    // ...ACR DAILY: Dailies, the frame for a stream of the dailies: the 21:9 game on top, both boards and the commentary
+    // under it (src/dailiesoverlay.js)
+    if (req.method === 'GET' && path === '/broadcast/dailies') {
+      return new Response(inLang(L, () => dailiesOverlayPage(url.searchParams, env.SITE_URL || url.origin)), { headers: BROADCAST_HEADERS });
     }
     // ...a ranked session (one, or a series' / a special event's session under way or next: /broadcast/ranked/skoda),
     // and a championship's event open now (/broadcast/championship/<id>)

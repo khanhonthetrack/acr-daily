@@ -64,6 +64,7 @@ export function developersPage(env) {
   <p class="note">${esc(t('TV graphics for your stream, ready made: the standings tower with flags, a LIVE bug, the driver on the stage with their time and how far they are, and between cars the full classification and the stage, in turn. Made for 1920 x 1080; the background stays see-through.'))}</p>
   <table class="ep">
     <tr><td>/broadcast/daily/{1|2}</td><td>${esc(t("Today's daily stage."))}</td></tr>
+    <tr><td>/broadcast/dailies</td><td>${esc(t('ACR DAILY: Dailies. A frame for a 21:9 game (3440 x 1440): the game on top at 1920 x 804, both dailies\' boards and the commentary under it.'))}</td></tr>
     <tr><td>/broadcast/tt/{1|2}</td><td>${esc(t("This week's time trial stage."))}</td></tr>
     <tr><td>/broadcast/event/{id}</td><td>${t("An event: a championship's, a cup's or a ranked session's. {0} for a private rally.", code('?code=XXXX-XXXX'))}</td></tr>
   </table>

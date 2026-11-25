@@ -3,6 +3,7 @@
 // from acrdaily.com (read-only, public).
 import http from 'node:http';
 import { broadcastPage, BROADCAST_HEADERS } from '../src/broadcast.js';
+import { dailiesOverlayPage } from '../src/dailiesoverlay.js';
 
 const SITE = 'https://acrdaily.com';
 http.createServer(async (req, res) => {
@@ -11,6 +12,11 @@ http.createServer(async (req, res) => {
   if (m) {
     res.writeHead(200, BROADCAST_HEADERS);
     res.end(broadcastPage(m[1], m[2], url.searchParams, SITE));
+    return;
+  }
+  if (url.pathname === '/broadcast/dailies') {
+    res.writeHead(200, BROADCAST_HEADERS);
+    res.end(dailiesOverlayPage(url.searchParams, SITE));
     return;
   }
   if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
