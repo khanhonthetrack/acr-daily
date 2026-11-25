@@ -18,6 +18,7 @@ MEDAL = {'1': 'FFD60A', '2': 'D4D4D8', '3': 'FF9F0A'}
 TONE = {'good': GOOD, 'bad': BAD, 'slow': SLOW, 'live': LIVE, 'muted': MUTED}
 INFO_EVERY_S = 60                       # (liverallyui.py: the series again, while the page is open)
 POLL_S = 30                             # (liverallyui.py: a session, unless the server says otherwise)
+WATCH_POLL_S = 15                       # a session under way that WATCH LIVE lists (who is on which stage)
 RESULTS_ROWS = 200                      # (all of them: the page scrolls, the wheel steps down it)
 SHOWN_ROWS = 200
 CARS_A_ROW = 3
@@ -68,6 +69,10 @@ def _keep_fresh(ig, a, m):
         every = (a.lr_data.get(key) or {}).get('pollS') or POLL_S
         if now - at.get(key, -1e9) >= every:
             a._lr_poll(key)
+    if m['tab'] == 'series' and not m['report']:      # (WATCH LIVE: the sessions under way, their stages and queues)
+        for key in set(running_keys(a.lr_info)) - {a._lr_registered()}:
+            if now - at.get(key, -1e9) >= WATCH_POLL_S:
+                a._lr_poll(key)
 
 
 _flags = {}                             # code -> (its PNG or None, when looked)
@@ -173,12 +178,18 @@ def series_page(ig, info):
     now = a.lr_clock.now_ms()
     out = [txt(_('Official rallies every hour, four series in turn. Register in the 30 minutes before the hour: the '
                  'stages and the weather are drawn at the hour, with the start list.'), 17, 'medium', FG2, wrap=True)]
+    for spc in info.get('specials') or []:           # a special event: its own card, first
+        out.append(special_card(ig, spc, now))
     mine = a._lr_registered()
     if mine:
         out.append(session(ig, mine, now))
+    live = watch_part(ig, info, now)
+    if live:
+        out.append(live)
     out.append(heading(_('SERIES')))
     for s in info.get('series') or []:
-        out.append(series_row(ig, s, info, now))
+        if not s.get('special'):
+            out.append(series_row(ig, s, info, now))
     r = liverally.rules_of(info)
     out.append(heading(_('HOW IT WORKS')))
     # (four short lines, not a paragraph to read in the game, 22 Nov 2026)
@@ -248,6 +259,130 @@ def series_row(ig, s, info, now):
                                for k, name in enumerate(cars[i:i + CARS_A_ROW], start=i)], pad=[0, 0 if not lines else 8, 0, 0]))
         picker = col(*lines, pad=[25, 0, 20, 14])
     return box(col(line, picker), bg=PANEL, pad=[0, 8, 0, 0])
+
+
+# ---- a special event (the server's SPECIALS: the Skoda Saturday Challenge)
+SP_COLOUR = '78FAAE'
+SP_INK = '04140E'
+
+
+def special_card(ig, spc, now):
+    """A special event's card: its logo, when (this PC's day and time), its country, stages, car, entry and prize,
+    who registered, a countdown, and REGISTER / WITHDRAW (its one car: nothing to pick). Once under way: DRIVE is in
+    YOUR SESSION, WATCH under WATCH LIVE."""
+    a = ig.app
+    key = (spc['key'], int(spc['starts']))
+    phase = spc.get('phase')
+    when = i18n.strftime(_('%A %d %B · %H:%M'), time.localtime(spc['starts'] / 1000))
+    car = ((spc.get('cars') or [{}])[0] or {}).get('name') or ''
+    facts = '   ·   '.join(x for x in (_('%d stages of %s, drawn at the start') % (spc.get('stages') or 0, spc.get('rally') or ''),
+                                       car, _('free entry')) if x)
+    prize = (_('%d credits for every driver who finishes') % spc['prize']) if spc.get('prize') else None
+    n = spc.get('signups') or 0
+    if phase == 'signup' and spc.get('signedUp'):
+        act = row(hairline_chip('✓  ' + _('REGISTERED'), GOOD), sp(12), quiet(tab_id(TAB, 'withdraw', _key_arg(key)), _('WITHDRAW'), va='c'),
+                  va='c')
+    elif phase == 'signup':
+        act = btn(tab_id(TAB, 'register', _key_arg(key)), _('REGISTER  ›'), bg=SP_COLOUR, hov=WHITE, fg=SP_INK, hfg=BG, sz=20,
+                  f='bold', p=[22, 8, 22, 8], r=2)
+    elif phase == 'running':
+        act = hairline_chip(_('UNDER WAY'), SP_COLOUR)
+    else:
+        act = hairline_chip(_('RESULTS SOON') if phase == 'over' else _('OPENS SOON'), MUTED)
+    clock = col(kicker(_('STARTS IN') if phase in ('signup', 'upcoming') else _('STARTED'), j=2),
+                txt(liverally.left(spc['starts'] - now) if phase in ('signup', 'upcoming') else liverally.hm(spc['starts']), 34,
+                    'bold', WHITE, j=2), va='c')
+    lg = logo(spc['key'], 320, 180, tile=True)
+    body = col(row(box(txt(_('SPECIAL EVENT'), 14, 'bold', SP_INK, sp=80), bg=SP_COLOUR, p=[8, 2, 8, 2], va='c'),
+                   txt(when, 17, 'semi', SOFT, va='c', pad=[12, 0, 0, 0])),
+               txt((spc.get('name') or '').upper(), 34, 'bold', WHITE, pad=[0, 8, 0, 0]),
+               txt(facts, 17, 'medium', SOFT, wrap=True, pad=[0, 4, 0, 0]),
+               txt(prize, 17, 'semi', SP_COLOUR, pad=[0, 4, 0, 0]) if prize else None,
+               txt(n_('%d driver registered', '%d drivers registered', n) % n, 16, 'medium', FG2, pad=[0, 4, 0, 0]),
+               fill=1, va='c', pad=[22, 14, 22, 14])
+    return box(col(size(box(None, bg=SP_COLOUR), h=4),
+                   row(lg and size(lg, pad=[16, 14, 0, 14], va='c'), body, size(clock, w=260, va='c'),
+                       size(row(sp(fill=1), act, va='c'), w=ACT_W + 40, va='c', pad=[10, 0, 24, 0]))),
+               bg=PANEL, pad=[0, 18, 0, 0])
+
+
+# ---- WATCH LIVE: every session under way, a WATCH for each of its stages (the user, 25 Nov 2026: "For ranked games,
+# introduce an option to watch the ranked game (which allows to join and spectate any of the stages of the ranked game
+# (only))"). A driver of the session watches only the stages they have driven: a start on a stage of theirs before
+# their run on it is a DNF (liverallyui._lr_watch), and watching sets that stage up in the game.
+def running_keys(info):
+    return [(s['series'], int(s['starts'])) for s in (info or {}).get('sessions') or []
+            if s.get('phase') == 'running' and s.get('eventId')]
+
+
+def watchable(v, no):
+    """Whether I may watch stage no (1..) of a session view: not one of mine still to drive. -> (ok, why)."""
+    me = (v or {}).get('me') or {}
+    if not me.get('signedUp'):
+        return True, ''
+    e = ((v or {}).get('event') or {}).get('entry') or {}
+    if e.get('status') in ('finished', 'dnf', 'dsq') or me.get('out'):
+        return True, ''
+    if (e.get('done') or 0) >= no:
+        return True, ''
+    return False, _('after you drive it')
+
+
+def watch_part(ig, info, now):
+    a = ig.app
+    keys = running_keys(info)
+    if not keys:
+        return None
+    out = [heading(_('WATCH LIVE'), _('%d UNDER WAY') % len(keys))]
+    for i, key in enumerate(keys):
+        v = a.lr_data.get(key) or {}
+        ev = v.get('event') or {}
+        stages = ev.get('stages') or []
+        queues = v.get('queues') or []
+        name = a._lr_series_name(key[0]).upper()
+        head = row(logo(key[0], 112, 63) and size(logo(key[0], 112, 63), pad=[0, 0, 16, 0], va='c'),
+                   col(txt('%s  ·  %s' % (name, (v.get('rally') or '').upper()), 22, 'bold', WHITE),
+                       txt(_('Started at %s') % liverally.hm(key[1]) + ('   ·   ' + n_('%d driver', '%d drivers', v['entrants']) % v['entrants']
+                                                                       if isinstance(v.get('entrants'), int) else ''),
+                           15, 'medium', FG2, pad=[0, 2, 0, 0]), va='c', fill=1))
+        btns = []
+        if not stages:
+            btns.append(txt(_('Loading the session…'), 16, 'medium', MUTED, va='c'))
+        for k, s in enumerate(stages):
+            no = k + 1
+            on = sum(1 for x in (queues[k] if k < len(queues) else []) if x.get('state') == 'driving')
+            ok, why = watchable(v, no)
+            label = 'SS%d  ·  %s' % (no, n_('%d on it', '%d on it', on) % on) if on else 'SS%d' % no
+            sub = txt(s.get('name') or '', 13, 'medium', FG2 if ok else MUTED, pad=[0, 4, 0, 0])
+            if ok:
+                b = btn(tab_id(TAB, 'watch', '%s|%d|%d' % (key[0], key[1], no)), _('WATCH  %s') % label,
+                        bg=LIVE if on else PANEL2, hov=WHITE, fg=BG if on else WHITE, hfg=BG, sz=16, f='bold', p=[14, 6, 14, 6],
+                        r=2, ol=None if on else LINE2)
+            else:
+                b = box(txt('SS%d  ·  %s' % (no, why), 16, 'bold', MUTED), bg='-', ol=LINE2, olw=1, p=[14, 6, 14, 6], r=2)
+            btns.append(col(b, sub, pad=[0 if k == 0 else 10, 0, 0, 0]))
+        out.append(box(col(head, row(*btns, pad=[0, 12, 0, 0])), bg=PANEL if i % 2 == 0 else STRIPE, p=[20, 14, 20, 14]))
+    return col(*out)
+
+
+def start_watch(ig, key, no):
+    """WATCH on stage no (1..) of a ranked session under way: its stage set up in the game, the camera on its drivers
+    (only the session's: its relay room, watch.py room)."""
+    a = ig.app
+    v = a.lr_data.get(key) or {}
+    ev = v.get('event') or {}
+    stages = ev.get('stages') or []
+    ok, why = watchable(v, no)
+    if not ok or not (1 <= no <= len(stages)):
+        ig.say(_('WATCH'), [_('You can watch this stage after you drive it: a start on it before your own run is a DNF.')])
+        return
+    from . import ig_watch
+    sid = next((x.get('steamId') for x in ((v.get('queues') or [])[no - 1] if no - 1 < len(v.get('queues') or []) else [])
+                if x.get('state') == 'driving'), None)
+    ig_watch.start_event(ig, {'eventId': v.get('eventId') or ev.get('id'), 'kind': 'live', 'stageNo': no, 'stage': stages[no - 1],
+                              'cars': ev.get('cars') or [], 'car': ev.get('car'), 'event': '%s · %s' % (
+                                  a._lr_series_name(key[0]), v.get('rally') or ''), 'league': a._lr_series_name(key[0]),
+                              'steamId': sid, 'session': key})
 
 
 # ---- my session
@@ -572,3 +707,8 @@ def click(ig, action, arg):
         key = _key_of(arg)
         if key:
             a.lr_drive(key)
+    elif action == 'watch':                 # WATCH LIVE: a stage of a session under way
+        series, _sep, rest = (arg or '').partition('|')
+        starts, _sep, no = rest.partition('|')
+        if starts.isdigit() and no.isdigit():
+            start_watch(ig, (series, int(starts)), int(no))

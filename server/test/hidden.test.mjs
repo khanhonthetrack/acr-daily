@@ -54,7 +54,7 @@ test('the form: everything hidden unless the maker says otherwise', () => {
 
 test('WATCH\'s list: who is on a stage now, only where the asker may look', async () => {
   const live = (db, id) => db.prepare(`INSERT INTO event_live (event_id, steam_id, stage_no, x, z, progress, total_ms, state, updated)
-    VALUES (?, ?, 2, 5, 6, 0.4, 90000, 'live', ?)`).run(id, BEN, NOW - 2000);
+    VALUES (?, ?, 1, 5, 6, 0.4, 90000, 'live', ?)`).run(id, BEN, NOW - 2000);   // (SS2: event_live counts from 0, the list from 1)
   const hidden = world();
   live(hidden.db, hidden.id);
   assert.deepEqual((await call(hidden.env, '/api/events/live', CID)).body.drivers, [], 'its stages kept from Cid');

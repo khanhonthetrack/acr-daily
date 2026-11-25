@@ -921,9 +921,13 @@ class LiveRallyUI:
         m = self._lr_mine()
         if m:
             return m
+        # (a special event registered for days ahead: its own card on RANKED until the hour before it)
+        clock = getattr(self, 'lr_clock', None)
+        now = clock.now_ms() if clock is not None else time.time() * 1000
         for s in sorted((self.lr_info or {}).get('sessions') or [], key=lambda x: x['starts']):
             if s.get('signedUp') and s.get('phase') in ('signup', 'running') \
-                    and (s.get('entry') or {}).get('status') not in ('finished', 'dnf', 'dsq'):
+                    and (s.get('entry') or {}).get('status') not in ('finished', 'dnf', 'dsq') \
+                    and not (s.get('special') and s['phase'] == 'signup' and s['starts'] - now > 3600000):
                 return s['series'], s['starts']
         return None
 

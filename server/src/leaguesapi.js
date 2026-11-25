@@ -666,10 +666,12 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     for (const d of await eventLive(env, [...seen.keys()], now)) {
       const s = seen.get(d.eventId);
       if (!s || d.state !== 'live') continue;
-      const stage = s.out.stages[(d.stageNo || 1) - 1];
+      // (event_live keeps the stage from 0; WATCH's list has it from 1, as SSn: SS2's drivers were listed, and
+      // watched, as SS1's and on SS1's set-up until 25 Nov 2026)
+      const stage = s.out.stages[d.stageNo || 0];
       if (!stage || !stage.track) continue;
       drivers.push({ kind: s.ev.league_kind, eventId: d.eventId, event: s.ev.name, league: s.ev.league_name,
-        stageNo: d.stageNo, stage, car: s.out.car || null, cars: s.out.cars, rules: s.out.rules, rally: stage.rally || s.out.rally,
+        stageNo: (d.stageNo || 0) + 1, stage, car: s.out.car || null, cars: s.out.cars, rules: s.out.rules, rally: stage.rally || s.out.rally,
         steamId: d.steamId, name: d.name, country: d.country, look: d.look, progress: d.progress,
         totalMs: s.v && s.v.results ? null : d.totalMs });
     }

@@ -79,8 +79,10 @@ def day_hm(ms, tz=None):
 
 
 def left(ms):
-    """A countdown: '0:42', '12:05', '1:02:03'."""
+    """A countdown: '0:42', '12:05', '1:02:03', '3d 1:02:03' (a special event's, days ahead)."""
     s = max(0, int(-(-ms // 1000)))
+    if s >= 86400:
+        return '%dd %d:%02d:%02d' % (s // 86400, s % 86400 // 3600, s % 3600 // 60, s % 60)
     h, m, s = s // 3600, s % 3600 // 60, s % 60
     return '%d:%02d:%02d' % (h, m, s) if h else '%d:%02d' % (m, s)
 

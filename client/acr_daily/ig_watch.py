@@ -666,6 +666,7 @@ def overlay(ig):
             held['live'] = [dict(x, state='live') for x in m.get('events') or []
                             if x.get('eventId') == held.get('eventId') and x.get('stageNo') == w.slot]
             held['live_at'] = m.get('events_at', time.monotonic())
+            ranked_board(a, held, w.slot)            # (a ranked stage: its times so far, the board)
     else:
         from . import ig_daily
         ig_daily.refresh_live(ig, w.kind)        # (the website's list too: the drivers with no car on the relay)
@@ -820,7 +821,34 @@ def event_held(x):
         except Exception:
             judge = None
     return {'ch': ch, 'judge': judge, 'live': [], 'board': None, 'name': x.get('event') or '', 'eventId': x['eventId'],
-            'kind': x.get('kind'), 'cars': cars}
+            'kind': x.get('kind'), 'cars': cars, 'session': x.get('session')}
+
+
+RANKED_POLL_S = 15.0                   # a ranked session watched: its queues (the stage's times) asked again this often
+
+
+def ranked_board(a, held, no):
+    """A ranked stage watched (its session: held['session'], from RANKED's WATCH LIVE): the stage's times so far as
+    WATCH's board (the tower's best, the studio's classification), its session asked again every RANKED_POLL_S."""
+    key = held.get('session')
+    if not key:
+        return
+    at = getattr(a, '_lr_at', {}) or {}
+    if time.monotonic() - at.get(key, -1e9) >= RANKED_POLL_S and hasattr(a, '_lr_poll'):
+        a._lr_poll(key)
+    v = (getattr(a, 'lr_data', None) or {}).get(key) or {}
+    qs = v.get('queues') or []
+    q = qs[no - 1] if 0 < no <= len(qs) else []
+    rows = []
+    for x in q:
+        if x.get('timeMs') is None:
+            continue
+        team = x.get('team') if isinstance(x.get('team'), dict) else None
+        rows.append({'name': x.get('name') or '', 'steamId': x.get('steamId'), 'country': x.get('country'),
+                     'car': x.get('car') or '', 'totalMs': x['timeMs'],
+                     'look': {'tag': {'text': team.get('tag'), 'color': team.get('color')}} if team and team.get('tag') else {}})
+    rows.sort(key=lambda e: e['totalMs'])
+    held['board'] = {'entries': rows}
 
 
 def start_event(ig, x):
