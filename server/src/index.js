@@ -709,7 +709,7 @@ async function getLive(env, date, slot = null) {
     `SELECT l.steam_id AS steamId, l.slot, p.name, p.country, p.avatar, l.x, l.z, l.progress, l.total_ms AS totalMs, l.resets,
             l.state, l.updated, ${LOOK_COLS}
        FROM live l JOIN players p ON p.steam_id = l.steam_id ${lookJoin('l.steam_id')}
-      WHERE l.date = ?${bySlot.length ? ' AND l.slot = ?' : ''} AND p.banned = 0
+      WHERE l.date = ?${bySlot.length ? ' AND l.slot = ?' : ' AND l.slot < 90'} AND p.banned = 0
         AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))
       ORDER BY l.progress DESC`).bind(date, ...bySlot, now - LIVE_STALE_MS, now - LIVE_KEEP_DONE_MS).all();
   // (each driver's look from the shop: their colour on the map, their frame and badge; their team's tag)

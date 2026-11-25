@@ -700,6 +700,19 @@ class TimeTrialUI:
         t = self.tt.get(slot) or {}
         t['live_at'] = time.monotonic()
         if slot == CP_SLOT:                     # (a COPILOT crew's stage: on no time trial's map; the relay has the car)
+            # the daily crew's driver: on the website's CODRIVER DAILY map (only those who have driven it see it: the
+            # server; CASUAL's, cx:, on none)
+            cid = str((j.ch or {}).get('id') or '')
+            if cid.startswith('cp:') and f is not None and self.s.get('token') and self.api.configured:
+                body = {'challengeId': cid, 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),
+                        'totalMs': j.total_ms, 'resets': j.resets, 'state': state}
+
+                def crew_go():
+                    try:
+                        self.api.copilot_live(body)
+                    except Exception:
+                        pass
+                threading.Thread(target=crew_go, daemon=True).start()
             return
         if not self.s.get('token') or not self.api.configured or f is None or not t.get('counts', True) or t.get('norally'):
             return

@@ -175,6 +175,19 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 .legal{border-top:1px solid var(--line);padding:16px 0 40px;font-size:12px;color:var(--fg3);display:flex;gap:6px 16px;flex-wrap:wrap}
 .legal a{color:var(--fg2)}.legal a:hover{color:var(--acct,#FF4655)}
 
+/* the dailies' two tabs: the official ones, and CODRIVER DAILY (src/copilot.js) */
+.dtabs{display:flex;gap:4px;margin:0 0 18px;border-bottom:1px solid var(--line)}
+.dtabs[hidden],#stages[hidden],#cpday[hidden],.datenav button[hidden]{display:none!important}   /* (.stages is a grid: its own display beat [hidden]) */
+.dtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--fg2);cursor:pointer;margin-bottom:-1px;
+  font:700 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;padding:12px 14px}
+.dtabs button:hover{color:var(--fg)}
+.dtabs button.on{color:var(--fg);border-bottom-color:var(--acc)}
+.cphide{display:flex;gap:18px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line)}
+.cphide .q{flex:0 0 auto;width:76px;height:76px;display:grid;place-items:center;background:#FF9F0A;color:#0b0b0d;
+  font:800 52px/1 'Barlow Condensed',sans-serif}
+.cphide b{display:block;font:700 22px/1.15 'Barlow Condensed',sans-serif;letter-spacing:.04em;text-transform:uppercase}
+.cphide p{margin:6px 0 0;color:var(--fg2);max-width:60ch}
+.cptab td.drv{width:38%}.cptab td.drv.co{color:var(--fg2)}
 @media (max-width:860px){
   .stages,.spots{grid-template-columns:1fr}
   .spec{grid-template-columns:1fr 1fr}
@@ -197,7 +210,9 @@ ${siteHeader(env)}
 <a class="cupstrip tw" id="twstrip" hidden target="_blank" rel="noopener"></a>
   <a class="cupstrip" id="tcupstrip" hidden></a>
   <div class="dayline"><nav class="datenav"><button id="prev" aria-label="${t('Previous day')}" title="${t('The day before')}">‹</button><h1 id="dayname">${t("Today's stages")}</h1><button id="next" aria-label="${t('Next day')}" title="${t('The day after')}">›</button></nav><div id="ends"></div></div>
+  <nav class="dtabs" id="dtabs" hidden><button id="tab-official" class="on">${t('Official')}</button><button id="tab-codriver">${t('Codriver daily')}</button></nav>
   <div class="stages" id="stages"></div>
+  <div id="cpday" hidden></div>
   ${spotlight()}
 </main>
 
@@ -324,9 +339,9 @@ ${STAGE_MAP_JS()}
 
   function load(){
     $('next').disabled=cur>=today;
-    $('dayname').textContent=cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur));
+    if(typeof tab==='undefined'||tab==='official')$('dayname').textContent=cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur));
     get('/api/challenges?date='+cur).then(function(r){
-      var box=$('stages');box.innerHTML='';maps={};PB={};
+      var box=$('stages');box.innerHTML='';var keep=maps.cp;maps={};if(keep)maps.cp=keep;PB={};
       if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty',${tq('No stages for this day.')}));return}
       var tm=r.challenges[0].timing;   // how often the server wants the live map asked (wrangler.toml)
       // (with someone on stage, checked twice an app's update: the cars then run one update and one check late)
@@ -347,12 +362,12 @@ ${STAGE_MAP_JS()}
     liveBusy=true;
     get('/api/live?date='+cur+'&slot=all').then(function(d){if(!d||!d.drivers)return;   // (an error: the cars drive on)
       var all=d.drivers;anyLive=all.length>0;
-      Object.keys(maps).forEach(function(slot){drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})},d.now)})},
+      Object.keys(maps).forEach(function(slot){if(slot==='cp')return;drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})},d.now)})},
       function(){}).then(function(){liveBusy=false})}
   // the timing sheets every minute while the tab is shown (a hidden one asks nothing: it catches up when shown again)
   var stale=false;
   function refresh(){if(cur!==today)return;if(document.hidden){stale=true;return}stale=false;
-    Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
+    Object.keys(maps).forEach(function(slot){if(slot==='cp')return;var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
   document.addEventListener('visibilitychange',function(){if(!document.hidden){if(stale)refresh();pollLive(true)}});
   function tick(){
     if(cur!==today||!ends){$('ends').textContent='';return}
@@ -360,6 +375,59 @@ ${STAGE_MAP_JS()}
     $('ends').innerHTML=F(${tq('Stages close in {0}')},'<b class="num">'+h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+'</b>');
     if(l===0){today=new Date().toISOString().slice(0,10);cur=today;load()}
   }
+  // ---- CODRIVER DAILY (src/copilot.js): today's crews' standings to everyone; the stage, its map and the crews on it
+  // only to someone who has driven it (as driver or co-driver): it stays hidden until then (the user, 26 Nov 2026)
+  var tab='official',cpOn=false,cpShown=false,cpLive=0;
+  function setTab(t){tab=t;$('tab-official').className=t==='official'?'on':'';$('tab-codriver').className=t==='codriver'?'on':'';
+    $('stages').hidden=t!=='official';$('cpday').hidden=t!=='codriver';$('prev').hidden=$('next').hidden=t!=='official';
+    $('dayname').textContent=t==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):${tq("Today's CODRIVER DAILY")};
+    try{history.replaceState(null,'',t==='codriver'?'#codriver':location.pathname)}catch(e){}
+    if(t==='codriver')cpLoad()}
+  $('tab-official').onclick=function(){setTab('official')};
+  $('tab-codriver').onclick=function(){setTab('codriver')};
+  get('/api/copilot').then(function(d){if(!d||!d.on)return;cpOn=true;$('dtabs').hidden=false;if(location.hash==='#codriver')setTab('codriver')}).catch(function(){});
+  function cpLoad(){
+    Promise.all([get('/api/copilot'),get('/api/copilot/board')]).then(function(a){
+      var d=a[0]||{},b=a[1]||{},box=$('cpday');box.innerHTML='';delete maps.cp;cpShown=false;
+      var s=el('section','stage');var plate=el('div','plate');plate.appendChild(el('span','ss',${tq('CODRIVER')}));
+      var st=d.revealed&&d.stage?d.stage:(b.stage||null);
+      if(st)plate.appendChild(el('span','where',[TD(st.rally),km(st.lengthM)].filter(Boolean).join('  ·  ')));
+      s.appendChild(plate);
+      if(st){
+        s.appendChild(el('h2','name',st.menuName||st.stageName||st.track));
+        var spec=el('div','spec');
+        [[${tq('Car')},st.car||'–'],[${tq('Weather')},TD(st.weatherLabel)||'–'],[${tq('Start')},(st.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–'],[${tq('Mode')},${tq('Hardcore')}]].forEach(function(p){
+          var x=el('div');x.appendChild(el('div','k',p[0]));x.appendChild(el('div','v',p[1]));spec.appendChild(x)});
+        s.appendChild(spec);
+        var mb=el('div','map');s.appendChild(mb);
+        get('/api/route?track='+encodeURIComponent(st.track)).then(function(r){if(!r||!r.route||!mb.isConnected)return;
+          maps.cp={m:drawMap(mb,r.route,EARTH[st.track],0),slot:'cp'};cpShown=true;cpPoll(true)}).catch(function(){});
+      }else{
+        var h=el('div','cphide');h.appendChild(el('div','q','?'));var w=el('div');
+        w.appendChild(el('b',null,${tq('Hidden until you drive it')}));
+        w.appendChild(el('p',null,${tq('Drive it once, as the driver or the co-driver, to see the stage, its map and the crews on it. Until then: the standings.')}));
+        h.appendChild(w);s.appendChild(h);
+      }
+      var sh=el('div','sheet');var hd=el('div','sheethead');hd.appendChild(el('div','k',${tq('Standings')}));
+      var stats=el('div','stats');stats.textContent=P(${tqp('{0} crew','{0} crews')},(b.entries||[]).length);hd.appendChild(stats);sh.appendChild(hd);
+      var t=el('table','cptab');t.innerHTML='<thead><tr><th>${ts('Pos')}</th><th>${ts('Driver')}</th><th>${ts('Co-driver')}</th><th class="r">${ts('Time')}</th><th class="r gaph">${ts('Gap')}</th></tr></thead>';
+      var tb=el('tbody');t.appendChild(tb);sh.appendChild(t);s.appendChild(sh);box.appendChild(s);
+      if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty',${tq('No crew has driven it yet.')});td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
+      MEP.then(function(me){var mid=me&&me.signedIn?me.steamId:null;
+        b.entries.forEach(function(e){var dnf=e.status!=='finished';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));
+          if(mid&&((e.driver||{}).steamId===mid||(e.codriver||{}).steamId===mid))tr.classList.add('me');
+          tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
+          [[e.driver,'drv'],[e.codriver,'drv co']].forEach(function(p){var c=el('td',p[1]),who=p[0]||{};flag(c,who.country);
+            var a=el('a',null,who.name||'?');a.href='/d/'+who.steamId;c.appendChild(a);tr.appendChild(c)});
+          var tt=el('td','t r',dnf?${tq('DNF')}:fmt(e.totalMs));if(dnf)tt.title=e.reason||'';tr.appendChild(tt);
+          tr.appendChild(el('td','gap r',dnf||e.rank===1||e.gapMs==null?'':'+'+(e.gapMs/1000).toFixed(3)));tb.appendChild(tr)});
+        paginate(tb,'cp'+(b.date||''),tb.parentNode)});
+    }).catch(function(){})}
+  // the crews on the stage: every few seconds while the tab is shown (only to those who may see it: the server says)
+  function cpPoll(force){if(tab!=='codriver'||!cpShown||document.hidden)return;if(force!==true&&cpLive++%3)return;
+    get('/api/copilot/live').then(function(d){if(d&&d.drivers&&maps.cp)drawLive(maps.cp,{drivers:d.drivers},d.now)}).catch(function(){})}
+  setInterval(cpPoll,1000);
+  setInterval(function(){if(tab==='codriver'&&!document.hidden)cpLoad()},60000);
   $('prev').onclick=function(){cur=shift(cur,-1);load()};
   $('next').onclick=function(){if(cur<today){cur=shift(cur,1);load()}};
   load();tick();setInterval(tick,1000);setInterval(pollLive,1000);setInterval(refresh,60000);

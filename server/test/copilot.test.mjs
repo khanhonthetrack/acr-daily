@@ -246,3 +246,50 @@ test('off on a server without COPILOT_FROM', async () => {
   assert.deepEqual((await copilotApi(new Request(url), env, '/api/copilot', url, null, true, Date.now(), { json, err })).data, { on: false });
   assert.equal(await copilotApi(new Request(url), env, '/api/copilotx', url, null, true, Date.now(), { json, err }), null);
 });
+
+test('CODRIVER DAILY on the website: the crews on the stage only to those who have driven it, the dailies\' map without them', async () => {
+  const w = world();
+  // crew 1+2 on the stage (started), crew 3+4 done (the driver left: a DNF)
+  const a = (await w.call('POST', '/api/copilot/lobbies', { who: 1, body: { role: 'driver' } })).data.lobby.id;
+  await w.call('POST', '/api/copilot/join', { who: 2, body: { id: a } });
+  await w.call('POST', `/api/copilot/lobbies/${a}/ready`, { who: 1, body: { ready: true } });
+  await w.call('POST', `/api/copilot/lobbies/${a}/ready`, { who: 2, body: { ready: true } });
+  const b = (await w.call('POST', '/api/copilot/lobbies', { who: 3, body: { role: 'driver' } })).data.lobby.id;
+  await w.call('POST', '/api/copilot/join', { who: 4, body: { id: b } });
+  await w.call('POST', `/api/copilot/lobbies/${b}/ready`, { who: 3, body: { ready: true } });
+  await w.call('POST', `/api/copilot/lobbies/${b}/ready`, { who: 4, body: { ready: true } });
+  await w.call('POST', `/api/copilot/lobbies/${b}/leave`, { who: 3, body: {} });
+  const now = T0 + 10 * H + 5000;
+  const pos = { challengeId: `cp:${DAY}/${a}`, x: 120, z: 0, progress: 0.4, totalMs: 61000, resets: 0, state: 'live' };
+  // only the crew's driver sends it, for their own lobby, today
+  assert.equal((await w.call('POST', '/api/copilot/live', { who: 2, body: pos, now })).status, 403, 'the co-driver: no');
+  assert.equal((await w.call('POST', '/api/copilot/live', { who: 3, body: pos, now })).status, 403, 'another crew\'s: no');
+  assert.equal((await w.call('POST', '/api/copilot/live', { who: 1, body: { ...pos, challengeId: 'cp:2026-11-24/1' }, now })).status, 400);
+  assert.equal((await w.call('POST', '/api/copilot/live', { who: 1, body: pos, now })).status, 200);
+  // signed out, or not driven yet: hidden (the cars would give the stage away); the standings stay everyone's
+  for (const who of [null, 5, 2]) {
+    const r = (await w.call('GET', '/api/copilot/live', { who, now })).data;
+    assert.equal(r.hidden, true, String(who));
+    assert.deepEqual(r.drivers, []);
+  }
+  assert.equal((await w.call('GET', '/api/copilot/board', { who: 5, now })).data.crews, 1, 'the standings: anyone');
+  // driven (crew 3+4's stage over): the crews on it, each with its co-driver
+  for (const who of [3, 4]) {
+    const r = (await w.call('GET', '/api/copilot/live', { who, now })).data;
+    assert.equal(r.hidden, undefined);
+    assert.deepEqual(r.drivers.map((d) => [d.steamId, d.name, d.progress, d.state, d.slot]), [[sid(1), 'Driver 1 / Driver 2', 0.4, 'live', 90]]);
+  }
+  // a minute later without a word: gone from the map
+  assert.deepEqual((await w.call('GET', '/api/copilot/live', { who: 3, now: now + 20000 })).data.drivers, []);
+  // the dailies' map never shows a crew (the same table, its own slot)
+  const rows = w.db.prepare("SELECT slot FROM live WHERE date = ?").all(DAY);
+  assert.deepEqual(rows.map((r) => r.slot), [90]);
+});
+
+test('the website\'s dailies page has the two tabs', async () => {
+  const { sitePage } = await import('../src/site.js');
+  const html = sitePage({ COPILOT_FROM: DAY });
+  for (const w of ['id="dtabs"', 'tab-official', 'tab-codriver', 'id="cpday"', '/api/copilot/live', '/api/copilot/board']) assert.ok(html.includes(w), w);
+  const script = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  assert.doesNotThrow(() => new Function(script), 'its script parses');
+});

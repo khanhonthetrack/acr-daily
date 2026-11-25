@@ -417,6 +417,10 @@ class Api:
     def copilot_leave(self, lobby_id):
         return self._req('POST', '/api/copilot/lobbies/%d/leave' % int(lobby_id), {}, auth=True)
 
+    def copilot_live(self, body):
+        """The crew driver's position on the stage, for the website's CODRIVER DAILY map (src/copilot.js postLive)."""
+        return self._req('POST', '/api/copilot/live', body, auth=True, timeout=6)
+
     def copilot_signal(self, lobby_id, data):
         """My side's details for the direct link between the two apps (copilotlink.py)."""
         return self._req('POST', '/api/copilot/lobbies/%d/signal' % int(lobby_id), {'data': data}, auth=True, timeout=6)

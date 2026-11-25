@@ -77,6 +77,57 @@ export const firstDay = (env) => (env && isDate(env.COPILOT_FROM) ? env.COPILOT_
 export const copilotOn = (env, date) => !!firstDay(env) && date >= firstDay(env);
 
 /** 'cp:2026-11-25/12' -> {date, lobby}, else null. */
+// The crews on today's stage, for the website's map (the user, 26 Nov 2026: "if you drove it once you can see the map
+// and drivers"): the driver's app sends its position as for a daily, kept in the dailies' own `live` table under this
+// slot (never 1 or 2: the dailies' maps leave it out, index.js getLive), one row per driver and day.
+export const LIVE_SLOT = 90;
+const LIVE_STALE_MS = 15000, LIVE_KEEP_DONE_MS = 60000;
+
+/** A crew driver's position (POST /api/copilot/live, the app's ttui _tt_send_live): their started lobby's, today. */
+async function postLive(env, me, b, now, deps) {
+  const { json, err } = deps;
+  const id = parseCpId(b && b.challengeId);
+  if (!id || id.date !== dayOf(now)) return err('bad challenge');
+  const l = await env.DB.prepare('SELECT * FROM copilot_lobbies WHERE id = ? AND date = ?').bind(id.lobby, id.date).first();
+  if (!l || crewOf(l).driver !== me.steam_id || !['started', 'finished', 'dnf'].includes(l.state)) return err('not your crew\'s stage', 403);
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
+  await env.DB.prepare(
+    `INSERT INTO live (steam_id, date, slot, x, z, progress, total_ms, resets, state, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (steam_id, date, slot) DO UPDATE SET x = excluded.x, z = excluded.z, progress = excluded.progress,
+       total_ms = excluded.total_ms, resets = excluded.resets, state = excluded.state, updated = excluded.updated`)
+    .bind(me.steam_id, id.date, LIVE_SLOT, n(b.x), n(b.z), Math.max(0, Math.min(1, n(b.progress))), Math.round(n(b.totalMs)),
+      n(b.resets) | 0, state, now).run();
+  return json({ ok: true });
+}
+
+/** Has this player driven the day's CODRIVER (as driver or co-driver, their stage over)? The stage, its map and the
+ *  crews on it are theirs to see then; before that, the standings only. */
+async function hasDriven(env, date, me) {
+  if (!me) return false;
+  const tries = await triesOf(env, date, me.steam_id);
+  if (!tries.driver && !tries.codriver) return false;
+  const ended = await env.DB.prepare(`SELECT 1 AS x FROM copilot_lobbies WHERE id IN (?, ?) AND state IN ('finished', 'dnf')`)
+    .bind(tries.driver || 0, tries.codriver || 0).first();
+  return !!ended;
+}
+
+/** The crews on the stage now (GET /api/copilot/live): their drivers' positions, each with its co-driver. */
+async function crewsLive(env, date, now) {
+  const { results } = await env.DB.prepare(
+    `SELECT l.steam_id AS steamId, p.name, p.country, p.avatar, l.x, l.z, l.progress, l.total_ms AS totalMs, l.resets, l.state,
+            l.updated,
+            (SELECT pc.name FROM copilot_lobbies cl JOIN players pc
+               ON pc.steam_id = CASE cl.host_role WHEN 'driver' THEN cl.guest ELSE cl.host END
+              WHERE cl.date = l.date AND CASE cl.host_role WHEN 'driver' THEN cl.host ELSE cl.guest END = l.steam_id
+                AND cl.state IN ('started', 'finished', 'dnf') ORDER BY cl.started DESC LIMIT 1) AS codriver
+       FROM live l JOIN players p ON p.steam_id = l.steam_id
+      WHERE l.date = ? AND l.slot = ? AND p.banned = 0
+        AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))
+      ORDER BY l.progress DESC`).bind(date, LIVE_SLOT, now - LIVE_STALE_MS, now - LIVE_KEEP_DONE_MS).all();
+  return results.map((r) => ({ ...r, slot: LIVE_SLOT, driverName: r.name, name: r.codriver ? `${r.name} / ${r.codriver}` : r.name }));
+}
+
 export function parseCpId(id) {
   const m = String(id || '').match(/^cp:(\d{4}-\d{2}-\d{2})\/(\d{1,9})$/);
   return m && isDate(m[1]) ? { date: m[1], lobby: +m[2] } : null;
@@ -572,6 +623,13 @@ export async function copilotApi(req, env, path, url, me, sameOrigin, now, deps)
     }
     return json(b);
   }
+  if (path === '/api/copilot/live' && !post) {
+    // (only to those who have driven it: the cars on the map would give the hidden stage away)
+    const date = url.searchParams.get('date') || today;
+    if (!isDate(date) || date > today) return err('bad date');
+    if (date === today && !(await hasDriven(env, date, me))) return json({ date, now, hidden: true, drivers: [] });
+    return json({ date, now, drivers: await crewsLive(env, date, now) });
+  }
   if (path === '/api/copilot/ranking' && !post) {
     const month = url.searchParams.get('month') || today.slice(0, 7);
     if (!isMonth(month) || month > today.slice(0, 7)) return err('bad month: YYYY-MM');
@@ -592,6 +650,7 @@ export async function copilotApi(req, env, path, url, me, sameOrigin, now, deps)
   if (path === '/api/copilot/lobbies') return createLobby(env, me, await body(), now, deps);
   if (path === '/api/copilot/join') return joinLobby(env, me, await body(), now, deps);
   if (path === '/api/copilot/runs') return submit(req, env, me, now, deps);
+  if (path === '/api/copilot/live') return postLive(env, me, await body(), now, deps);
   if (lm && lm[2] === 'ready') return setReady(env, me, +lm[1], await body(), now, deps);
   if (lm && lm[2] === 'leave') return leaveLobby(env, me, +lm[1], now, deps);
   if (lm && lm[2] === 'signal') return setSignal(env, me, +lm[1], await body(), now, deps);

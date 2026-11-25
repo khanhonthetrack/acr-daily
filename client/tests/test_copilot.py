@@ -551,6 +551,30 @@ class Scoreboard(unittest.TestCase):
         j.set_ghost_splits(None, None)
         self.assertIsNone(j.ghost)
 
+class CrewLiveOnTheWebsite(unittest.TestCase):
+    """The daily crew's driver on the website's CODRIVER DAILY map (26 Nov 2026); CASUAL's never."""
+
+    def test_the_daily_crew_s_driver_is_sent_casual_s_is_not(self):
+        from acr_daily import ttui
+        a = app_stub()
+        sent = []
+        a.api.copilot_live = sent.append
+        a.api.configured = True
+        f = mock.Mock(x=12.34, z=5.0)
+        for cid, want in (('cp:2026-11-26/4', 1), ('cx:9', 0)):
+            sent.clear()
+            j = mock.Mock(ch={'id': cid}, progress=0.25, total_ms=61000, resets=1)
+            a.tt = {copilot.CP_SLOT: {}}
+            with mock.patch('acr_daily.ttui.threading.Thread', lambda target, daemon: mock.Mock(start=target)):
+                ttui.TimeTrialUI._tt_send_live(a, copilot.CP_SLOT, j, f, 'live')
+            self.assertEqual(len(sent), want, cid)
+        a.tt = {copilot.CP_SLOT: {}}
+        with mock.patch('acr_daily.ttui.threading.Thread', lambda target, daemon: mock.Mock(start=target)):
+            ttui.TimeTrialUI._tt_send_live(a, copilot.CP_SLOT, mock.Mock(ch={'id': 'cp:2026-11-26/4'}, progress=0.5,
+                                                                         total_ms=1, resets=0), f, 'finished')
+        self.assertEqual(sent[-1], {'challengeId': 'cp:2026-11-26/4', 'x': 12.3, 'z': 5.0, 'progress': 0.5, 'totalMs': 1,
+                                    'resets': 0, 'state': 'finished'})
+
 
 if __name__ == '__main__':
     unittest.main()
