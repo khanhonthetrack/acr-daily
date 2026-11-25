@@ -3,7 +3,9 @@
 // a driver out) and how the boards stand.
 //
 //   ANTHROPIC_API_KEY    a secret (wrangler secret put ANTHROPIC_API_KEY); unset: off, the overlay keeps its own lines
-//   COMMENTARY_MODEL     optional (wrangler.toml): the model, claude-opus-5-5 by default
+//   COMMENTARY_MODEL     optional (wrangler.toml): the model, Claude Haiku 5.5 by default (the user, 25 Nov 2026: "the
+//                        claude will run haiku model right?"): one short line needs no bigger model, at a tenth of
+//                        a cent a line
 //
 //   GET /api/broadcast/dailies/commentary[?lang=xx] -> {on, id, line, names, at}
 //
@@ -12,7 +14,10 @@
 // the boards it was written from are kept in Cloudflare's cache, so every overlay gets the same line, and what happened
 // in between goes into the next one. Claude not answering, or declining: no new line, the overlay's own lines go on.
 
-const DEFAULT_MODEL = 'claude-opus-5-5';
+const DEFAULT_MODEL = 'claude-haiku-5-5';
+// the models whose declines the API re-runs on another model itself (server-side fallback); Haiku has none: a decline
+// there is simply no line
+const FALLBACK = /^claude-(opus-5|sonnet-5-5|fable-5)/;
 const MIN_GAP_MS = 15000;
 const KEEP_S = 6 * 3600;
 const LAST_KEY = (lang) => `https://acrdaily.internal/commentary/dailies/${encodeURIComponent(lang)}`;
@@ -120,8 +125,7 @@ async function write(client, model, lang, snap, evs, recent) {
     res = await client.beta.messages.create({
       model,
       max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',               // (a decline re-run on another model by the API itself)
+      ...(FALLBACK.test(model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
       output_config: { effort: 'low' },   // (one short line: no deep thinking needed)
       system: SYSTEM,
       messages: [{ role: 'user', content: JSON.stringify(facts) }],

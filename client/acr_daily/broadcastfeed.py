@@ -8,7 +8,8 @@ WATCH does and follows WATCH from stage to stage.
     /              the overlay of the stage WATCH watches (a page that waits, when it watches none)
     /feed.json     {on, page, driver: {name, country, team, totalMs, progress, stageNo}, dash: {kmh, gear, rpm_frac,
                    gas, brake}}: written by WATCH's broadcast each frame (ig_watch.overlay: publish), read 10 times a second
-    /broadcast/..., /api/v1/..., /api/liverallies..., /series/...   the website's, passed through (GET only)
+    /broadcast/..., /api/v1/..., /api/liverallies..., /series/..., /api/broadcast/...   the website's, passed through
+                   (GET only; the last: the dailies overlay's Claude lines)
 
 Only on 127.0.0.1 (nothing from another PC), and only while SETTINGS > Streaming overlay is on (settings
 streamOverlay)."""
@@ -22,7 +23,7 @@ import urllib.request
 from . import USER_AGENT
 
 PORT = 8833
-PASS = ('/broadcast/', '/api/v1/', '/api/liverallies', '/series/')
+PASS = ('/broadcast/', '/api/v1/', '/api/liverallies', '/series/', '/api/broadcast/')   # (the last: Claude's lines)
 STALE_S = 2.0                     # WATCH's last word older than this: nothing followed (WATCH ended, the game closed)
 
 _state = {'at': 0.0, 'feed': {'on': False}}

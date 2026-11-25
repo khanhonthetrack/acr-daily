@@ -49,8 +49,10 @@ test('asked once per happening, at most every 15 s; what happened in between goe
   const a = await run(w, { client, cache, now: t });                 // the day's first line
   assert.equal(a.on, true);
   assert.equal(a.line, 'Line 1');
-  assert.equal(client.calls[0].model, 'claude-opus-5-5');
-  assert.equal(client.calls[0].fallbacks, 'default');
+  assert.equal(client.calls[0].model, 'claude-haiku-5-5');            // (Haiku: no server-side fallback to ask for)
+  assert.equal(client.calls[0].fallbacks, undefined);
+  assert.equal(client.calls[0].betas, undefined);
+  assert.deepEqual(client.calls[0].output_config, { effort: 'low' });
   assert.deepEqual(JSON.parse(client.calls[0].messages[0].content).events, []);
   assert.deepEqual(await run(w, { client, cache, now: t += 30000 }), a);   // nothing happened: the same line, no call
   assert.equal(client.calls.length, 1);
@@ -74,6 +76,14 @@ test('asked once per happening, at most every 15 s; what happened in between goe
   assert.deepEqual(sent.events, [{ what: 'first time on the board', stage: 'SS1', driver: 'Kalle', time: '4:11.002' }]);
   assert.deepEqual(sent.recentLines, ['Line 2', 'Line 1']);
   assert.deepEqual(sent.stages[0].board, [{ pos: 1, name: 'Kalle', time: '4:11.002', gap: null }]);
+});
+
+test('another model set in COMMENTARY_MODEL: it is used, with the API\'s fallback where the model has one', async () => {
+  const w = world(), client = fakeClaude();
+  await dailiesCommentary({ ANTHROPIC_API_KEY: 'k', COMMENTARY_MODEL: 'claude-opus-5-5' }, w.ask, { client, cache: fakeCache(), now: 0 });
+  assert.equal(client.calls[0].model, 'claude-opus-5-5');
+  assert.equal(client.calls[0].fallbacks, 'default');
+  assert.deepEqual(client.calls[0].betas, ['server-side-fallback-2026-07-01']);
 });
 
 test('the events: a new fastest time, a finish with its place and gap, a better time, a driver out', () => {
