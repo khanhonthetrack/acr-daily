@@ -28,11 +28,13 @@ const LINE_KEY = (id) => `https://acrdaily.internal/commentary/line/${encodeURIC
 
 const SYSTEM = `You are the live commentator on the ACR DAILY stream: two daily time-trial stages (SS1 and SS2) in the rally game Assetto Corsa Rally, driven by players all day, each trying for the best time.
 
-Each message gives you JSON: the stages and their boards now, who is on a stage now, what has just happened since your last line ("events", empty for your first line of the day), and your recent lines.
+Each message gives you JSON: the stages and their boards now, the cars on a stage now ("onStageNow": where they are, their clock, their speed in km/h, whether they are stopped, how far up or down they are on the stage leader's pace at this point of the stage, and the place that would make at the finish), what has just happened since your last line ("events", empty for your first line of the day), and your recent lines.
+
+The events include what happens out on the stage: a car stopped (hardly moving: say it looks like trouble, an off, stuck, a spin; you don't know which), moving again (and the time it lost), put back on the road after going off (a reset), a sudden loss against the leader's pace (a big moment or a mistake), each split (up or down on the leader, and on course for which place). You can't see damage: never say a car crashed as a fact, say it looks like a big moment. A car up on the leader's pace is on for a fastest time: build the drama. A car well down is struggling: say where it is losing.
 
 Your line is SPOKEN on the stream by a text-to-speech voice, in English. Write ONE line of spoken commentary:
 - at most 30 words, plain spoken English: no emojis, hashtags, brackets, abbreviations or quotation marks;
-- about the events if there are any (the most interesting one, or two joined naturally), otherwise about how the boards stand;
+- about the events if there are any (the most dramatic one first: a stop, a big moment or a car on for a fastest time beats a start), otherwise about the cars on the stages and how the boards stand;
 - you are an enthusiastic rally commentator: big energy, short punchy phrases, exclamation marks where they belong; rally talk (flat out, on the limit, through the splits, the stage, the clock) but no clichés repeated from your recent lines;
 - say it the way it is heard: "special stage one" or "stage one" for SS1; times as a commentator says them ("four eleven point zero zero two" for 4:11.002); gaps as "one point one five six seconds" or "just over a second";
 - use only the facts given: names, positions, times and gaps as written; never invent a time, a gap, a car or a place;
@@ -115,6 +117,104 @@ export function events(before, now) {
   return out.slice(0, 8);
 }
 
+// ---- the cars on a stage, followed between looks (the user, 25 Nov 2026: "It should provide info, when the car is
+// stopped (why?), when the car crashes, when it's slow etc. - more deep commentary than just started / finished").
+// The server sees each car's progress along the route and its clock every few seconds (the live board), and the
+// stage leader's splits (at 25, 50, 75 %): from those, each car's speed, a stop, a reset (the car put back on the
+// road: progress goes backwards), a sudden loss against the leader's pace (a big moment), and at each split how far up
+// or down it is and the place that makes. Damage it can't see: a crash is never told as a fact.
+const SPLIT_AT = [0.25, 0.5, 0.75];
+const TRACK_KEY = 'https://acrdaily.internal/commentary/track';
+const WINDOW_MS = 15000;        // a car's speed: over the last 15 s of its clock
+const STOP_MS = 8000;           // ...hardly moving (under 20 m) for 8 s of its clock: stopped
+const LOSS_MS = 4000;           // 4 s more behind the leader's pace since the last look (about 10 s): a big moment
+const PENDING_MS = 60000;       // a moment not yet spoken after a minute: too old to say
+
+/** The leader's clock at a point of the route (p: 0..1), from its splits; null without them. */
+export function leaderAt(lead, p) {
+  const s = lead && lead.splits;
+  if (!s || s.length !== SPLIT_AT.length || lead.totalMs == null) return null;
+  const pts = [[0, 0], ...SPLIT_AT.map((f, i) => [f, s[i]]), [1, lead.totalMs]];
+  for (let i = 1; i < pts.length; i++) {
+    if (p <= pts[i][0]) return pts[i - 1][1] + ((p - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0])) * (pts[i][1] - pts[i - 1][1]);
+  }
+  return lead.totalMs;
+}
+const signed = (v) => `${v < 0 ? '-' : '+'}${secs(v)}`;
+
+/** One look at the cars on the stages: track (kept between looks: each car's last positions and what was told)
+ *  updated; -> {moments: the new ones, onStage: per slot, each car as Claude reads it}. */
+export function observe(track, day, boards, live, now) {
+  const moments = [], onStage = {}, seen = new Set();
+  for (const d of (day && day.dailies) || []) {
+    const len = d.lengthM || null, ss = `SS${d.slot}`;
+    const fin = ((boards[d.slot] || {}).results || []).filter((r) => r.status === 'finished' && r.totalMs != null).sort((x, y) => x.totalMs - y.totalMs);
+    const lead = fin[0] || null;
+    onStage[d.slot] = [];
+    for (const x of ((live[d.slot] || {}).drivers || []).filter((v) => v.state === 'live' || v.state == null)) {
+      const key = `${d.slot}:${x.steamId}`, name = clean(x.name);
+      seen.add(key);
+      const c = track.cars[key] || (track.cars[key] = { s: [], told: { sp: [] }, seen: now });
+      c.seen = now;
+      const prev = c.s.length ? c.s[c.s.length - 1] : null;
+      const cur = [x.updated || now, Math.max(0, Math.min(1, x.progress || 0)), x.totalMs || 0];
+      if (!prev || prev[2] !== cur[2]) c.s.push(cur);
+      if (c.s.length > 12) c.s.splice(0, c.s.length - 12);
+      // (its look 15 s back; updates a little further apart than that: the one before, up to 30 s back)
+      const ref = c.s.find((v) => v !== cur && cur[2] - v[2] <= WINDOW_MS)
+        || (c.s.length > 1 && cur[2] - c.s[c.s.length - 2][2] <= 30000 ? c.s[c.s.length - 2] : cur);
+      const dms = cur[2] - ref[2], dp = cur[1] - ref[1];
+      const kmh = len && dms >= 4000 ? Math.max(0, (dp * len) / dms * 3600) : null;
+      const at = leaderAt(lead, cur[1]);
+      const here = at != null && cur[1] > 0.03 ? cur[2] - at : null;
+      const place = here != null ? fin.filter((r) => r.totalMs < lead.totalMs + here).length + 1 : null;
+      const where = len ? `${((cur[1] * len) / 1000).toFixed(1)} km in` : `${Math.round(cur[1] * 100)}% in`;
+      const base = { stage: ss, driver: name, where, clock: ms(cur[2], 1) };
+      const before = moments.length;
+      if (!prev) {                                       // (first seen: splits already behind it aren't news)
+        c.told.sp = SPLIT_AT.filter((f) => cur[1] >= f);
+      } else if (prev && cur[1] < prev[1] - 0.002) {
+        moments.push({ what: 'put back on the road (a reset: it went off and was recovered)', ...base });
+        c.told.stop = null;
+      } else if (len && dms >= STOP_MS && dp * len < 20) {
+        if (!c.told.stop) {                              // (since when: its first look within 20 m of here)
+          c.told.stop = { ms: (c.s.find((v) => v[1] >= cur[1] - 20 / len) || ref)[2], last: cur[2] };
+          moments.push({ what: 'stopped on the stage: hardly moving for 8 seconds (off the road? stuck? a spin?)', ...base });
+        } else c.told.stop.last = cur[2];
+      } else if (c.told.stop && kmh != null && kmh > 20) {
+        moments.push({ what: 'moving again after the stop', ...base, lost: `${secs(c.told.stop.last - c.told.stop.ms)} s stopped` });
+        c.told.stop = null;
+        c.lastHere = null;                               // (that loss is told: not again as a sudden one)
+      }
+      if (here != null && !c.told.stop) {
+        // (only for a car still going: a stop or a reset told this look is that loss already; a car nearly stopped
+        // waits to be told as stopped)
+        if (c.lastHere != null && cur[2] - c.lastHereMs <= 30000 && here - c.lastHere >= LOSS_MS
+            && moments.length === before && (kmh == null || kmh > 20)) {
+          moments.push({ what: 'lost time suddenly against the leader\'s pace (a big moment, a mistake or an off: not a crash for sure)',
+            ...base, lost: `${secs(here - c.lastHere)} s in the last few seconds`, nowVsLeader: signed(here) });
+        }
+        c.lastHere = here;
+        c.lastHereMs = cur[2];
+      }
+      if (prev) {
+        for (const [i, f] of SPLIT_AT.entries()) {
+          if (cur[1] >= f && !c.told.sp.includes(f)) {
+            c.told.sp.push(f);
+            if (here != null) moments.push({ what: `split ${i + 1} of 3`, ...base, vsLeader: signed(here), leader: clean(lead.name), onCourseFor: `P${place}` });
+          }
+        }
+      }
+      onStage[d.slot].push({ name, where, of: len ? `${(len / 1000).toFixed(1)} km` : null, clock: ms(cur[2], 1),
+        speedKmh: kmh != null ? Math.round(kmh) : null, stopped: !!c.told.stop,
+        vsLeaderHere: here != null ? signed(here) : null, onCourseFor: place ? `P${place}` : null });
+    }
+  }
+  for (const k of Object.keys(track.cars)) if (!seen.has(k) && now - track.cars[k].seen > 300000) delete track.cars[k];
+  track.pending = [...(track.pending || []).filter((m) => now - m.at < PENDING_MS), ...moments.map((m) => ({ ...m, at: now }))].slice(-8);
+  return { moments, onStage };
+}
+
 /** A moment's mark: what changes it is a finish, a better time, a driver out, a driver on or off a stage. */
 export const fingerprint = (snap) => JSON.stringify([snap.date, snap.sn && Object.entries(snap.sn).map(([k, v]) => [k, v.fin, v.out, v.on])]);
 
@@ -172,11 +272,18 @@ export async function dailiesCommentary(env, ask, { lang = 'en', client = null, 
     live[d.slot] = (await ask(`/api/v1/dailies/${day.date}/${d.slot}/live`)) || {};
   }));
   const snap = snapshot(day, boards, live), fp = fingerprint(snap);
+  // the cars on the stages, followed between looks: their moments wait in track.pending until a line tells them
+  const was = await cached(cache, TRACK_KEY);
+  const track = was && was.date === day.date ? was : { date: day.date, cars: {}, pending: [] };
+  const { onStage } = observe(track, day, boards, live, now);
+  for (const s of snap.stages) if (onStage[+s.stage.slice(2)]) s.onStageNow = onStage[+s.stage.slice(2)].slice(0, 4);
+  await keep(cache, TRACK_KEY, track);
+  const pending = track.pending.map(({ at, ...m }) => m);
   const key = LAST_KEY(lang), last = await cached(cache, key);
   const sameDay = last && last.snap && last.snap.date === snap.date;
-  if (last && last.fp === fp) return answer(last);
+  if (last && last.fp === fp && !pending.length) return answer(last);
   if (last && now - last.at < MIN_GAP_MS) return answer(last);       // (what happened waits for the next line)
-  const evs = sameDay ? events(last.snap, snap) : [];
+  const evs = [...(sameDay ? events(last.snap, snap) : []), ...pending].slice(0, 8);
   if (sameDay && !evs.length) {                                       // (a change worth no line: a driver off a stage...)
     await keep(cache, key, { ...last, fp, snap });
     return answer(last);
@@ -188,6 +295,8 @@ export async function dailiesCommentary(env, ask, { lang = 'en', client = null, 
   const recent = (sameDay && last.lines) || [];
   const line = await write(client || (await makeClient(env)), env.COMMENTARY_MODEL || DEFAULT_MODEL, lang, snap, evs, recent);
   if (!line) return answer(sameDay ? last : null);                     // (tried again after MIN_GAP_MS)
+  track.pending = [];                                                  // (told)
+  await keep(cache, TRACK_KEY, track);
   const all = new Set(Object.values(snap.sn).flatMap((v) => Object.values(v.names)));
   const names = [...all].filter((n) => n && n.length > 1 && line.includes(n));
   const next = { snap, fp, at: now, id: `${snap.date}:${now}`, line, names, lines: [line, ...recent].slice(0, 6) };
