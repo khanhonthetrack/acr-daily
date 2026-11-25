@@ -186,7 +186,8 @@ function loadEvent(id){
     D.ev={id:e.id,name:e.name,stages:e.stages||[]};D.rows=e.results||[];D.phase=e.status;D.hidden=e.hidden&&e.hidden.stages?e.hidden:null;
     D.info={label:String(e.name||'').toUpperCase(),best:T('STAGE BEST'),rally:e.rally,car:e.car,carClass:e.carClass||(e.carClasses||[]).join(' · '),surface:e.surface};
     // (a championship's: its members as the entry list, its season's table)
-    var h=e.holder||{};if(h.kind==='championship'&&h.id){return api('/championships/'+h.id).then(function(l){D.champName=l.name;
+    var h=e.holder||{};if(h.kind==='live'&&h.series)D.seriesKey=h.series;   // (a ranked session's: its series' logo)
+    if(h.kind==='championship'&&h.id){return api('/championships/'+h.id).then(function(l){D.champName=l.name;
         if(!D.entry||C.kind!=='ranked')D.entry=(l.members||[]).filter(function(m){return m.role!=='pending'}).map(function(m){return {name:m.name,country:m.country,team:m.team}});
         return e.season?api('/championships/'+h.id+'/standings?season='+e.season.id).then(function(s){var t=(s.seasons||[])[0];D.champ=t?{name:t.name,rows:t.drivers||[]}:null}):null})
       .catch(function(){})}
@@ -376,7 +377,9 @@ function feedLoad(){fetch('/feed.json',{cache:'no-store'}).then(function(r){retu
     var ck=lw.querySelector('.clk');if(ck&&dv.totalMs!=null){ck.setAttribute('data-ms',dv.totalMs);ck.setAttribute('data-at',Date.now())}
     var nm=lw.querySelector('.nm');if(nm&&nm.textContent!==String(dv.name||'').toUpperCase())draw();
     var p=Math.max(0,Math.min(1,dv.progress||0)),b=lw.querySelector('.pb b'),u=lw.querySelector('.pb u');if(b){b.style.width=(p*100)+'%';u.style.left=(p*100)+'%'}}).catch(function(){F.d=null;gaugeSet()})}
-function mark(){var m=el('div','mark');if(C.kind==='ranked'){var i=el('img');i.src='/series/'+C.id.split('/')[0]+'-logo.webp';i.onerror=function(){i.remove()};add(m,i)}
+// (a ranked session's series or special event: its own logo, from the address or the event's data)
+function seriesKey(){return C.kind==='ranked'?C.id.split('/')[0]:D.seriesKey||null}
+function mark(){var m=el('div','mark'),k=seriesKey();if(k){var i=el('img');i.src='/series/'+encodeURIComponent(k)+'-logo.webp';i.onerror=function(){i.remove()};add(m,i)}
   return add(m,el('i'),add(el('div'),el('b',null,'ACR DAILY'),el('span',null,T('LIVE COVERAGE'))))}
 // (a running time: its words set in place ten times a second between the API's answers, nothing drawn again: no flicker)
 var clocks=[],downs=[];function clock(e,v){if(v!=null){e.setAttribute('data-ms',v);e.setAttribute('data-at',D.at)}e.textContent=ms(v);clocks.push(e);return e}
@@ -393,7 +396,7 @@ function tick(){var now=Date.now();clocks.forEach(function(e){var v=e.getAttribu
   // (the studio's page or the side panel's due to change: drawn again)
   var live=D.live.length>0;if(has('studio')&&(!live||C.always)){var p=PG.list[PG.i];if(p&&now-PG.at>=pageDur(p))draw()}
   else if(live&&MULTI&&has('side')&&now-SD.at>=C.rotate*1000)draw()}
-function fail(e){S.innerHTML='';add(S,add(el('div','studio'),el('div','empty p',e.message||T('Not available'))))}
+function fail(e){S.innerHTML='';add(S,add(el('div','studio'),el('div','empty p',e.message||T('Not available'))));add(S,mark())}
 var tl=null;
 function tickLive(){loadLive().then(draw).catch(function(){}).then(function(){clearTimeout(tl);tl=setTimeout(tickLive,Math.max(3,D.poll)*1000)})}
 // (an event's or a ranked session's standings and queues change as it goes: asked again every 15 s; a daily's every 30)

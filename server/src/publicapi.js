@@ -27,7 +27,10 @@
 //
 // Documented for people at /developers (src/developerspage.js); embeds that draw these on another site: src/embeds.js.
 
+import { SERIES, SPECIALS } from './liverallies.js';
+
 export const API_VERSION = 1;
+const seriesOfHolder = (id) => ([...SERIES, ...SPECIALS].find((s) => s.holder === id) || {}).key || null;
 // how long an answer is kept at the edge, seconds: live timing, an event or a table still changing, one over, lists
 export const TTL = { live: 5, open: 30, closed: 600, list: 120, map: 3600 };
 
@@ -132,7 +135,9 @@ function eventOut(o, site) {
   const lg = o.league || {};
   const holder = lg.kind === 'league' ? { kind: 'championship', id: lg.id, name: lg.name, url: site + PAGE.championship + lg.id }
     : lg.kind === 'event' ? { kind: 'rally', id: lg.id, name: lg.name, owner: lg.owner || null }
-      : { kind: lg.kind || null, id: lg.id, name: lg.name };
+      : { kind: lg.kind || null, id: lg.id, name: lg.name,
+        // (a ranked session's: its series, or special event, by its key: the overlays' logo, /series/<key>-logo.webp)
+        ...(lg.kind === 'live' && seriesOfHolder(lg.id) ? { series: seriesOfHolder(lg.id) } : {}) };
   return {
     id: o.id, name: o.name, url: site + PAGE.event + o.id, holder, season: o.season ? { id: o.season.id, name: o.season.name } : null,
     rally: o.rally, surface: o.surface || null, car: o.car || null, carClass: o.carClass || null, carClasses: o.carClasses || null,
