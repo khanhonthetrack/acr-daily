@@ -158,6 +158,15 @@ jobs:
           python -m pip install --quiet pyinstaller==%PYINSTALLER_VERSION% pillow==%PILLOW_VERSION% truststore==%TRUSTSTORE_VERSION%
           cd client && call build.bat %SERVER_URL%
 
+      # Authenticode (tools/signing/sign.ps1): with the certificate in the secrets SIGN_PFX_BASE64 / SIGN_PFX_PASSWORD,
+      # skipped without them. The one-file exe here; the installed app's exe and the installer in the next step.
+      - name: Sign the app
+        shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: ./tools/signing/sign.ps1 client/dist/ACR-Daily.exe
+
       # The installer (the user, 24 Nov 2026: fewer antivirus false alarms, "an installer ... ask to make a desktop copy",
       # "the end product should be a zip"): the app as a folder (build_folder.bat: one-dir, no UPX) installed by Inno
       # Setup into the player's own programs folder (client/installer.iss), and a zip holding the installer and a README.
@@ -165,10 +174,14 @@ jobs:
       # ACR-Daily-Setup.exe.
       - name: Build the installer
         shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
         run: |
           cd client
           cmd /c "build_folder.bat $env:SERVER_URL"
           if ($LASTEXITCODE) { throw 'build_folder.bat failed' }
+          ../tools/signing/sign.ps1 dist/ACR-Daily/ACR-Daily.exe
           if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
             choco install innosetup --no-progress -y | Out-Null
             $env:Path += ';C:\Program Files (x86)\Inno Setup 6'
@@ -176,6 +189,7 @@ jobs:
           $v = $env:TAG.Substring(1)
           iscc /Q "/DMyAppVersion=$v" installer.iss
           if ($LASTEXITCODE) { throw 'iscc failed' }
+          ../tools/signing/sign.ps1 dist/ACR-Daily-Setup.exe
           $zipDir = "$env:RUNNER_TEMP/zip"; New-Item -ItemType Directory -Force $zipDir | Out-Null
           Copy-Item dist/ACR-Daily-Setup.exe $zipDir
           $readme = @(
