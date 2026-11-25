@@ -3,6 +3,7 @@
 // moment and running on from there. Phases: signup (Thursday: 14 registered), running (12:16 on the day: SS1 done by
 // some, SS2 under way, the queues moving, cars on the stages), over (the results out, the prize paid).
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { fakeD1, sid } from './faked1.mjs';
 import { leaguesApi } from '../src/leaguesapi.js';
 import { liveApi, SPECIALS, LIVE } from '../src/liverallies.js';
@@ -20,6 +21,8 @@ for (const [id, name] of Object.entries(MENU_NAMES)) {
   f.db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, ?, 0, ?)')
     .run(`${rally} ${name}`, '[[0,0],[100,0]]', 6000 + (k++ % 7) * 1500, id);
 }
+// (Oxmod's Thierache routes, as the migration adds them)
+f.db.exec(readFileSync(new URL('../migrations/0049_thierache_routes.sql', import.meta.url), 'utf8'));
 const NAMES = [['Kalle Rovanperä-ish', 'fi'], ['Ott Tänak Jr', 'ee'], ['Petter S.', 'no'], ['Elfyn Fan', 'gb'], ['Thierry N', 'be'],
   ['Dani Sordo Lover', 'es'], ['Adrien F.', 'fr'], ['Takamoto K.', 'jp'], ['Gus G.', 'ie'], ['Sami P.', 'fi'],
   ['Oliver S.', 'se'], ['Nikolay G.', 'bg'], ['Jan Kopecký Fan', 'cz'], ['Andreas M.', 'no'], ['Yohan R.', 'fr'], ['Martins S.', 'lv']];

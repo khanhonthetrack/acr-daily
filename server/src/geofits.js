@@ -427,6 +427,10 @@ export const GEO_FITS = {
  },
  // Sweden (the game 0.7) and Lousã (a community stage): fitted to OpenStreetMap roads by tools/gamefiles/geo, 24 Nov 2026
  "Portugal (Hattori Rally) Lousã": {"lat": 40.1509334, "lon": -8.160222, "rotDeg": 100.0, "mirror": "x", "medianM": 1.9, "p90M": 3.1, "ok": true},
+  // Oxmod's Thiérache S1 (a community stage, IGN data: Braye-en-Thiérache - Harcigny): its route from the stage's own files
+  // (tools/gamefiles/community_routes.py) fitted to OpenStreetMap roads (tools/gamefiles/geo/fit_community.py), 25 Nov 2026.
+  // (Chemin des Érables is made up: its map is the route alone.)
+  "Thiérache S1": {"lat": 49.8088826, "lon": 3.9838069, "rotDeg": 104.3, "mirror": "x", "medianM": 1.8, "p90M": 3.0, "ok": true},
  "Sweden Gravendal": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 3.5, "p90M": 11.7, "ok": true},
  "Sweden Gravendal East": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 2.6, "p90M": 5.9, "ok": true},
  "Sweden Gravendal West": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 5.0, "p90M": 13.2, "ok": true},
