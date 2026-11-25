@@ -33,6 +33,8 @@ import { routeInfo, validateRun } from './validate.js';
 import { timesAt } from './realism.js';
 import { cached, dropCached } from './cache.js';
 import { PACENOTES } from './pacenotes.js';
+import { NOTE_WORDS } from './pacenotewords.js';
+import { lang, registerData } from './i18n.js';
 
 export const CP = {
   openMs: 30 * 60000,           // a lobby not started this long after it was made: closed
@@ -155,10 +157,17 @@ const WORDS = {
 };
 
 /** One token in the co-driver's words: 'Right3' -> 'right 3', 'Dist60' -> '60', 'LeftHP' -> 'left hairpin', a pause
- *  ('Pause0.5s_Reset': how the game's voice times its calls) -> '' (not read out). */
-export function tokenWord(t) {
+ *  ('Pause0.5s_Reset': how the game's voice times its calls) -> '' (not read out). words: a language's own
+ *  (src/pacenotewords.js NOTE_WORDS: the token, or its template with {n}: 'Left#', 'Tighten#', 'Dist#'); English for
+ *  what it lacks. */
+export function tokenWord(t, words = null) {
   t = String(t || '');
   if (/^Pause/.test(t)) return '';
+  if (words) {
+    if (words[t]) return words[t];
+    const n = t.match(/^(Left|Right|Tighten|Dist)(\d+)$/);
+    if (n && words[n[1] + '#']) return words[n[1] + '#'].replace('{n}', n[2]);
+  }
   if (WORDS[t]) return WORDS[t];
   let m = t.match(/^Dist(\d+)$/);
   if (m) return m[1];
@@ -173,15 +182,33 @@ export function tokenWord(t) {
   return t.replace(/([a-z])([A-Z0-9])/g, '$1 $2').toLowerCase();   // (one not known yet: its own name in words)
 }
 
-/** A note's tokens ('Right3 Long Narrows') -> its words ('right 3 long narrows'). */
-export const noteText = (tokens) => String(tokens || '').split(' ').map(tokenWord).filter(Boolean).join(' ');
+/** A note's tokens ('Right3 Long Narrows') -> its words ('right 3 long narrows'); in a language: code (NOTE_WORDS). */
+export const noteText = (tokens, code = 'en') => String(tokens || '').split(' ')
+  .map((x) => tokenWord(x, NOTE_WORDS[code] || null)).filter(Boolean).join(' ');
 
-/** A stage's notes for the co-driver: [{n, at (m from the first), len, text, link (read with the next one)}], or null. */
+/** A stage's notes for the co-driver: [{n, at (m from the first), len, text, k (the game's tokens: the text in the
+ *  app's language, below)}], or null. */
 export function notesOf(stageId) {
   const rows = PACENOTES[stageId];
   if (!rows) return null;
-  return rows.map(([at, len, toks], i) => ({ n: i + 1, at, len, text: noteText(toks) })).filter((x) => x.text);
+  return rows.map(([at, len, toks], i) => ({ n: i + 1, at, len, text: noteText(toks), k: toks })).filter((x) => x.text);
 }
+
+/** The notes in an API answer, in the request's language (the app sends its own: the user, 25 Nov 2026, "pacenotes
+ *  in all languages"): every `notes` list in it, at any depth, its text made again from its tokens. */
+export function localNotes(body, code) {
+  const walk = (x, depth) => {
+    if (!x || typeof x !== 'object' || depth > 6) return;
+    if (Array.isArray(x)) { for (const y of x) walk(y, depth + 1); return; }
+    for (const [key, v] of Object.entries(x)) {
+      if (key === 'notes' && Array.isArray(v)) {
+        for (const n of v) if (n && typeof n.k === 'string') n.text = noteText(n.k, code) || n.text;
+      } else if (v && typeof v === 'object') walk(v, depth + 1);
+    }
+  };
+  walk(body, 0);
+}
+registerData(/^\/api\/(copilot|casual|n)(\/|$)/, (j) => localNotes(j, lang()));
 
 // ------------------------------------------------------------------ the day's stage
 

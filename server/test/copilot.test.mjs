@@ -3,9 +3,40 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COPILOT_RULES, CP, copilotApi, copilotTick, crewOf, noteText, notesOf, parseCpId, pickCopilot, pointsFor,
+import { COPILOT_RULES, CP, copilotApi, copilotTick, crewOf, localNotes, noteText, notesOf, parseCpId, pickCopilot, pointsFor,
   tokenWord } from '../src/copilot.js';
 import { PACENOTES } from '../src/pacenotes.js';
+import { NOTE_WORDS } from '../src/pacenotewords.js';
+import { localized } from '../src/i18n.js';
+
+test('the notes in the app\'s language: every language has every token the game\'s notes use', async () => {
+  const used = new Set();
+  for (const rows of Object.values(PACENOTES)) {
+    for (const [, , toks] of rows) {
+      for (const x of toks.split(' ')) if (!/^Pause/.test(x)) used.add(x.replace(/^(Left|Right|Tighten|Dist)\d+$/, '$1#'));
+    }
+  }
+  for (const [code, words] of Object.entries(NOTE_WORDS)) {
+    for (const k of used) assert.ok(words[k], `${code}: ${k}`);
+    for (const k of Object.keys(words).filter((x) => x.endsWith('#'))) assert.equal(words[k].split('{n}').length, 2, `${code}: ${k}`);
+  }
+  assert.equal(Object.keys(NOTE_WORDS).sort().join(' '), 'de es fr hu it ja pl pt zh');
+  assert.equal(noteText('Left3 Long Dist60', 'fr'), `${NOTE_WORDS.fr['Left#'].replace('{n}', '3')} ${NOTE_WORDS.fr.Long} 60`);
+  assert.equal(noteText('Left3 Long Dist60', 'en'), 'left 3 long 60');
+  assert.equal(noteText('Left3 SomethingNew', 'de'), `${NOTE_WORDS.de['Left#'].replace('{n}', '3')} something new`);   // (English)
+  // an API answer: its notes (any depth) in the request's language, from their tokens
+  const body = { lobby: { notes: notesOf('AlsaceS2MunsterFullForward').slice(0, 2) } };
+  assert.equal(body.lobby.notes[0].text, 'left 5 into');
+  localNotes(body, 'it');
+  assert.equal(body.lobby.notes[0].text, noteText('Left5 Into', 'it'));
+  assert.notEqual(body.lobby.notes[0].text, 'left 5 into');
+  // ... through the server's own path: the request's language, CODRIVER's and CASUAL's answers
+  const res = new Response(JSON.stringify({ notes: notesOf('AlsaceS2MunsterFullForward').slice(0, 1) }),
+    { headers: { 'Content-Type': 'application/json' } });
+  const req = new Request('https://acrdaily.com/api/copilot/lobbies/7', { headers: { 'Accept-Language': 'pl' } });
+  const out = await (await localized(res, 'pl', req)).json();
+  assert.equal(out.notes[0].text, noteText('Left5 Into', 'pl'));
+});
 import { fakeD1, sid } from './faked1.mjs';
 
 const H = 3600000, D = 24 * H;
