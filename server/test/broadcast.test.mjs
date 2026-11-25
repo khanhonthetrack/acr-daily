@@ -12,7 +12,8 @@ const scripts = (html) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].ma
 
 test('the overlays: a ranked series\', a special event\'s, one session\'s, a championship\'s, an event\'s, the dailies\'', async () => {
   for (const p of ['/broadcast/ranked/skoda', '/broadcast/ranked/rally2', '/broadcast/ranked/rally2/1795867200000',
-    '/broadcast/championship/qtfpdhhu?pages=entry,champ&studio=always', '/broadcast/event/12?parts=studio,side', '/broadcast/daily/1']) {
+    '/broadcast/championship/qtfpdhhu?pages=entry,champ&studio=always', '/broadcast/event/12?parts=studio,side', '/broadcast/daily/1',
+    '/broadcast/dailies', '/broadcast/dailies?feed=1&bg=1&rows=5&lang=pl']) {
     const r = await get(p);
     assert.equal(r.status, 200, p);
     assert.match(r.headers.get('Content-Security-Policy'), /img-src 'self'/);
