@@ -80,6 +80,8 @@ class Casual(Copilot):
             return ''
         base = getattr(self.app.api, 'base', None) or getattr(self.app.api, 'server', None) or 'https://acrdaily.com'
         base = str(base).rstrip('/')
+        if base.endswith('.workers.dev') or base.endswith('acrdaily.com'):
+            base = 'https://acrdaily.com'          # (the released apps talk to the workers.dev address: the phone gets the short one)
         return path if path.startswith('http') else base + path
 
     # ---- the server

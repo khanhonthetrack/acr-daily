@@ -222,6 +222,11 @@ class Pages(unittest.TestCase):
         for w in ('casual.start', 'casual.leave', 'ABC234', 'Ann', 'qr2-', 'acrdaily.com/n/abcdefghijkl'):
             self.assertIn(w, words)
         self.assertEqual(cs.notes_url(), 'https://acrdaily.com/n/abcdefghijkl')
+        a.api.base = 'https://acr-daily.acr-daily-server.workers.dev'   # (as the released apps: the QR still the short address)
+        self.assertEqual(cs.notes_url(), 'https://acrdaily.com/n/abcdefghijkl')
+        a.api.base = 'http://127.0.0.1:8790'                            # (a local test server: its own)
+        self.assertEqual(cs.notes_url(), 'http://127.0.0.1:8790/n/abcdefghijkl')
+        a.api.base = 'https://acrdaily.com'
         # a co-driver: READY, not START; the driver's started stage: TO THE CAR
         cs.lobby = lobby('2')
         words = json.dumps(ig_casual.page(ig))
