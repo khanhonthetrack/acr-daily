@@ -75,6 +75,21 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // CODRIVER (9594476..58f1c07, 01d8b02), special events (b9e29e8, 18a97d3), Oxmod's Thierache (b44aa6d, ef7475a),
+    // Steam sign-in (a4722ca), the broadcast feed (548ed1c), event settings at DRIVE/CONTINUE (0b15df7); its test
+    // builds (0.2.1.X) show it under their own number
+    version: '0.2.2', date: '2026-11-25', title: N_("CODRIVER, special events and Thiérache"), photo: 'thierache',
+    changes: [
+      NEW(N_("CODRIVER: a daily for two. One drives, the other reads the pacenotes, and you hear each other like a crew in the car.")),
+      NEW(N_("Special events: the Skoda Saturday Challenge, Saturday 28 November at 12:00 UK time. Free to enter, 50 credits for every finish. Sign up any time in RANKED.")),
+      NEW(N_("WATCH LIVE in RANKED: watch any stage of a ranked session under way.")),
+      NEW(N_("New in COMMUNITY: Oxmod's Thiérache stages, S1 and Chemin des Érables. They work in time trials, dailies and events too.")),
+      BETTER(N_("DRIVE and CONTINUE always set the game to the event's settings. Before the start, the app lists any setting or aid that would make the run a DNF.")),
+      BETTER(N_("Sign-in: with Steam running, you sign in on Steam's own page in one click, no password.")),
+      NEW(N_("Streaming: SETTINGS › Streaming overlay gives OBS the stage you WATCH, with the car's gauge.")),
+    ],
+  },
+  {
     // times sent at the finish line (e1a5941, report #559), events across places (c1358c6), the car at the line carried
     // (3018980), community installs from the game (PR 97), the installer (a882127); required from the 25 Nov dailies
     version: '0.2.1', date: '2026-11-24', title: N_("Your time at the finish line, rallies across countries"), photo: 'alsace',
