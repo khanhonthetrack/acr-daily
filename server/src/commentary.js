@@ -22,7 +22,7 @@ const FALLBACK = /^claude-(opus-5|sonnet-5-5|fable-5)/;
 const MIN_GAP_MS = 15000;
 const KEEP_S = 6 * 3600;
 const LAST_KEY = (lang) => `https://acrdaily.internal/commentary/dailies/${encodeURIComponent(lang)}`;
-const MAX_LINE = 220;
+const MAX_LINE = 300;      // (spoken: about 30 words, 15 s of voice)
 
 const LINE_KEY = (id) => `https://acrdaily.internal/commentary/line/${encodeURIComponent(id)}`;
 
@@ -139,7 +139,17 @@ async function write(client, model, lang, snap, evs, recent) {
   const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ');
   const line = text.replace(/\s+/g, ' ').trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
   if (!line) return null;
-  return line.length > MAX_LINE ? `${line.slice(0, MAX_LINE - 1).replace(/\s+\S*$/, '')}…` : line;
+  return trimSpoken(line);
+}
+
+/** A line too long for the voice: up to its last whole sentence within MAX_LINE (a voice stopping on "and" sounds
+ *  broken); a single overlong sentence: up to its last word, ended with "!". */
+export function trimSpoken(line) {
+  if (line.length <= MAX_LINE) return line;
+  const head = line.slice(0, MAX_LINE);
+  const end = Math.max(head.lastIndexOf('. '), head.lastIndexOf('! '), head.lastIndexOf('? '), /[.!?]$/.test(head) ? head.length - 1 : -1);
+  if (end > 40) return head.slice(0, end + 1);
+  return `${head.replace(/\s+\S*$/, '').replace(/[,;:\s]+$/, '')}!`;
 }
 
 async function makeClient(env) {

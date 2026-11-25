@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { speech, speechOn, ssml } from '../src/speech.js';
-import { dailiesCommentary, lineById } from '../src/commentary.js';
+import { dailiesCommentary, lineById, trimSpoken } from '../src/commentary.js';
 import { fakeD1 } from './faked1.mjs';
 import worker from '../src/index.js';
 
@@ -66,6 +66,18 @@ test('Claude\'s line found again by its id (only an id of the right shape)', asy
   assert.equal(await lineById(r.id, { cache }), 'Here we go on stage one!');
   assert.equal(await lineById('../../etc', { cache }), null);
   assert.equal(await lineById('2026-11-25:1', { cache }), null);
+});
+
+test('a line too long for the voice ends on a whole sentence, never mid-sentence', () => {
+  const s1 = 'Welcome to ACR Daily! Stage one in Sweden is led by uzuramcrae at four twelve point one five eight, SyakeBiscuit just one point three four five seconds behind.';
+  const long = `${s1} Stage two is a blizzard, and the times there are anyone's guess as the snow keeps falling and the drivers keep pushing, flat out, every one of them!`;
+  assert.ok(long.length > 300);
+  assert.equal(trimSpoken(long), s1);
+  assert.equal(trimSpoken('Short and sweet!'), 'Short and sweet!');
+  const one = `What a run ${'and on and on '.repeat(30)}`;
+  const t = trimSpoken(one);
+  assert.ok(t.length <= 300, t);
+  assert.match(t, /^What a run .* on!$/);       // (one overlong sentence: cut at a word, ended with "!")
 });
 
 test('the endpoints: no voice set, no lines and no audio', async () => {
