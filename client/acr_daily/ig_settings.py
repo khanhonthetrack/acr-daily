@@ -70,8 +70,18 @@ def page(ig):
     # game; the user, 20 Nov 2026: "most settings are outdated")
     from . import ig_copilot
     left = col(language_panel(a), timer_panel(a, o), ig_copilot.settings_panel(ig), fill=1)   # (COPILOT's voice)
-    right = col(displays_panel(a), account_panel(a), save_panel(), about_panel(a, m), admin_panel(a), fill=1)
+    right = col(displays_panel(a), stream_panel(a), account_panel(a), save_panel(), about_panel(a, m), admin_panel(a), fill=1)
     return row(left, sp(GAP), right)
+
+
+def stream_panel(a):
+    """The overlay for streaming (broadcastfeed.py): WATCH's car and its gauge in OBS, from this PC."""
+    from . import broadcastfeed
+    on = bool(a.s.get('streamOverlay'))
+    return panel(_('Streaming'),
+                 setting(_('Overlay for OBS'), _('While you WATCH, the TV graphics with the followed car\'s gauge: add %s '
+                                                  'in OBS as a browser source, 1920 x 1080.') % broadcastfeed.url(),
+                         switch('stream', on)))
 
 
 def language_panel(a):
@@ -331,6 +341,14 @@ def click(ig, action, arg):
         from . import rankedchat
         if on != rankedchat.on(a):
             rankedchat.toggle(a)
+    elif action == 'stream':                         # (broadcastfeed.py: the overlay for OBS)
+        from . import broadcastfeed
+        a.s['streamOverlay'] = on
+        a.save_settings()
+        if on:
+            broadcastfeed.start(a.api.site)
+        else:
+            broadcastfeed.stop()
     elif action == 'always':
         cfg = ghost_cfg(a)
         if on != bool(cfg.get('always')):

@@ -30,6 +30,10 @@
 // backdrop: to look at it in a browser; OBS shows the page see-through), rotate=<seconds> (each page at least, 10 by
 // default), accent=RRGGBB, lang=xx, code= (a private rally's). The page scales itself to the source's size, its layout
 // always 16:9.
+// feed=1: the page as the ACR DAILY app serves it on the streamer's PC while WATCH runs (http://127.0.0.1:8833/, client
+// broadcastfeed.py): its /feed.json, ten times a second, is the car WATCH follows (the lower third) and its dash: the gauge as
+// in the game (revs round the dial, the speed, the gear on its plate, brake and throttle bars beside it; the user, 25
+// Nov 2026: "did you forget to also include the gauge?"); the page follows WATCH to another stage by itself.
 
 import { N_, langTag, t } from './i18n.js';
 
@@ -48,7 +52,7 @@ const WORDS = [N_("TODAY'S BEST"), N_("THIS WEEK'S BEST"), N_('STAGE BEST'), N_(
   N_('ON THE STAGE'), N_('ON TURN'), N_('WAITING'), N_('BREAK'), N_('DONE'), N_('OUT'), N_('STARTS IN'), N_('STAGES'),
   N_('{0} stages, drawn at the start'), N_('SS'), N_('KM'), N_('{0} drivers'), N_('Nobody registered yet.'),
   N_('No stage driven yet.'), N_('SPECIAL EVENT'), N_('PRIZE'), N_('{0} credits for every finisher'), N_('ENTRY'),
-  N_('Free'), N_('RANKED'), N_('Nothing on now.'), N_('Results final'), N_('The stages are kept hidden until the event closes.')];
+  N_('Free'), N_('RANKED'), N_('Nothing on now.'), N_('Results final'), N_('The stages are kept hidden until the event closes.'), N_('BRAKE'), N_('THROTTLE'), N_('GEAR')];
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -61,7 +65,7 @@ export function broadcastPage(kind, id, q, site) {
   const pages = (q.get('pages') || '').split(',').map((s) => s.trim()).filter((s) => /^[a-z]+$/.test(s));
   const rotate = Math.max(4, Math.min(60, +(q.get('rotate') || 10) || 10));
   const cfg = { kind, id: String(id), code: q.get('code') || '', parts, pages, rotate, bg: q.get('bg') === '1', site,
-    always: q.get('studio') === 'always' };
+    always: q.get('studio') === 'always', feed: q.get('feed') === '1' };
   return `<!doctype html><html lang="${esc(langTag())}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR Daily · broadcast</title><meta name="robots" content="noindex">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap">
@@ -126,6 +130,16 @@ body.bg{background:radial-gradient(ellipse at 30% 30%,#2c3a2a,#0b0f0a 70%)}
 .mark b{display:block;font-size:30px;letter-spacing:.06em;line-height:1}.mark span{font-size:14px;letter-spacing:.18em;color:var(--soft);font-weight:700}
 .mark img{height:64px;width:auto;margin-right:6px}
 .empty{padding:26px;text-align:center;font-size:24px;color:var(--soft)}
+.lower.wd{left:400px;width:840px;transform:none}.lower.wd.hide{transform:translateY(30px)}.lower.wd .lt .nm{max-width:360px}
+.gauge{position:absolute;right:40px;bottom:30px;display:flex;align-items:flex-start;gap:8px;transition:opacity .4s}.gauge.off{opacity:0}
+.ped{margin-top:170px;display:flex;flex-direction:column;gap:5px}.ped .bars{display:flex;gap:3px}.ped .bars i{width:9px;height:20px;transform:skewX(-14deg)}
+.ped b{font-size:11px;letter-spacing:.14em;color:var(--soft)}.ped.br{align-items:flex-end}.ped.br i{background:#3A1A22}.ped.br i.on{background:#FF3B47}
+.ped.thr i{background:#1F3318}.ped.thr i.on{background:#9BE22B}
+.dial{width:300px;height:300px;position:relative}.dial svg{position:absolute;left:0;top:0}
+.dial .kmh{position:absolute;left:50px;top:74px;width:200px;text-align:center;font-size:66px;font-weight:700;line-height:90px}
+.dial .ku{position:absolute;left:116px;top:165px;width:68px;text-align:center;font-size:14px;font-weight:700}
+.dial .gp{position:absolute;left:106px;top:188px;width:88px;height:86px;border-radius:8px;background:rgba(28,45,79,.96);border:2px solid #3A4F78;text-align:center}
+.dial .gp b{display:block;font-size:10px;letter-spacing:.16em;color:var(--soft);margin-top:4px}.dial .gp span{display:block;font-size:44px;font-weight:700;line-height:58px}
 </style></head><body${cfg.bg ? ' class="bg"' : ''}><div id="stage"></div>
 <script>
 (function(){
@@ -236,7 +250,8 @@ function tower(){var w=el('div','tower');var taken={};var no=focusNo(),st=stageO
   add(w,el('div','rule'));return w}
 function bug(){var live=D.live.length>0;var b=el('div','bug');
   add(b,add(el('div','live'+(live?'':' off')),el('i'),el('span',null,live?T('LIVE'):T('BETWEEN CARS'))),el('div','what p',D.info.label));return b}
-function lower(){var on=lead();var w=el('div','lower p'+(on?'':' hide'));if(!on)return w;
+function lower(){var fd=C.feed&&F.d&&F.d.on&&F.d.driver;var on=fd||lead();var w=el('div','lower p'+(on?'':' hide'));if(!on)return w;
+  if(C.feed)w.classList.add('wd');
   var pr=Math.max(0,Math.min(1,on.progress||0)),st=MULTI?stageOf(on.stageNo):null,len=st?st.lengthM:D.info.lengthM;
   add(w,add(el('div','lt'),el('span','sk'),tagBox(tagOf(on)),el('span','nm',String(on.name||'').toUpperCase()),flag(on.country),clock(el('span','clk'),on.totalMs)));
   var pb=el('div','pb'),fill=el('b'),dot=el('u');fill.style.width=(pr*100)+'%';dot.style.left=(pr*100)+'%';add(pb,fill,dot);
@@ -335,15 +350,41 @@ function side(){if(!MULTI||!D.ev)return null;var now=Date.now(),opts=[],qn=queue
   add(w,scroller(o.rows.map(function(x,i){var r=add(el('div','row'),el('span','ps',String(i+1)),who(x));
     if(o.k==='next'){var s=stateOf(x);add(r,el('span','st '+s[1],x.state==='waiting'&&x.estAt?hm(x.estAt):s[0]))}else add(r,el('span','ti',i?gap(x.totalMs-lead):ms(x.totalMs)));return r}),8,38));
   add(w,el('div','rule'));return w}
+// ---- the gauge (feed=1): built once, its parts set in place ten times a second
+var F={d:null,at:0,g:null};var REV_N=28,PED_N=12;
+function gaugeEl(){var g=el('div','gauge off'),NS='http://www.w3.org/2000/svg';
+  function bars(cls,label){var p=el('div','ped '+cls),b=el('div','bars');for(var i=0;i<PED_N;i++)add(b,el('i'));add(p,b,el('b',null,label));return p}
+  var br=bars('br',T('BRAKE')),th=bars('thr',T('THROTTLE')),dial=el('div','dial');
+  var svg=document.createElementNS(NS,'svg');svg.setAttribute('width','300');svg.setAttribute('height','300');
+  function a(n){var c=document.createElementNS(NS,n);return c}var c=150,R=146;
+  var disc=a('circle');disc.setAttribute('cx',c);disc.setAttribute('cy',c);disc.setAttribute('r',R);disc.setAttribute('fill','rgba(14,24,44,.91)');disc.setAttribute('stroke','rgba(150,175,215,.8)');disc.setAttribute('stroke-width','2');svg.appendChild(disc);
+  var inner=a('circle');inner.setAttribute('cx',c);inner.setAttribute('cy',c);inner.setAttribute('r',R-30);inner.setAttribute('fill','none');inner.setAttribute('stroke','rgba(120,150,200,.28)');svg.appendChild(inner);
+  [[c-R*.8,c-34],[c+34,c+R*.8]].forEach(function(x){var l=a('line');l.setAttribute('x1',x[0]);l.setAttribute('x2',x[1]);l.setAttribute('y1',176);l.setAttribute('y2',176);l.setAttribute('stroke','rgba(225,232,245,.9)');l.setAttribute('stroke-width','2');svg.appendChild(l)});
+  var segs=[];for(var i=0;i<REV_N;i++){var ang=(-16+(98+16)*(i+.5)/REV_N)*Math.PI/180,h=(114/REV_N*.32)*Math.PI/180,ri=R-31,ro=R-6;
+    var pts=[[ri,-h],[ro,-h],[ro,h],[ri,h]].map(function(p){return (c+p[0]*Math.cos(ang+p[1])).toFixed(1)+','+(c-p[0]*Math.sin(ang+p[1])).toFixed(1)}).join(' ');
+    var s=a('polygon');s.setAttribute('points',pts);svg.appendChild(s);segs.push([s,i>=REV_N-4])}
+  add(dial,svg,el('div','kmh','–'),el('div','ku','Km/h'),add(el('div','gp'),el('b',null,T('GEAR')),el('span',null,'–')));
+  add(g,br,dial,th);F.g={el:g,segs:segs,kmh:dial.querySelector('.kmh'),gear:dial.querySelector('.gp span'),br:br.querySelectorAll('i'),th:th.querySelectorAll('i')};return g}
+function gaugeSet(){var G=F.g;if(!G)return;var d=F.d&&F.d.dash,on=!!(F.d&&F.d.on&&d);G.el.className='gauge'+(on?'':' off');if(!on)return;
+  var n=Math.round(REV_N*Math.max(0,Math.min(1,d.rpm_frac||0)));G.segs.forEach(function(s,i){s[0].setAttribute('fill',i<n?(s[1]?'#FF3C46':'#B0EE28'):(s[1]?'rgba(60,30,36,.6)':'rgba(40,60,40,.5)'))});
+  G.kmh.textContent=d.kmh!=null?String(Math.round(d.kmh)):'–';var g=d.gear;G.gear.textContent=g==null?'–':g===0?'R':g===1?'N':String(g-1);
+  function lit(nodes,v,rev){var k=Math.round(PED_N*Math.max(0,Math.min(1,v||0)));for(var i=0;i<nodes.length;i++){var p=rev?nodes.length-1-i:i;nodes[i].className=p<k?'on':''}}
+  lit(G.br,d.brake,true);lit(G.th,d.gas,false)}
+function feedLoad(){fetch('/feed.json',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){F.d=j;F.at=Date.now();
+    if(j&&j.page&&j.page!==location.pathname){location.replace(j.page+'?feed=1');return}gaugeSet();
+    var dv=j&&j.on&&j.driver,lw=S.querySelector('.lower');if(!dv||!lw||lw.classList.contains('hide')){if(dv&&!lw)draw();return}
+    var ck=lw.querySelector('.clk');if(ck&&dv.totalMs!=null){ck.setAttribute('data-ms',dv.totalMs);ck.setAttribute('data-at',Date.now())}
+    var nm=lw.querySelector('.nm');if(nm&&nm.textContent!==String(dv.name||'').toUpperCase())draw();
+    var p=Math.max(0,Math.min(1,dv.progress||0)),b=lw.querySelector('.pb b'),u=lw.querySelector('.pb u');if(b){b.style.width=(p*100)+'%';u.style.left=(p*100)+'%'}}).catch(function(){F.d=null;gaugeSet()})}
 function mark(){var m=el('div','mark');if(C.kind==='ranked'){var i=el('img');i.src='/series/'+C.id.split('/')[0]+'-logo.webp';i.onerror=function(){i.remove()};add(m,i)}
   return add(m,el('i'),add(el('div'),el('b',null,'ACR DAILY'),el('span',null,T('LIVE COVERAGE'))))}
 // (a running time: its words set in place ten times a second between the API's answers, nothing drawn again: no flicker)
 var clocks=[],downs=[];function clock(e,v){if(v!=null){e.setAttribute('data-ms',v);e.setAttribute('data-at',D.at)}e.textContent=ms(v);clocks.push(e);return e}
 function clockDown(e,to){e.textContent=span(to-Date.now());downs.push([e,to]);return e}
 var shown=null;
-function draw(){if(!D.info)return;clocks=[];downs=[];S.innerHTML='';var live=D.live.length>0,stud=has('studio')&&(!live||C.always);
+function draw(){if(!D.info)return;clocks=[];downs=[];S.innerHTML='';var live=D.live.length>0||!!(C.feed&&F.d&&F.d.on&&F.d.driver),stud=has('studio')&&(!live||C.always);
   if(has('tower')&&(live||!has('studio'))&&!(C.always&&has('studio')))add(S,tower());if(has('bug'))add(S,bug());
-  if(live&&has('side')&&!stud)add(S,side());if(has('lower')&&!stud)add(S,lower());if(stud)add(S,studio(live));add(S,mark());
+  if(live&&has('side')&&!stud)add(S,side());if(has('lower')&&!stud)add(S,lower());if(stud)add(S,studio(live));add(S,mark());if(C.feed){add(S,F.g?F.g.el:gaugeEl());gaugeSet()}
   shown=(PG.list[PG.i]||{}).key+':'+PG.i+':'+SD.i;scrollTick()}
 function scrollTick(){var now=Date.now();document.querySelectorAll('.sci[data-n]').forEach(function(e){var n=+e.getAttribute('data-n'),h=+e.getAttribute('data-h');
   var since=(now-(e.closest('.side')?SD.at:PG.at))/1000,k=Math.max(0,Math.min(n,(since-HOLD_S)/ROW_S));e.style.transform='translateY('+(-k*h)+'px)'})}
@@ -358,6 +399,7 @@ function tickLive(){loadLive().then(draw).catch(function(){}).then(function(){cl
 // (an event's or a ranked session's standings and queues change as it goes: asked again every 15 s; a daily's every 30)
 function tickAll(){load().then(function(){return loadLive().catch(function(){})}).then(draw).catch(fail).then(function(){setTimeout(tickAll,MULTI?15000:30000)})}
 tickAll();setTimeout(tickLive,5000);setInterval(tick,100);
+if(C.feed)setInterval(feedLoad,100);
 })();
 </script></body></html>`;
 }

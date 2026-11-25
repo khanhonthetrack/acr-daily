@@ -704,6 +704,11 @@ def overlay(ig):
                     country = x.get('country')
                     break
 
+    if a.s.get('streamOverlay'):                 # (the overlay for OBS from this PC: broadcastfeed.py)
+        from . import broadcastfeed
+        if broadcastfeed.start(a.api.site):
+            broadcastfeed.publish(w, fol, w.where(fol, now) if fol is not None else None,
+                                  fol.dash_at(now) if fol is not None else None, country, team)
     g = w.graphics
     menu = _menu(w, fol) if w.menu is not None else None
     if g == 'off':
