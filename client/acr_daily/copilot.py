@@ -40,7 +40,8 @@ def is_cp(cid):
 
 def settings_of(s):
     """The voice's settings (SETTINGS in the game): {'talk': ptt / open / off, 'key': a key name (voice.VK), 'button':
-    a wheel's / pad's button id (cardbuttons.py) or None, 'gain': the other's voice, 0.5..3}."""
+    a wheel's / pad's button id (cardbuttons.py) or None, 'gain': the other's voice, 0.5..3, 'radio': it through the rally
+    intercom (voice.Intercom), on unless turned off}."""
     c = s.setdefault('copilot', {})
     from .voice import VK
     c['talk'] = c.get('talk') if c.get('talk') in TALK_MODES else 'ptt'
@@ -50,6 +51,7 @@ def settings_of(s):
         c['gain'] = max(0.5, min(3.0, float(c.get('gain', 1.0))))
     except (TypeError, ValueError):
         c['gain'] = 1.0
+    c['radio'] = c.get('radio') is not False
     return c
 
 
@@ -341,7 +343,7 @@ class Copilot:
         if l.get('signal'):
             self.link.peer(l['signal'], (self.partner() or {}).get('steamId'))
         c = settings_of(a.s)
-        self.voice = Voice(self.link.send_voice, self._held, mode=c['talk'], gain=c['gain'])
+        self.voice = Voice(self.link.send_voice, self._held, mode=c['talk'], gain=c['gain'], radio=c['radio'])
         self._wired = None
 
     def _wire(self):
@@ -370,6 +372,15 @@ class Copilot:
         if self.link is not None:
             self.link.close()
         self.link = self.voice = self._wired = None
+
+    def set_radio(self, on):
+        """The partner's voice through the rally intercom, or as it is."""
+        c = settings_of(self.app.s)
+        c['radio'] = bool(on)
+        from . import settings
+        settings.save(self.app.s)
+        if self.voice is not None:
+            self.voice.radio = bool(on)
 
     def set_talk(self, mode):
         c = settings_of(self.app.s)

@@ -76,7 +76,7 @@ class Talking(unittest.TestCase):
     def test_push_to_talk_sends_only_while_held_and_heard_is_played(self):
         sent = []
         spk = FakeSpeaker()
-        v = voice.Voice(sent.append, lambda: False, mode='ptt', mic=FakeMic([tone()] * 5), speaker=spk)
+        v = voice.Voice(sent.append, lambda: False, mode='ptt', mic=FakeMic([tone()] * 5), speaker=spk, radio=False)
         try:
             time.sleep(0.15)
             self.assertEqual(sent, [], 'not held: nothing sent')
@@ -104,6 +104,55 @@ class Talking(unittest.TestCase):
             self.assertEqual(len(sent), 2, 'the speech and the hang after it')
         finally:
             v.close()
+
+
+class Intercom(unittest.TestCase):
+    """The partner's voice through the rally intercom (voice.Intercom, 25 Nov 2026): the headsets' band, pressed hard,
+    a click as the channel opens, a squelch as it closes."""
+
+    def band(self, hz):
+        fx = voice.Intercom(seed=1)
+        fx.HISS = 0.0
+        out = b''.join(fx.process(tone(hz=hz, amp=6000, start=k * voice.FRAME)) for k in range(25))
+        s = struct.unpack('<%dh' % (len(out) // 2), out)[voice.FRAME * 10:]      # (after the click, the filters settled)
+        return max(abs(x) for x in s)
+
+    def test_the_headsets_band(self):
+        mid, low, high = self.band(1000), self.band(80), self.band(6500)
+        self.assertGreater(mid, 4 * low, 'the rumble under 300 Hz gone')
+        self.assertGreater(mid, 4 * high, 'the hiss over 3.4 kHz gone')
+
+    def test_pressed_a_click_then_a_squelch_never_clipped(self):
+        fx = voice.Intercom(seed=2)
+        quiet = [fx.process(tone(amp=800, start=k * voice.FRAME)) for k in range(30)]
+        peak = max(voice.peak(f) for f in quiet[10:])
+        self.assertGreater(peak, 2400, 'a quiet voice brought up')
+        loud = voice.Intercom(seed=2)
+        self.assertLess(max(voice.peak(loud.process(tone(amp=32000, start=k * voice.FRAME))) for k in range(30)), 32767)
+        first = struct.unpack('<%dh' % voice.FRAME, voice.Intercom(seed=3).process(b'\0' * voice.FRAME_BYTES))
+        self.assertGreater(max(abs(x) for x in first[:96]), 3000, 'the click as the channel opens')
+        self.assertLess(max(abs(x) for x in first[200:]), 1000, '... then only the hiss')
+        tail = fx.tail()
+        self.assertEqual(len(tail), voice.Intercom.TAIL_FRAMES)
+        self.assertTrue(all(len(f) == voice.FRAME_BYTES for f in tail))
+        self.assertGreater(voice.peak(tail[0]), voice.peak(tail[-1]), 'the squelch fades')
+        self.assertEqual(fx.tail(), [], 'closed once')
+
+    def test_heard_through_it_with_its_squelch_after_or_plain(self):
+        for radio, n in ((True, 6 + voice.Intercom.TAIL_FRAMES), (False, 6)):
+            spk = FakeSpeaker()
+            v = voice.Voice(lambda p: None, mode='off', mic=FakeMic([]), speaker=spk, radio=radio)
+            try:
+                for k in range(6):
+                    v.heard(struct.pack('<H', k + 1) + voice.encode(tone(start=k * voice.FRAME)))
+                self.assertTrue(wait(lambda: len(spk.played) >= n), (radio, len(spk.played)))
+                time.sleep(0.3)
+                self.assertEqual(len(spk.played), n, radio)
+            finally:
+                v.close()
+        c = copilot.settings_of({})
+        self.assertIs(c['radio'], True)                      # (on unless turned off)
+        self.assertIs(copilot.settings_of({'copilot': {'radio': False}})['radio'], False)
 
 
 class DirectLink(unittest.TestCase):

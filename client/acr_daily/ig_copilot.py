@@ -247,6 +247,9 @@ def settings_panel(ig):
                  setting(_('Push to talk'), _('The key (click to change it), and a wheel or pad button (click, then press '
                                               'the button).'), under=keys) if c['talk'] == 'ptt' else None,
                  setting(_('Your partner\'s volume'), None, volume),
+                 setting(_('Rally intercom'), _('Your partner\'s voice as a crew hears it in their helmets: narrow and punchy, '
+                                              'a click as they start, a hiss as they stop.'),
+                         under=row(choice('radio', 'on', _('ON'), c['radio']), sp(6), choice('radio', 'off', _('OFF'), not c['radio']))),
                  txt(_('Use headphones: your speakers in your partner\'s microphone come back as an echo.'), 15, 'medium',
                      MUTED, wrap=True, pad=[0, 14, 0, 0]))
 
@@ -258,6 +261,8 @@ def click(ig, action, arg):
     m = ig.mem(TAB)
     if action == 'role' and arg in ROLE_NAMES:
         m['role'] = arg
+    elif action == 'radio':
+        cp.set_radio(arg == 'on')
     elif action == 'priv':
         m['private'] = arg == 'private'
     elif action == 'refresh':

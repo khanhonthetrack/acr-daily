@@ -116,6 +116,101 @@ def peak(pcm):
     return max(max(s), -min(s))
 
 
+# ---------------------------------------------------------------------- the rally intercom (the user, 25 Nov 2026: "this
+# 'driver/codriver' walkie talkie type effect, like in real rallies")
+def _biquad(kind, f0, q=0.707, gain_db=0.0, fs=RATE):
+    """An RBJ cookbook filter's coefficients (b0, b1, b2, a1, a2), a0 taken out: 'hp', 'lp', 'peak'."""
+    import math
+    w = 2 * math.pi * f0 / fs
+    cw, sw = math.cos(w), math.sin(w)
+    alpha = sw / (2 * q)
+    if kind == 'hp':
+        b = ((1 + cw) / 2, -(1 + cw), (1 + cw) / 2)
+        a = (1 + alpha, -2 * cw, 1 - alpha)
+    elif kind == 'lp':
+        b = ((1 - cw) / 2, 1 - cw, (1 - cw) / 2)
+        a = (1 + alpha, -2 * cw, 1 - alpha)
+    else:
+        A = 10 ** (gain_db / 40)
+        b = (1 + alpha * A, -2 * cw, 1 - alpha * A)
+        a = (1 + alpha / A, -2 * cw, 1 - alpha / A)
+    return (b[0] / a[0], b[1] / a[0], b[2] / a[0], a[1] / a[0], a[2] / a[0])
+
+
+class Intercom:
+    """The partner's voice as a rally crew hears each other through their helmets' intercom: the headset microphones'
+    narrow band (300 to 3400 Hz, a lift at 1.8 kHz: its honk), pressed hard (a fast compressor and a soft clip: the
+    co-driver calling over the engine), a light hiss under it while the channel is open, a click as it opens and a
+    short squelch as it closes. 20 ms frames of 16-bit samples in and out (process, tail); its filters keep their
+    state from one frame to the next. Pure Python: about 1 ms a frame."""
+
+    CHAIN = (('hp', 300.0, 0.707, 0.0), ('hp', 300.0, 0.707, 0.0), ('peak', 1800.0, 1.0, 5.0),
+             ('lp', 3400.0, 0.707, 0.0), ('lp', 3400.0, 0.707, 0.0))
+    TARGET = 9000.0                 # the compressor brings the voice's level up (or down) to about this (of 32767)
+    MAX_GAIN = 6.0
+    DRIVE = 1.8                     # the soft clip: x / (1 + |x|) at this much drive (a little grit, never a hard edge)
+    HISS = 220.0                    # the open channel's hiss (of 32767)
+    TAIL_FRAMES = 4                 # the squelch as the channel closes: this many 20 ms frames
+
+    def __init__(self, seed=None):
+        import random
+        self.rng = random.Random(seed)
+        self.coef = [_biquad(k, f, q, g) for k, f, q, g in self.CHAIN]
+        self.state = [[0.0, 0.0, 0.0, 0.0] for _ in self.coef]       # (x1, x2, y1, y2) each
+        self.env = 0.0
+        self.open = False
+
+    def _filter(self, x):
+        for (b0, b1, b2, a1, a2), st in zip(self.coef, self.state):
+            y = b0 * x + b1 * st[0] + b2 * st[1] - a1 * st[2] - a2 * st[3]
+            st[1], st[0], st[3], st[2] = st[0], x, st[2], y
+            x = y
+        return x
+
+    def _shape(self, x):
+        """The compressor (a peak follower: fast up, slower down) and the soft clip."""
+        a = abs(x)
+        self.env = a if a > self.env else self.env * 0.9992
+        g = min(self.MAX_GAIN, self.TARGET / max(self.env, 400.0))
+        v = x * g / 32767.0 * self.DRIVE
+        return v / (1.0 + abs(v)) * (32767.0 / (self.DRIVE / (1.0 + self.DRIVE))) * 0.55
+
+    def process(self, pcm):
+        """One frame of the partner's voice -> as heard on the intercom (bytes, as long). The first frame after a
+        silence starts with the click of the channel opening."""
+        n = len(pcm) // 2
+        s = struct.unpack('<%dh' % n, pcm[:n * 2])
+        out = []
+        click = not self.open
+        self.open = True
+        rnd = self.rng.random
+        for i, x in enumerate(s):
+            y = self._shape(self._filter(float(x))) + (rnd() - 0.5) * 2 * self.HISS
+            if click and i < 96:                     # (6 ms: a sharp tick, then a short 1.6 kHz blip)
+                y += (rnd() - 0.5) * 2 * 9000 * (1 - i / 96) if i < 24 else \
+                    7000 * (1 - i / 96) * (1 if (i // 5) % 2 else -1)
+            out.append(-32768 if y < -32768 else 32767 if y > 32767 else int(y))
+        return struct.pack('<%dh' % n, *out)
+
+    def tail(self, n=FRAME):
+        """The channel closing: TAIL_FRAMES frames of squelch (filtered noise fading out) -> [bytes]; [] when it is
+        closed already."""
+        if not self.open:
+            return []
+        self.open = False
+        frames, total = [], self.TAIL_FRAMES * n
+        rnd = self.rng.random
+        for f in range(self.TAIL_FRAMES):
+            out = []
+            for i in range(n):
+                k = f * n + i
+                y = self._filter((rnd() - 0.5) * 2 * 14000 * (1 - k / total) ** 2)
+                out.append(-32768 if y < -32768 else 32767 if y > 32767 else int(y))
+            frames.append(struct.pack('<%dh' % n, *out))
+        self.env = 0.0
+        return frames
+
+
 # ---------------------------------------------------------------------- Windows' wave calls (winmm)
 class _WAVEFORMATEX(ctypes.Structure):
     _pack_ = 1
@@ -263,8 +358,10 @@ class Voice:
     """Both ways: the microphone to send(packet), the packets heard (heard()) to the speakers. A thread of its own.
     talk(): 'ptt' / 'open' / 'off'; held: a function -> whether push-to-talk is held now."""
 
-    def __init__(self, send, held=lambda: False, mode='ptt', gain=1.0, mic=None, speaker=None):
+    def __init__(self, send, held=lambda: False, mode='ptt', gain=1.0, mic=None, speaker=None, radio=True):
         self.send = send
+        self.radio = radio                # the partner's voice through the rally intercom (Intercom)
+        self.fx = Intercom()
         self.held = held
         self.mode = mode
         self.gain = gain
@@ -327,10 +424,16 @@ class Voice:
                     if spk.queued() < 3:
                         seq, pkt = self._in.popleft()
                         self._last_seq = seq
-                        spk.play(decode(pkt, gain=self.gain))
+                        pcm = decode(pkt, gain=self.gain)
+                        spk.play(self.fx.process(pcm) if self.radio else pcm)
                         busy = True
                 elif not self._in:
-                    waiting = True
+                    if not waiting and self.radio and time.monotonic() - self.hearing_at > 0.12:
+                        for f in self.fx.tail():             # (their words over: the channel closes, its squelch)
+                            spk.play(f)
+                        waiting = True
+                    elif not self.radio:
+                        waiting = True
                 if not busy:
                     time.sleep(0.004)
         finally:
