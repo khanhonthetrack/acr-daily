@@ -111,6 +111,7 @@ import { resultsTick } from './rating.js';
 import { isPrivateWeek, privateListed, rejectTtRun, setTtPrivate, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 import { copilotApi, copilotTick } from './copilot.js';
+import { casualApi, casualPage, casualTick } from './casual.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
@@ -1855,6 +1856,16 @@ async function route(req, env, ctx, L) {
       const res = await copilotApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
       if (res) return res;
     }
+    if (path === '/api/casual' || path.startsWith('/api/casual/') || path.startsWith('/api/n/')) {   // CASUAL: lobbies of up to 4 (src/casual.js)
+      const res = await casualApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
+      if (res) return res;
+    }
+    lm = path.match(/^\/n\/([A-Za-z0-9_-]{12})$/);   // CASUAL's pacenotes page for someone without the game: its token is the key, never indexed
+    if (lm) {
+      const pg = await casualPage(env, lm[1]);
+      return new Response(pg.body, { status: pg.status, headers: { ...PAGE_HEADERS, 'X-Robots-Tag': 'noindex, nofollow',
+        'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' } });
+    }
     if (path === '/credits') return html(inLang(L, () => creditsPage(env)));
     if (path === '/report') return html(inLang(L, () => reportPage(env)));   // a bug report (src/reportpage.js)
     if (path === '/changelog') return html(inLang(L, () => changelogPage(env)));   // what's new in each app version (src/changelog.js)
@@ -2091,6 +2102,8 @@ export default {
       ctx.waitUntil(ttTick(env, t, ttDeps(env)).catch((e) => console.error('time trial', e)));
       // COPILOT: today's stage picked, lobbies left open closed, starts that never sent a run made DNFs (src/copilot.js)
       ctx.waitUntil(copilotTick(env, t, ttDeps(env)).catch((e) => console.error('copilot', e)));
+      // CASUAL: stale lobbies closed (src/casual.js)
+      ctx.waitUntil(casualTick(env, t).catch((e) => console.error('casual', e)));
       // achievements: the drivers who did something since their last check (src/achievements.js)
       ctx.waitUntil(achievementsTick(env, t).catch((e) => console.error('achievements', e)));
     }

@@ -93,6 +93,27 @@ class Ghost:
         return self.at[idx] if 0 <= idx < len(self.at) else None
 
 
+class SplitGhost(Ghost):
+    """A reference run known only by its split times (a crew's board has no traces): the total time at each route index
+    worked out between the splits, a straight line in the distance driven."""
+
+    def __init__(self, splits_ms, split_at, total_ms, route):
+        pts = [(0.0, 0.0)]
+        for f, t in zip(split_at, splits_ms):
+            if t is not None and f > pts[-1][0]:
+                pts.append((float(f), float(t)))
+        if total_ms and pts[-1][0] < 1.0:
+            pts.append((1.0, float(total_ms)))
+        self.at = []
+        k = 0
+        for c in route.cum:
+            f = c / route.length if route.length else 0.0
+            while k + 1 < len(pts) - 1 and f > pts[k + 1][0]:
+                k += 1
+            (f0, t0), (f1, t1) = pts[k], pts[min(k + 1, len(pts) - 1)]
+            self.at.append(int(round(t0 + (t1 - t0) * ((f - f0) / (f1 - f0) if f1 > f0 else 0.0))))
+
+
 class Judge:
     def __init__(self, challenge, clock=time.monotonic):
         """challenge: {'id', 'track', 'car', 'route': [[x, z]...], 'penaltyMs'}"""
@@ -138,6 +159,10 @@ class Judge:
 
     def set_ghost(self, trace):
         self.ghost = Ghost(trace, self.route, self.penalty_ms) if trace else None
+
+    def set_ghost_splits(self, splits_ms, total_ms):
+        """The live gap against a run known by its splits only (a crew's board: the leader's)."""
+        self.ghost = SplitGhost(splits_ms, self.split_at, total_ms, self.route) if splits_ms and total_ms else None
 
     def feed(self, f, unloaded=False):
         """Feed one frame (or None when the game is not there; unloaded = it is, but quit the stage to its menus).

@@ -17,8 +17,8 @@ from .i18n import _
 
 # the cameras (mod main.lua): auto = the director cutting between them, as a rally's TV broadcast (the user, 21 Nov
 # 2026: "As default, the camera should be like TV (sometimes TV sometimes cockpit etc.)")
-CAMS = ('auto', 'tv', 'incar', 'cockpit', 'onboard', 'bonnet', 'wheel', 'chase', 'far', 'heli', 'side')
-CAM_NAMES = {'auto': _('AUTO'), 'tv': _('TV'), 'incar': _('IN-CAR'), 'cockpit': _('COCKPIT'), 'onboard': _('ONBOARD'), 'bonnet': _('BONNET'), 'wheel': _('WHEEL'),
+CAMS = ('auto', 'tv', 'incar', 'seat', 'cockpit', 'onboard', 'bonnet', 'wheel', 'chase', 'far', 'heli', 'side')
+CAM_NAMES = {'auto': _('AUTO'), 'tv': _('TV'), 'incar': _('IN-CAR'), 'seat': _('PASSENGER SEAT'), 'cockpit': _('COCKPIT'), 'onboard': _('ONBOARD'), 'bonnet': _('BONNET'), 'wheel': _('WHEEL'),
              'chase': _('CHASE'), 'far': _('FAR'), 'heli': _('HELICOPTER'), 'side': _('SIDE'), 'high': _('HIGH'),
              'front': _('FRONT')}
 GRAPHICS = ('full', 'clean', 'off')        # all of the broadcast / the driver bar and dash only / nothing
@@ -62,7 +62,7 @@ class Watch:
         self.on_stage = False
         self.menu, self.shot = None, None
         if self.copilot():                    # (COPILOT's co-driver: in the car, beside the driver, as the real one)
-            self.cam = CAMS.index('incar')
+            self.cam = CAMS.index('seat')     # (the passenger seat: next to the driver, not between the headrests)
             self.graphics = 'off'
 
     def stop(self):
@@ -279,7 +279,7 @@ class Watch:
         driver before / after, up / down the camera. -> whether something changed. A COPILOT co-driver's keys move
         through the notes instead (copilot.py)."""
         if self.copilot():
-            cp = getattr(self.app, 'copilot', None)
+            cp = self.app.crew_owner() if hasattr(self.app, 'crew_owner') else getattr(self.app, 'copilot', None)
             return bool(cp is not None and cp.key(k))
         if k == 'select':
             self.menu = None if self.menu is not None else 0

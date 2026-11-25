@@ -55,3 +55,60 @@ voice go straight between the two PCs, so two players in Japan stay in Japan. If
 - Voice has been tested with stand-in microphones and speakers only, not real devices.
 - The direct link has been tested between two apps on one PC, not across the internet or real routers.
 - Note distances count from the stage's first note, not from the start line.
+
+
+## CASUAL (second mode, server/src/casual.js, migration 0050)
+
+A lobby of up to 4 for any day, on COPILOT_FROM like CODRIVER. The host is the driver and picks a stage (any with the game's
+pacenotes: the dailies' pool), car, weather, time of day, up to 3 languages (ISO 639-1; `LANGS` in copilot.js) and public or
+private (6-letter code). Up to 3 co-drivers join and press READY (informational). The host presses START at any time, alone
+too; only members present then take part, later joins are refused. No results, board or tries. An open lobby is closed after
+3 h, a started one finished 3 h after its start (`CX`, cron `casualTick` and lazily on the lists). One lobby at a time per
+player (creating or joining leaves the others). Languages were added to CODRIVER lobbies too (`langs` on
+`POST /api/copilot/lobbies`, returned in its lobbyOut).
+
+Tables: `casual_lobbies` (token, code, host, track, car, weather, time, langs, state open|started|finished|closed),
+`casual_members` (lobby, steam id, seat 0..3, ready; seat 0 = host; a freed seat is given to the next joiner),
+`casual_signals` (lobby, from, to, data: one row per ordered pair for the apps' direct voice links).
+
+API (JSON, signed in like /api/copilot; 404 when off):
+- `GET /api/casual/options` -> `{stages:[{track,stageName,menuName,rally,lengthM}], cars:[{id,name,cls}], weather:[{code,label}], times:[{code,label}]}`
+- `GET /api/casual` -> `{on, signedIn, lobbies:[public, open + started, newest first, max 40; mine incl. private], lobby: mine|null}`
+- `POST /api/casual/lobbies {track,car,weather,time,langs,private}` -> `{ok, lobby}`
+- `POST /api/casual/join {id?, code?}`; `GET /api/casual/lobbies/:id`; `POST .../ready {ready}`; `.../start`; `.../leave`;
+  `.../signal {to, data}` (data a string or JSON, 2000 characters at most)
+- lobbyOut: `{id, private, state, created, started, max:4, langs, stage, car:{id,name,cls}, weather:{code,label}, time:{code,label},
+  host, members:[{steamId,name,avatar,country,role,seat,ready}], count, free}`; for a member also `me`, `code` (private),
+  `notesUrl` (`/n/<token>`), `signals` (`{<from steamId>: data}` for me); when started also `ch` (the stage for the app:
+  id `cx:<lobby>`, kind `casual`, mode weekend, hardcore false, route) and `notes`.
+
+Pacenotes page for people without the game: `GET /n/<token>` (HTML, no login, phone-first, dark, noindex) and
+`GET /api/n/<token>` -> `{stage, car, notes}`. The token (12 chars) is made with the lobby; valid while it is open or started
+and 2 h after it ends, then 404 (a small friendly page). The page's script is a plain string (src/casualpage.js).
+
+
+## CASUAL and the crew, in the app (25 Nov 2026)
+
+CODRIVER has two tabs in the game: CODRIVER DAILY and CASUAL (`ig_copilot.py` hosts both; `ig_casual.py` is CASUAL's page).
+
+- **CASUAL** (`client/acr_daily/casual.py`, a `Copilot` subclass): the host (the driver) picks stage, car, weather, time, up to
+  three languages and public / private; up to 3 co-drivers join; START (alone is fine: then the game's own co-driver stays on).
+  No results. The driver's stage runs under `CP_SLOT` as the daily crew's does (challenge id `cx:<lobby>`, never sent);
+  the co-drivers WATCH from the passenger seat with the notes. Relay room `cp:<1000000 + lobby>`.
+- **Languages** show as flags (a country for each language: `casual.LANG_FLAG`) in the lobby browser, for both modes; the daily
+  lobby's host picks them too.
+- **Passenger seat**: the co-driver's camera is the `seat` shot (mod `main.lua`): the driver's eye point mirrored across the car's
+  centre line, the co-driver's own figure hidden, the driver's shown. Not yet seen in the game.
+- **Voice** (`voice.py`, `crew.py`): a microphone by name and its volume in SETTINGS › CODRIVER VOICE (with a TEST level bar);
+  each speaker has a seat (0 driver, 1..3 co-drivers) and their own queue, mixed; the driver is the hub (one `copilotlink.Link`
+  to each co-driver) and passes a co-driver's voice on to the others. Small speaker icons on the side of the stage (one dot and
+  name each, lit while that person talks, "You" while you send) show who is heard.
+- **Notes for someone without the game**: the lobby shows a QR code (`qrcode_min.py`, no packages) for `https://acrdaily.com/n/<token>`,
+  a phone page with this lobby's stage notes (`server/src/casualpage.js`). Chosen over one big notes library on the website because
+  the right stage is already picked (scan, read), it works for a private lobby, and nobody has to find the stage.
+- **The daily crew's stage UI**: the driver gets the dailies' timer (start line: "Good luck! One go", running: the gap to the leader
+  worked out from the leader's splits, split standings under the timer, finish: "P2 OF 5 CREWS" / DNF); the co-driver's overlay shows
+  the driver's clock, gap and finish through the link's status line (`Copilot.status_line`).
+
+Not checked in the game: the passenger-seat camera, the speaker icons over a real stage, a mic picked by name on real hardware,
+three links at once across real routers.

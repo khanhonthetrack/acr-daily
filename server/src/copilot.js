@@ -45,6 +45,26 @@ export const CP = {
 export const COPILOT_RULES = { penalty: 'realistic', respawn: true, damage: true, damageIntensity: 'realistic', wear: 'realistic',
   failures: 'realistic', hardcore: true };
 export const ROLES = ['driver', 'codriver'];
+// The languages a lobby's host is happy to speak (ISO 639-1; at most 3), for COPILOT's lobbies and CASUAL's alike.
+export const LANGS = ['en', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'cs', 'sk', 'hu', 'ro', 'ru', 'uk', 'tr', 'nl', 'sv', 'no', 'da', 'fi',
+  'el', 'ja', 'ko', 'zh', 'ar', 'he', 'id', 'th', 'vi', 'lt', 'lv', 'et', 'bg', 'hr', 'sr', 'sl'];
+export const LANGS_MAX = 3;
+/** A lobby's languages: undefined / null -> [], else an array of at most 3 distinct allowed codes (case ignored) -> the
+ *  codes in lower case; anything else -> {error}. */
+export function parseLangs(v) {
+  if (v == null) return { langs: [] };
+  if (!Array.isArray(v)) return { error: 'langs: a list of language codes' };
+  if (v.length > LANGS_MAX) return { error: 'langs: at most ' + LANGS_MAX };
+  const out = [];
+  for (const x of v) {
+    const c = typeof x === 'string' ? x.trim().toLowerCase() : '';
+    if (!LANGS.includes(c)) return { error: 'langs: unknown language ' + JSON.stringify(String(x).slice(0, 8)) };
+    if (out.includes(c)) return { error: 'langs: each language once' };
+    out.push(c);
+  }
+  return { langs: out };
+}
+const langsOf = (s) => { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { return []; } };
 const DAY = 86400000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // (no 0 / O, 1 / I)
 
@@ -180,7 +200,7 @@ function revealOut(p, route) {
 // ------------------------------------------------------------------ lobbies
 
 const LOBBY_COLS = `l.id, l.date, l.code, l.host, l.host_role, l.guest, l.host_ready, l.guest_ready, l.state, l.created,
-  l.started, l.host_signal, l.guest_signal,
+  l.started, l.host_signal, l.guest_signal, l.langs,
   hp.name AS host_name, hp.avatar AS host_avatar, hp.country AS host_country,
   gp.name AS guest_name, gp.avatar AS guest_avatar, gp.country AS guest_country`;
 const LOBBY_FROM = `copilot_lobbies l JOIN players hp ON hp.steam_id = l.host LEFT JOIN players gp ON gp.steam_id = l.guest`;
@@ -199,7 +219,7 @@ export function lobbyOut(l, me) {
     : l.guest ? { steamId: l.guest, name: l.guest_name, avatar: l.guest_avatar || null, country: l.guest_country || null,
       role: otherRole(l.host_role), ready: !!l.guest_ready } : null);
   const out = { id: l.id, date: l.date, private: !!l.code, state: l.state, created: l.created, started: l.started || null,
-    host: side('host'), guest: side('guest'), wants: l.guest ? null : otherRole(l.host_role) };
+    host: side('host'), guest: side('guest'), wants: l.guest ? null : otherRole(l.host_role), langs: langsOf(l.langs) };
   if (mine) {
     const host = l.host === me;
     Object.assign(out, { me: host ? 'host' : 'guest', myRole: host ? l.host_role : otherRole(l.host_role),
@@ -245,6 +265,8 @@ async function createLobby(env, me, b, now, deps) {
   const { json, err } = deps;
   const date = dayOf(now);
   if (!ROLES.includes(b.role)) return err('role: driver or codriver');
+  const lg = parseLangs(b.langs);
+  if (lg.error) return err(lg.error);
   const tries = await triesOf(env, date, me.steam_id);
   if (tries[b.role]) return err(`you have driven today's CODRIVER as ${b.role === 'driver' ? 'the driver' : 'the co-driver'} already`, 409);
   if (!(await dayPick(env, date, deps, now))) return err('no CODRIVER stage today', 409);
@@ -254,8 +276,8 @@ async function createLobby(env, me, b, now, deps) {
     env.DB.prepare(`UPDATE copilot_lobbies SET state = 'closed', updated = ? WHERE state = 'open' AND host = ?`).bind(now, me.steam_id),
     env.DB.prepare(`UPDATE copilot_lobbies SET guest = NULL, guest_ready = 0, host_ready = 0, guest_signal = NULL, updated = ?
       WHERE state = 'open' AND guest = ?`).bind(now, me.steam_id),
-    env.DB.prepare(`INSERT INTO copilot_lobbies (date, code, host, host_role, state, created, updated) VALUES (?, ?, ?, ?, 'open', ?, ?)`)
-      .bind(date, code, me.steam_id, b.role, now, now),
+    env.DB.prepare(`INSERT INTO copilot_lobbies (date, code, host, host_role, state, created, updated, langs) VALUES (?, ?, ?, ?, 'open', ?, ?, ?)`)
+      .bind(date, code, me.steam_id, b.role, now, now, lg.langs.length ? JSON.stringify(lg.langs) : null),
   ]);
   const id = res[2].meta.last_row_id;
   return json({ ok: true, lobby: lobbyOut(await lobbyRow(env, id), me.steam_id) });
@@ -377,7 +399,7 @@ export const boardKey = (date) => `cpboard:${date}`;
 
 /** The day's crews: finished ones by time (ties: who finished first), then the DNFs. */
 export async function buildBoard(env, date) {
-  const { results } = await env.DB.prepare(`SELECT r.id AS runId, r.status, r.reason, r.total_ms AS totalMs, r.clock_ms AS clockMs,
+  const { results } = await env.DB.prepare(`SELECT r.id AS runId, r.status, r.reason, r.total_ms AS totalMs, r.clock_ms AS clockMs, r.splits,
       r.created, r.driver, r.codriver, d.name AS dName, d.avatar AS dAvatar, d.country AS dCountry,
       c.name AS cName, c.avatar AS cAvatar, c.country AS cCountry
     FROM copilot_runs r JOIN players d ON d.steam_id = r.driver JOIN players c ON c.steam_id = r.codriver
@@ -388,6 +410,7 @@ export async function buildBoard(env, date) {
   const entries = results.map((r) => ({
     runId: r.runId, status: r.status, reason: r.status === 'finished' ? null : r.reason || 'did not finish',
     rank: r.status === 'finished' ? ++rank : null, totalMs: r.totalMs, clockMs: r.clockMs,
+    splits: r.status === 'finished' && r.splits ? (() => { try { return JSON.parse(r.splits); } catch { return null; } })() : null,
     gapMs: r.status === 'finished' && lead ? r.totalMs - lead.totalMs : null, created: r.created,
     driver: { steamId: r.driver, name: r.dName, avatar: r.dAvatar || null, country: r.dCountry || null },
     codriver: { steamId: r.codriver, name: r.cName, avatar: r.cAvatar || null, country: r.cCountry || null },

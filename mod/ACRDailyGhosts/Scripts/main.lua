@@ -1232,10 +1232,12 @@ local MOUNTS = {onboard = {35, 0, 152, -7, 0, 80}, bonnet = {170, 0, 98, -3, 0, 
 local AUTO = {{"tv", 5}, {"incar", 2.0}, {"onboard", 1.6}, {"chase", 1.6}, {"cockpit", 1.0}, {"heli", 0.8},
               {"wheel", 1.0}, {"bonnet", 0.8}, {"side", 0.6}}
 local HOLD = {onboard = {7, 11}, bonnet = {5, 8}, wheel = {4, 6}, chase = {5, 8}, heli = {6, 9}, side = {4, 6},
-              far = {5, 8}, high = {5, 8}, front = {4, 6}, incar = {6, 10}, cockpit = {6, 10}}
+              far = {5, 8}, high = {5, 8}, front = {4, 6}, incar = {6, 10}, cockpit = {6, 10}, seat = {6, 10}}
 -- inside the car: the game's own camera points on it (AcrCameraComponents: the driver's eyes, between the two
 -- crew's heads as the TV's in-car shot; 22 Nov 2026: "is there no cockpit view?")
-local CAR_CAMS = {cockpit = "FirstPerson", incar = "BetweenHeads"}
+-- seat: the passenger seat (the user, 25 Nov 2026: the co-driver "is basically in the backseat", next to the driver):
+-- the driver's eye point mirrored across the car's centre line, looking where it looks
+local CAR_CAMS = {cockpit = "FirstPerson", incar = "BetweenHeads", seat = "FirstPerson"}
 
 local function watch_camera()
     local world = UEHelpers.GetWorld()
@@ -1343,7 +1345,7 @@ local function sound_tick(c, id, t, dt)
     -- player's view: the listener); inside the car the game muffles the engine with its global "cabinFilter" (in its
     -- sound banks: camera/cabinFilter), set by its own camera, not WATCH's: set here by the shot (the user, 22 Nov 2026:
     -- "the sound of the car changes according to the camera's view?")
-    local inside = (W.shot and (W.shot.name == "cockpit" or W.shot.name == "incar")) and 1.0 or 0.0
+    local inside = (W.shot and (W.shot.name == "cockpit" or W.shot.name == "incar" or W.shot.name == "seat")) and 1.0 or 0.0
     if inside ~= SND.cabin or frame % 30 == 0 then
         SND.cabin = inside
         pcall(function() FMODS:SetGlobalParameterByName(FName("cabinFilter"), inside, false) end)
@@ -1425,10 +1427,11 @@ local function livery_tick(c, me, t)
 end
 
 -- the driver's parts of a ghost (not the co-driver's): Driver, HelmetDriver, HansDriver, SuitDriver, GlovesDriver...
-function driver_visible(c, on)
+function driver_visible(c, on, co)       -- (co: the co-driver's figure instead: hidden on the passenger-seat shot)
     for _, part in ipairs(c.crew or {}) do
         local ok, n = pcall(function() return part:GetFName():ToString() end)
-        if ok and part:IsValid() and n:find("Driver", 1, true) and not n:lower():find("codriver", 1, true) then
+        local is_co = ok and n:lower():find("codriver", 1, true) ~= nil
+        if ok and part:IsValid() and n:find("river", 1, true) and (co and is_co or (not co and not is_co and n:find("Driver", 1, true))) then
             part:SetVisibility(on and c.crew_shown and c.detail ~= false, false)
         end
     end
@@ -1764,6 +1767,11 @@ function watch_tick(pc, me, t)
         if not (okc and comp and comp:IsValid()) then return false end
         local l, r = comp:K2_GetComponentLocation(), comp:K2_GetComponentRotation()
         loc, rot = {l.X, l.Y, l.Z}, {Pitch = r.Pitch, Yaw = r.Yaw, Roll = r.Roll}
+        if s.name == "seat" then
+            local ax = rotation(p[4], p[5], p[6])                -- (the car's left)
+            local d = (l.X - p[1]) * ax[1] + (l.Y - p[2]) * ax[2] + (l.Z - p[3]) * ax[3]
+            loc = {l.X - 2 * d * ax[1], l.Y - 2 * d * ax[2], l.Z - 2 * d * ax[3]}
+        end
         local okf, f = pcall(function() return comp.FieldOfView end)
         fov = (okf and type(f) == "number" and f > 20 and f < 120) and f or 75
         return true
@@ -1816,7 +1824,7 @@ function watch_tick(pc, me, t)
     crumb("watch: livery")
     pcall(livery_tick, c, me, t)
     if frame % 15 == 0 then
-        local inside = s.name == "cockpit" or s.name == "incar"
+        local inside = s.name == "cockpit" or s.name == "incar" or s.name == "seat"
         crumb("watch: pace notes")
         if not rawget(_G, "ACRDAILY_COPILOT") then          -- (COPILOT: the crew's co-driver reads them, not the game)
             pcall(notes_follow, pc, me, inside and c.actor or nil)
@@ -1844,6 +1852,11 @@ function watch_tick(pc, me, t)
                 end
             end
         end
+    end
+    local no_co = s.name == "seat"
+    if c.codriver_hidden ~= no_co then
+        pcall(driver_visible, c, not no_co, true)
+        c.codriver_hidden = no_co
     end
     if c.driver_hidden ~= no_driver or W.drv_car ~= c then
         if W.drv_car and W.drv_car ~= c and W.drv_car.driver_hidden then pcall(driver_visible, W.drv_car, true) end

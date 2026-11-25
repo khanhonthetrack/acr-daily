@@ -261,18 +261,60 @@ class _Buffers:
         self.hdr = [_WAVEHDR(ctypes.cast(m, ctypes.c_void_p), size, 0, 0, 0, 0, None, 0) for m in self.mem]
 
 
-class Mic:
-    """The default microphone: read() -> the next 20 ms (bytes) or None (none ready). No microphone: ok False."""
+class _WAVEINCAPS(ctypes.Structure):
+    _fields_ = [('wMid', ctypes.c_ushort), ('wPid', ctypes.c_ushort), ('vDriverVersion', ctypes.c_uint32),
+                ('szPname', ctypes.c_wchar * 32), ('dwFormats', ctypes.c_uint32), ('wChannels', ctypes.c_ushort),
+                ('wReserved1', ctypes.c_ushort)]
 
-    def __init__(self):
+
+def mic_devices():
+    """The microphones Windows has, by name (as winmm gives them: cut at 31 characters): [str]. [] when none / no winmm."""
+    w = _winmm()
+    if w is None:
+        return []
+    out = []
+    try:
+        for i in range(int(w.waveInGetNumDevs())):
+            caps = _WAVEINCAPS()
+            if w.waveInGetDevCapsW(ctypes.c_size_t(i), ctypes.byref(caps), ctypes.sizeof(caps)) == 0 and caps.szPname:
+                out.append(caps.szPname)
+    except (AttributeError, OSError):
+        pass
+    return out
+
+
+def mic_index(name, devices=None):
+    """The device number of the microphone called `name` (WAVE_MAPPER, Windows' default, for '' or a name not there)."""
+    if not name:
+        return WAVE_MAPPER
+    devices = mic_devices() if devices is None else devices
+    return devices.index(name) if name in devices else WAVE_MAPPER
+
+
+def scale(pcm, gain):
+    """16-bit mono samples (bytes) times gain (clipped)."""
+    if gain == 1.0 or not pcm:
+        return pcm
+    n = len(pcm) // 2
+    s = struct.unpack('<%dh' % n, pcm[:n * 2])
+    return struct.pack('<%dh' % n, *[max(-32768, min(32767, int(v * gain))) for v in s])
+
+
+class Mic:
+    """A microphone (by its name in mic_devices(); '' / None: Windows' default): read() -> the next 20 ms (bytes) or
+    None (none ready). No microphone: ok False."""
+
+    def __init__(self, name=None):
         self.w = _winmm()
         self.h = ctypes.c_void_p()
         self.ok = False
         self.ready = deque()
         if self.w is None:
             return
-        if self.w.waveInOpen(ctypes.byref(self.h), WAVE_MAPPER, ctypes.byref(_fmt()), 0, 0, 0) != 0:
-            return
+        dev = mic_index(name)
+        if self.w.waveInOpen(ctypes.byref(self.h), dev, ctypes.byref(_fmt()), 0, 0, 0) != 0:
+            if dev == WAVE_MAPPER or self.w.waveInOpen(ctypes.byref(self.h), WAVE_MAPPER, ctypes.byref(_fmt()), 0, 0, 0) != 0:
+                return                                   # (a microphone gone since it was picked: the default one)
         self.buf = _Buffers(IN_BUFFERS, FRAME_BYTES)
         for hd in self.buf.hdr:
             self.w.waveInPrepareHeader(self.h, ctypes.byref(hd), ctypes.sizeof(hd))
@@ -356,50 +398,102 @@ def key_held(name):
 
 class Voice:
     """Both ways: the microphone to send(packet), the packets heard (heard()) to the speakers. A thread of its own.
-    talk(): 'ptt' / 'open' / 'off'; held: a function -> whether push-to-talk is held now."""
+    talk(): 'ptt' / 'open' / 'off'; held: a function -> whether push-to-talk is held now.
 
-    def __init__(self, send, held=lambda: False, mode='ptt', gain=1.0, mic=None, speaker=None, radio=True):
+    Up to four in a crew (a casual lobby: the driver and three co-drivers): every speaker has a seat (0 the driver,
+    1..3 the co-drivers) and a queue of their own; the frames heard are mixed. speaking(): who is heard or talking now
+    (the pages' small speaker icons: mine as 'me'). mic: the microphone's name (mic_devices; '' = the default),
+    mic_gain: how loud it goes out (0.25 to 4), level: the microphone's level now, 0..1 (the settings' meter)."""
+
+    def __init__(self, send, held=lambda: False, mode='ptt', gain=1.0, mic=None, speaker=None, radio=True,
+                 mic_name='', mic_gain=1.0, seat=None):
         self.send = send
         self.radio = radio                # the partner's voice through the rally intercom (Intercom)
         self.fx = Intercom()
         self.held = held
         self.mode = mode
         self.gain = gain
+        self.mic_name = mic_name or ''
+        self.mic_gain = mic_gain
+        self.seat = seat                  # mine, when in a crew (what I send is tagged with it by the link; my own coming back is dropped)
         self.on = True
         self.talking = False              # sending now
-        self.hearing_at = -1e9            # the other's voice last heard
+        self.level = 0.0                  # the microphone's level now (0..1), whatever the mode
         self.seq = 0
-        self._in = deque()                # (seq, packet) heard, waiting to be played
-        self._last_seq = None
+        self._wait = set()                # seats before their first frame (JITTER_MS ready first)
+        self._in = {}                     # seat -> deque of (seq, packet) heard, waiting to be played
+        self._last = {}                   # seat -> the last seq played
+        self._at = {}                     # seat -> when last heard
         self._open_at = -1e9
         self.lost = 0
         self._enc = [0, 0]                # the encoder's state (encode)
         self._mic, self._spk = mic, speaker
+        self.mic_ok = self.speaker_ok = None
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
+
+    @property
+    def hearing_at(self):
+        return max(self._at.values(), default=-1e9)
 
     @property
     def hearing(self):
         return time.monotonic() - self.hearing_at < 0.3
 
-    def heard(self, packet):
-        """A voice packet from the other one: b'<seq u16><adpcm...>'."""
-        if len(packet) < 5:
+    def speaking(self, now=None):
+        """Who is talking now: a set of seats heard in the last 0.3 s, and 'me' while I send."""
+        now = time.monotonic() if now is None else now
+        out = {s for s, t in self._at.items() if now - t < 0.3}
+        if self.talking:
+            out.add('me')
+        return out
+
+    def heard(self, packet, seat=0):
+        """A voice packet from the seat's speaker: b'<seq u16><adpcm...>'."""
+        if len(packet) < 5 or seat == self.seat:
             return
         seq = struct.unpack_from('<H', packet, 0)[0]
-        if self._last_seq is not None and ((seq - self._last_seq) & 0xFFFF) > 0x8000:
+        last = self._last.get(seat)
+        if last is not None and ((seq - last) & 0xFFFF) > 0x8000:
             return                                   # (older than one already played: late, dropped)
-        self._in.append((seq, packet[2:]))
-        self.hearing_at = time.monotonic()
-        while len(self._in) * 20 > MAX_QUEUE_MS:     # (too far behind: the oldest go, the calls stay on time)
-            self._in.popleft()
+        q = self._in.setdefault(seat, deque())
+        if not q and seat not in self._wait and not self._at.get(seat, -1e9) > time.monotonic() - 0.15:
+            self._wait.add(seat)                      # (a new burst of words: JITTER_MS first)
+        q.append((seq, packet[2:]))
+        self._at[seat] = time.monotonic()
+        while len(q) * 20 > MAX_QUEUE_MS:            # (too far behind: the oldest go, the calls stay on time)
+            q.popleft()
             self.lost += 1
 
+    def _next_frame(self, waiting=None):
+        """The next 20 ms to play: one frame of each seat that has some (mixed), or None. waiting: the seats before
+        their first frame (JITTER_MS kept ready first)."""
+        waiting = self._wait if waiting is None else waiting
+        frames = []
+        for seat, q in list(self._in.items()):
+            if not q:
+                waiting.add(seat)
+                continue
+            if seat in waiting:
+                if len(q) * 20 < JITTER_MS:
+                    continue
+                waiting.discard(seat)
+            seq, pkt = q.popleft()
+            self._last[seat] = seq
+            frames.append(decode(pkt, gain=self.gain))
+        if not frames:
+            return None
+        if len(frames) == 1:
+            return frames[0]
+        n = len(frames[0]) // 2
+        cols = [struct.unpack('<%dh' % n, f) for f in frames]
+        return struct.pack('<%dh' % n, *[max(-32768, min(32767, sum(c[i] for c in cols))) for i in range(n)])
+
     def _run(self):
-        mic = self._mic or Mic()
+        mic = self._mic or Mic(self.mic_name)
         spk = self._spk or Speaker()
         self.mic_ok, self.speaker_ok = mic.ok, spk.ok
-        waiting = True                               # (before playing: JITTER_MS ready first)
+        open_ch = False
         try:
             while self.on:
                 busy = False
@@ -407,7 +501,10 @@ class Voice:
                 if pcm is not None:
                     busy = True
                     now = time.monotonic()
-                    if self.mode == 'open' and peak(pcm) >= OPEN_LEVEL:
+                    pcm = scale(pcm, self.mic_gain)
+                    pk = peak(pcm)
+                    self.level = max(pk / 32767.0, self.level * 0.85)
+                    if self.mode == 'open' and pk >= OPEN_LEVEL:
                         self._open_at = now
                     want = (self.mode == 'ptt' and self.held()) or (self.mode == 'open' and now - self._open_at < OPEN_HANG_S)
                     self.talking = bool(want)
@@ -419,26 +516,51 @@ class Voice:
                             pass
                     else:
                         self._enc = [0, 0]           # (a new start for the next words)
-                if self._in and (not waiting or len(self._in) * 20 >= JITTER_MS):
-                    waiting = False
-                    if spk.queued() < 3:
-                        seq, pkt = self._in.popleft()
-                        self._last_seq = seq
-                        pcm = decode(pkt, gain=self.gain)
-                        spk.play(self.fx.process(pcm) if self.radio else pcm)
+                if spk.queued() < 3:
+                    frame = self._next_frame()
+                    if frame is not None:
+                        open_ch = True
+                        spk.play(self.fx.process(frame) if self.radio else frame)
                         busy = True
-                elif not self._in:
-                    if not waiting and self.radio and time.monotonic() - self.hearing_at > 0.12:
-                        for f in self.fx.tail():             # (their words over: the channel closes, its squelch)
-                            spk.play(f)
-                        waiting = True
-                    elif not self.radio:
-                        waiting = True
+                    elif open_ch and not any(self._in.values()) and time.monotonic() - self.hearing_at > 0.12:
+                        open_ch = False
+                        if self.radio:
+                            for f in self.fx.tail():         # (their words over: the channel closes, its squelch)
+                                spk.play(f)
                 if not busy:
                     time.sleep(0.004)
         finally:
             mic.close()
             spk.close()
+
+    def close(self):
+        self.on = False
+
+
+class MicTest:
+    """The microphone alone, for the settings' meter (no crew): level 0..1 while on. Stops itself after `secs`."""
+
+    def __init__(self, name='', gain=1.0, secs=20.0):
+        self.name, self.gain, self.until = name, gain, time.monotonic() + secs
+        self.level = 0.0
+        self.ok = None
+        self.on = True
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        mic = Mic(self.name)
+        self.ok = mic.ok
+        try:
+            while self.on and time.monotonic() < self.until:
+                pcm = mic.read()
+                if pcm is None:
+                    time.sleep(0.01)
+                    continue
+                self.level = max(peak(scale(pcm, self.gain)) / 32767.0, self.level * 0.85)
+        finally:
+            mic.close()
+            self.on = False
+            self.level = 0.0
 
     def close(self):
         self.on = False

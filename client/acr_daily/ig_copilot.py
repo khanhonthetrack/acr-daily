@@ -7,7 +7,7 @@ for the driver, the co-driver's voice and the link."""
 from .copilot import CP_SLOT, ROLE_NAMES, TALK_MODES, TALK_NAMES, settings_of
 from .i18n import _
 from .ingamekit import (ACC, ACC_TEXT, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, box, btn, chip,
-                        col, edit, empty, fmt_ms, kicker, line_row, primary, quiet, row, sheet, size, sp, tab_id, txt)
+                        col, edit, empty, fmt_ms, kicker, line_row, primary, quiet, row, sheet, size, sp, tab_id, tabs, txt)
 
 TAB = 'copilot'
 COLOUR = 'FF9F0A'                        # COPILOT's colour (the pacenote book's orange)
@@ -25,12 +25,35 @@ def opened(ig):
     cp = _cp(ig)
     if cp is not None:
         cp.refresh(force=True)
+    cs = getattr(ig.app, 'casual', None)
+    if cs is not None:
+        cs.refresh(force=True)
+
+
+MODES = (('daily', _('CODRIVER DAILY')), ('casual', _('CASUAL')))
 
 
 def page(ig):
+    """CODRIVER's two tabs: the daily for two, and CASUAL (ig_casual.py: up to four in a lobby)."""
+    m = ig.mem(TAB)
+    cs = getattr(ig.app, 'casual', None)
+    if (cs is not None and (cs.lobby or {}).get('state') in ('open', 'started')) and not m.get('mode_set'):
+        m['mode'] = 'casual'                          # (a lobby of mine on: its tab)
+    mode = m.get('mode') if m.get('mode') in dict(MODES) else 'daily'
+    bar = row(tabs(tab_id(TAB, 'mode'), MODES, mode, va='c'), sp(fill=1), pad=[0, 0, 0, 16])
+    if mode == 'casual':
+        from . import ig_casual
+        return col(bar, ig_casual.page(ig))
+    return col(bar, _daily_page(ig))
+
+
+def _daily_page(ig):
     cp = _cp(ig)
     if cp is None:
         return empty(_('CODRIVER is not in this version of the app.'))
+    if ig.mem('casual').get('pick') == 'lang':          # (the languages' picker is CASUAL's: ig_casual.py)
+        from . import ig_casual
+        return ig_casual._picker(ig, None, 'lang')
     cp.refresh()
     d = cp.day
     if d is None:
@@ -128,9 +151,10 @@ def _lobby_part(ig, cp, d):
     # no lobby: set one up, or join one with its code
     tries = d.get('tries') or {}
     both = tries.get('driver') and tries.get('codriver')
+    final = txt(cp.final, 18, 'semi', GOOD, wrap=True, pad=[0, 0, 0, 10]) if cp.final else None
     if both:
-        return box(col(note, txt(_('You have driven today\'s CODRIVER in both roles. Back tomorrow.'), 19, 'semi', GOOD,
-                                 wrap=True)), bg=PANEL, p=[24, 18, 24, 20])
+        return box(col(note, final, txt(_('You have driven today\'s CODRIVER in both roles. Back tomorrow.'), 19, 'semi', GOOD,
+                                        wrap=True)), bg=PANEL, p=[24, 18, 24, 20])
     role = m.get('role') or ('codriver' if tries.get('driver') else 'driver')
     if tries.get(role):
         role = 'codriver' if role == 'driver' else 'driver'
@@ -140,6 +164,11 @@ def _lobby_part(ig, cp, d):
         return btn(tab_id(TAB, 'role' if key in ROLE_NAMES else 'priv', key), label + ('  ✓' if done else ''),
                    bg=WHITE if on else '-', hov=ACC, fg=BG if on else SOFT, hfg=WHITE, sz=17, f='bold', sp=60,
                    p=[18, 7, 18, 7], r=2, ol=None if on else LINE2, pad=[8, 0, 0, 0])
+    from . import ig_casual
+    speak = row(txt(_('I speak'), 17, 'semi', FG2, va='c'), sp(12),
+                btn(tab_id(TAB, 'langs'), c=row(ig_casual.flags(ig_casual.chosen(ig, 'lang')) or txt(_('pick up to 3'), 16, 'medium', MUTED, va='c'),
+                                                sp(10), txt('›', 17, 'semi', SOFT, va='c'), va='c'),
+                    bg='-', hov=PANEL2, p=[16, 6, 16, 6], r=2, ol=LINE2), va='c', pad=[0, 8, 0, 0])
     setup = row(txt(_('I am the'), 17, 'semi', FG2, va='c'),
                 *[pick(r, ROLE_NAMES[r], r == role, bool(tries.get(r))) for r in ('driver', 'codriver')],
                 sp(20), pick('public', _('PUBLIC'), not private), pick('private', _('PRIVATE'), private),
@@ -148,7 +177,7 @@ def _lobby_part(ig, cp, d):
                size(box(edit(tab_id(TAB, 'code'), m.get('code') or '', _('CODE')), bg=PANEL2, p=[12, 6, 12, 6], ol=LINE2),
                     w=200),
                sp(10), quiet(tab_id(TAB, 'joincode'), _('JOIN')), va='c', pad=[0, 14, 0, 0])
-    return box(col(kicker(_('Your lobby'), fg=COLOUR), note, setup, code), bg=PANEL, p=[24, 18, 24, 20])
+    return box(col(kicker(_('Your lobby'), fg=COLOUR), note, final, setup, speak, code), bg=PANEL, p=[24, 18, 24, 20])
 
 
 def _browser(ig, cp, d):
@@ -176,8 +205,10 @@ def _browser(ig, cp, d):
             label = _('JOIN WITH CODE') if x.get('private') else _('JOIN AS %s') % ROLE_NAMES.get(x.get('wants'), '')
             button = quiet(tab_id(TAB, 'join', x['id']), label, va='c') if can else None
         lock = chip(_('PRIVATE'), bg=PANEL, fg=SOFT, ol=LINE2, pad=[8, 0, 0, 0]) if x.get('private') else None
+        from .ig_casual import flags
+        lang = flags(x.get('langs'))
         yours = chip(_('YOURS'), bg=COLOUR, fg=BG, pad=[8, 0, 0, 0]) if x.get('mine') or x.get('id') == mine else None
-        rows.append(box(row(names, row(status, lock, yours, va='c'), sp(14), button, va='c'),
+        rows.append(box(row(names, lang, row(status, lock, yours, va='c', pad=[10, 0, 0, 0]), sp(14), button, va='c'),
                         bg=PANEL2, p=[16, 8, 16, 8], pad=[0, 6, 0, 0]))
     if not rows:
         rows = [txt(_('No lobbies yet today: set one up, or ask a friend for their code.'), 17, 'medium', MUTED,
@@ -241,7 +272,19 @@ def settings_panel(ig):
                sp(6), choice('clearbtn', None, _('CLEAR'), False) if c['button'] else None, va='c')
     volume = row(choice('gain', '-', '−', False), size(txt('%d %%' % round(c['gain'] * 100), 18, 'bold', WHITE, j=1), w=80,
                                                          va='c'), choice('gain', '+', '+', False))
+    mic_name = c['mic'] or _('DEFAULT')
+    microw = row(choice('mic', 'next', mic_name + '  ›', False), sp(10),
+                 choice('mictest', None, _('STOP TEST') if cp is not None and cp.mic_test is not None else _('TEST'),
+                        bool(cp is not None and cp.mic_test is not None)), va='c')
+    lvl = cp.mic_level() if cp is not None else None
+    meter = size(box(size(box(None, bg=GOOD if (lvl or 0) < 0.8 else SLOW, r=2), w=max(2, int(380 * min(1.0, lvl or 0.0))), h=14),
+                     bg=LINE2, r=2), w=380, h=14, va='c')
+    mgain = row(choice('micgain', '-', '−', False), size(txt('%d %%' % round(c['micgain'] * 100), 18, 'bold', WHITE, j=1), w=80,
+                                                         va='c'), choice('micgain', '+', '+', False), sp(20), meter, va='c')
     return panel(_('CODRIVER voice'),
+                 setting(_('Microphone'), _('Click to go through the microphones; TEST shows its level.'), under=microw),
+                 setting(_('My volume'), _('How loud your voice goes out. The bar moves when the microphone hears you.'),
+                         under=mgain),
                  setting(_('Talk'), _('Push to talk: hold the key or the button. Open mic: sent whenever you speak.'),
                          under=modes),
                  setting(_('Push to talk'), _('The key (click to change it), and a wheel or pad button (click, then press '
@@ -259,7 +302,18 @@ def click(ig, action, arg):
     if cp is None:
         return
     m = ig.mem(TAB)
-    if action == 'role' and arg in ROLE_NAMES:
+    if action == 'mode' and arg in dict(MODES):
+        m['mode'], m['mode_set'] = arg, True
+        ig.opened()
+    elif action == 'langs':
+        ig.mem('casual')['pick'] = 'lang'
+    elif action == 'mic':
+        cp.next_mic()
+    elif action == 'micgain' and arg in ('-', '+'):
+        cp.set_mic_gain(settings_of(ig.app.s)['micgain'] + (0.25 if arg == '+' else -0.25))
+    elif action == 'mictest':
+        cp.test_mic(cp.mic_test is None)
+    elif action == 'role' and arg in ROLE_NAMES:
         m['role'] = arg
     elif action == 'radio':
         cp.set_radio(arg == 'on')
@@ -270,7 +324,8 @@ def click(ig, action, arg):
     elif action == 'create':
         tries = (cp.day or {}).get('tries') or {}
         role = m.get('role') or ('codriver' if tries.get('driver') else 'driver')
-        cp.create(role, bool(m.get('private')))
+        from . import ig_casual
+        cp.create(role, bool(m.get('private')), list(ig_casual.chosen(ig, 'lang')))
     elif action == 'join' and arg:
         x = next((l for l in (cp.day or {}).get('lobbies') or [] if str(l.get('id')) == str(arg)), None)
         if x and x.get('private'):
@@ -337,10 +392,17 @@ def _save(ig):
 
 
 # ---------------------------------------------------------------------- over the stage
+def _owner(ig):
+    """The mode my lobby is in (CASUAL's, or the daily crew's)."""
+    f = getattr(ig.app, 'crew_owner', None)
+    return f() if f else _cp(ig)
+
+
 def overlay(ig):
-    """The co-driver's notes over the stage (watching the driver's car), or the driver's line (the voice, the link, the
-    rules while not driving yet); None otherwise."""
-    cp = _cp(ig)
+    """What the mod draws over the stage for a crew: the co-driver's notes (watching the driver's car, from the passenger
+    seat) with the driver's clock; the driver's line (the voice, the link, the rules while not driving yet); the speaker
+    icons on the side for both; None otherwise."""
+    cp = _owner(ig)
     if cp is None or not cp.started():
         return None
     w = getattr(ig.app, 'watch', None)
@@ -351,12 +413,33 @@ def overlay(ig):
     return None
 
 
+def _casual(cp):
+    return str(((cp.lobby or {}).get('ch') or {}).get('id', '')).startswith('cx:')
+
+
+def _icons(cp):
+    """Small speaker icons on the side, one for each person in the crew: lit while they talk (the user, 25 Nov 2026: to see
+    that someone speaks at all, and to troubleshoot); me last, lit while I send."""
+    if cp.voice is None or len(cp.speakers()) < 2:      # (no voice on, or alone in the crew: nobody to see)
+        return None
+    items = []
+    for name, _seat, on in cp.speakers():
+        items.append(box(row(box(None, bg=GOOD if on else '52525B', r=6), sp(8),
+                             txt(name, 14, 'bold' if on else 'semi', 'FFFFFF' if on else 'A1A1AA', va='c'), va='c'),
+                         bg=NAVY, a=0.9 if on else 0.55, p=[10, 4, 12, 4], pad=[0, 0, 0, 4]))
+    if not items:
+        return None
+    return col(*[size(i, h=30) for i in items])
+
+
 def _voice_chips(cp):
     v = cp.voice
     out = []
     if v is not None:
         out.append(chip(_('TALKING'), bg=GOOD, fg=BG) if v.talking else None)
         out.append(chip(_('HEARING'), bg=COLOUR, fg=BG, pad=[6, 0, 0, 0]) if v.hearing else None)
+        if v.mic_ok is False:
+            out.append(chip(_('NO MIC'), bg=BAD, fg='FFFFFF', pad=[6, 0, 0, 0]))
     link = cp.link_text()
     if link:
         out.append(txt(link, 13, 'bold', 'FFFFFF', va='c', pad=[10, 0, 0, 0]))
@@ -365,14 +448,48 @@ def _voice_chips(cp):
 
 def _warning(cp, mine_on, partner_on=False):
     """The rules' line over the stage: red while the game's own co-driver is on (mine, or the partner's: a DNF in 3 s
-    once the stage runs), else the rule itself."""
+    once the stage runs, daily only), else the rule itself."""
+    casual = _casual(cp)
     if mine_on:
-        return box(txt(_("THE GAME'S CO-DRIVER IS ON: switch it off (Settings › Co-driver) or it's a DNF for your crew."),
+        return box(txt(_("THE GAME'S CO-DRIVER IS ON: switch it off (Settings › Co-driver).") if casual else
+                       _("THE GAME'S CO-DRIVER IS ON: switch it off (Settings › Co-driver) or it's a DNF for your crew."),
                        15, 'bold', 'FFFFFF', wrap=True), bg=BAD, p=[14, 6, 14, 6])
-    if partner_on:
+    if partner_on and not casual:
         return box(txt(_("Your co-driver's game has its own co-driver on: if it stays on, it's a DNF."), 15, 'bold', 'FFFFFF',
                        wrap=True), bg=BAD, p=[14, 6, 14, 6])
+    if casual:
+        return None
     return box(txt(RULES, 13, 'semi', 'D4D4D8', wrap=True), bg=NAVY, a=0.85, p=[14, 5, 14, 5])
+
+
+def _logo():
+    return box(txt('ACR DAILY', 16, 'bold', 'FFFFFF', sp=60, va='c'), bg=ACC, p=[12, 4, 12, 4], va='c')
+
+
+def _driver_bar(cp):
+    """The co-driver's view of the driver's stage, as the dailies' timer: GOOD LUCK on the start line; the clock and the gap
+    to the leader (daily) while it runs; the finish with its time; a DNF. -> a box."""
+    import time as _t
+    ds = cp.driver_state
+    if ds is None or _t.monotonic() - ds['at'] > 6.0:
+        return box(txt(_('Good luck!'), 20, 'bold', 'FFFFFF'), bg=NAVY, a=0.85, p=[14, 6, 14, 6])
+    st = ds['state']
+    if st == 'r':
+        ms = ds['ms'] + min(2000, int((_t.monotonic() - ds['at']) * 1000))
+        gap = ds.get('gap')
+        parts = [txt(fmt_ms(ms), 26, 'bold', 'FFFFFF')]
+        if gap is not None:
+            parts.append(txt('%s%.2f' % ('+' if gap >= 0 else '−', abs(gap) / 1000.0) + '  ' + _('vs leader'), 17, 'bold',
+                             SLOW if gap > 0 else GOOD, va='c', pad=[14, 0, 0, 0]))
+        parts.append(txt('%d %%' % ds['pct'], 15, 'semi', 'D4D4D8', va='c', pad=[14, 0, 0, 0]))
+        return box(row(*parts, va='c'), bg=NAVY, a=0.9, p=[14, 5, 14, 5])
+    if st == 'f':
+        line = cp.final or _('Finished')
+        return box(col(txt(_('FINISHED  %s') % fmt_ms(ds['ms']), 22, 'bold', GOOD), txt(line, 14, 'semi', 'D4D4D8', wrap=True)),
+                   bg=NAVY, a=0.9, p=[14, 6, 14, 6])
+    if st == 'd':
+        return box(txt(_('DNF'), 22, 'bold', 'FFFFFF'), bg=BAD, p=[14, 6, 14, 6])
+    return box(txt(_('Good luck!'), 20, 'bold', 'FFFFFF'), bg=NAVY, a=0.85, p=[14, 6, 14, 6])
 
 
 def _notes(cp):
@@ -391,30 +508,37 @@ def _notes(cp):
                                  va='c'),
                              txt(gap, 13, 'semi', MUTED if not on else BG, va='c', pad=[10, 0, 0, 0])),
                          bg=COLOUR if on else NAVY, a=0.95 if on else 0.8, p=[14, 6 if not on else 10, 14, 6 if not on else 10]))
-    head = box(row(txt(_('PACENOTES'), 15, 'bold', 'FFFFFF', sp=120, va='c'), sp(10),
+    head = box(row(_logo(), sp(12), txt(_('PACENOTES'), 15, 'bold', 'FFFFFF', sp=120, va='c'), sp(10),
                    txt('%d / %d' % (i + 1, n) if n else _('none'), 14, 'semi', 'FFFFFF', va='c'), sp(fill=1),
                    *_voice_chips(cp), va='c'),
                bg=ACC, p=[14, 5, 14, 5])
     foot = box(txt(_('↑ ↓  one note   ·   ← →  five'), 13, 'semi', 'D4D4D8'), bg=NAVY, a=0.85, p=[14, 4, 14, 4])
     warn = _warning(cp, cp.game_codriver_off() is False)
-    panel = size(col(head, *lines, foot, warn), w=620)
-    return col(sp(fill=1), row(sp(fill=1), panel, sp(40)), sp(fill=1))
+    panel = size(col(head, _driver_bar(cp), *lines, foot, warn), w=620)
+    return col(sp(fill=1), row(sp(30), _icons(cp), sp(fill=1), panel, sp(40)), sp(fill=1))
 
 
 def _driver_line(ig, cp):
-    """The driver's: the co-driver's voice and the link; the rules (or what's wrong) until the stage's clock runs."""
+    """The driver's: the co-driver's voice and the link; the logo and good luck (casual) or the rules (daily) until the
+    stage's clock runs, what's wrong at any time; the speaker icons on the side."""
     a = ig.app
-    j = ((getattr(a, 'tt', None) or {}).get(CP_SLOT) or {}).get('judge')
+    j = ((getattr(a, 'tt', None) or {}).get(cp.SLOT) or {}).get('judge')
     running = j is not None and j.state == 'running'
-    mine_on = cp.game_codriver_off() is False
+    mine_on = cp.game_codriver_off() is False and not cp.solo() if hasattr(cp, 'solo') else cp.game_codriver_off() is False
     partner_on = cp.partner_off is False
     chips = [c for c in _voice_chips(cp) if c]
     parts = []
     if chips:
-        parts.append(box(row(txt(_('CO-DRIVER'), 14, 'bold', 'FFFFFF', sp=120, va='c'), sp(10), *chips, va='c'),
+        parts.append(box(row(txt(_('CREW'), 14, 'bold', 'FFFFFF', sp=120, va='c'), sp(10), *chips, va='c'),
                          bg=NAVY, a=0.8, p=[12, 4, 12, 4]))
+    if not running and _casual(cp):
+        parts.append(box(row(_logo(), sp(12), txt(_('Good luck!'), 20, 'bold', 'FFFFFF', va='c'), va='c'), bg=NAVY, a=0.85,
+                         p=[12, 6, 14, 6], pad=[0, 6 if parts else 0, 0, 0]))
     if not running or mine_on or partner_on:
-        parts.append(size(_warning(cp, mine_on, partner_on), w=520, pad=[0, 6 if parts else 0, 0, 0]))
-    if not parts:
+        w = _warning(cp, mine_on, partner_on)
+        if w is not None:
+            parts.append(size(w, w=520, pad=[0, 6 if parts else 0, 0, 0]))
+    icons = _icons(cp)
+    if not parts and icons is None:
         return None
-    return col(sp(h=110), row(sp(fill=1), col(*parts), sp(40)), sp(fill=1))
+    return col(sp(h=110), row(sp(30), icons, sp(fill=1), col(*parts) if parts else None, sp(40)), sp(fill=1))

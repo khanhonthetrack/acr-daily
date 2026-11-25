@@ -386,9 +386,12 @@ class Api:
         """A day's crews: {entries: [{rank, status, totalMs, gapMs, driver: {name...}, codriver: {...}}], stage?}."""
         return self._req('GET', '/api/copilot/board' + ('?date=' + date if date else ''), auth=True, timeout=8)
 
-    def copilot_create(self, role, private=False):
+    def copilot_create(self, role, private=False, langs=None):
         """A new lobby: role 'driver' / 'codriver' -> {lobby}."""
-        return self._req('POST', '/api/copilot/lobbies', {'role': role, 'private': bool(private)}, auth=True)
+        body = {'role': role, 'private': bool(private)}
+        if langs:
+            body['langs'] = list(langs)
+        return self._req('POST', '/api/copilot/lobbies', body, auth=True)
 
     def copilot_join(self, lobby_id=None, code=None):
         """Join a lobby: from the list (lobby_id; a private one with its code too), or by its code alone."""
@@ -417,6 +420,41 @@ class Api:
     def copilot_signal(self, lobby_id, data):
         """My side's details for the direct link between the two apps (copilotlink.py)."""
         return self._req('POST', '/api/copilot/lobbies/%d/signal' % int(lobby_id), {'data': data}, auth=True, timeout=6)
+    # ---------------------------------------------------------------- CASUAL (server src/casual.js)
+    def casual(self):
+        """Open lobbies and mine: {'on', 'lobbies', 'lobby'}."""
+        return self._req('GET', '/api/casual', auth=True, timeout=8)
+
+    def casual_options(self):
+        """What a lobby's host may pick: {'stages', 'cars', 'weather', 'times'}."""
+        return self._req('GET', '/api/casual/options', timeout=8)
+
+    def casual_create(self, body):
+        return self._req('POST', '/api/casual/lobbies', body, auth=True)
+
+    def casual_join(self, lobby_id=None, code=None):
+        body = {}
+        if lobby_id:
+            body['id'] = int(lobby_id)
+        if code:
+            body['code'] = str(code)
+        return self._req('POST', '/api/casual/join', body, auth=True)
+
+    def casual_lobby(self, lobby_id):
+        return self._req('GET', '/api/casual/lobbies/%d' % int(lobby_id), auth=True, timeout=6)
+
+    def casual_ready(self, lobby_id, ready=True):
+        return self._req('POST', '/api/casual/lobbies/%d/ready' % int(lobby_id), {'ready': bool(ready)}, auth=True)
+
+    def casual_start(self, lobby_id):
+        return self._req('POST', '/api/casual/lobbies/%d/start' % int(lobby_id), {}, auth=True)
+
+    def casual_leave(self, lobby_id):
+        return self._req('POST', '/api/casual/lobbies/%d/leave' % int(lobby_id), {}, auth=True)
+
+    def casual_signal(self, lobby_id, to, data):
+        """My side's link details for one member (copilotlink.py)."""
+        return self._req('POST', '/api/casual/lobbies/%d/signal' % int(lobby_id), {'to': to, 'data': data}, auth=True, timeout=6)
 
     # ---------------------------------------------------------------- leagues (server src/leagues.js)
 

@@ -35,7 +35,7 @@ ROLE_NAMES = {'driver': _('DRIVER'), 'codriver': _('CO-DRIVER')}
 
 
 def is_cp(cid):
-    return str(cid or '').startswith('cp:')
+    return str(cid or '').startswith(('cp:', 'cx:'))     # (cx: CASUAL's: casual.py)
 
 
 def settings_of(s):
@@ -52,10 +52,17 @@ def settings_of(s):
     except (TypeError, ValueError):
         c['gain'] = 1.0
     c['radio'] = c.get('radio') is not False
+    c['mic'] = c.get('mic') if isinstance(c.get('mic'), str) else ''          # (a microphone's name: voice.mic_devices; '' the default)
+    try:
+        c['micgain'] = max(0.25, min(4.0, float(c.get('micgain', 1.0))))
+    except (TypeError, ValueError):
+        c['micgain'] = 1.0
     return c
 
 
 class Copilot:
+    SLOT = CP_SLOT
+
     def __init__(self, app):
         self.app = app
         self.day = None              # GET /api/copilot (None: not in yet)
@@ -70,8 +77,10 @@ class Copilot:
         self.notes = []              # the co-driver's notes (once started)
         self.cursor = 0              # the note the co-driver is on
         self.started_id = None       # the lobby whose stage was set up here
-        self.link = None             # copilotlink.Link, while a lobby is on
-        self.voice = None            # voice.Voice, while a lobby is on
+        self.crew = None             # crew.Crew (the links and the voice), while a lobby is on
+        self.driver_state = None     # the driver's stage as their app says it (the co-driver's page): {state, ms, gap, pct, at}
+        self.final = ''              # my crew's last result, in words (both pages)
+        self.mic_test = None         # voice.MicTest, while the settings' meter is on
         self._lobby_at = self._day_at = -1e9
         self._polling = False
         self._buttons = None
@@ -79,6 +88,14 @@ class Copilot:
         self._codriver_on_at = None  # (the game's own co-driver seen on, during the stage, since)
 
     # ---- what the pages ask
+    @property
+    def link(self):
+        return self.crew.first() if self.crew is not None else None
+
+    @property
+    def voice(self):
+        return self.crew.voice if self.crew is not None else None
+
     def role(self):
         return (self.lobby or {}).get('myRole')
 
@@ -88,7 +105,10 @@ class Copilot:
     def room(self):
         """The relay's room while my crew's stage is on: 'cp:<lobby>' (only the two of us in it), else None."""
         l = self.lobby or {}
-        return 'cp:%d' % int(l['id']) if l.get('state') in ('open', 'started') and l.get('id') else None
+        return 'cp:%d' % self.room_id() if l.get('state') in ('open', 'started') and l.get('id') else None
+
+    def room_id(self):
+        return int((self.lobby or {})['id'])
 
     def mod_on(self):
         """The game's own co-driver to be kept off (the app's state for the mod: 'copilot')."""
@@ -147,9 +167,30 @@ class Copilot:
         self._polling = False
         self.msg = str(e)
 
+    def _apply_board(self, t):
+        """The crew's stage (the app's tt under SLOT): the day's board as the displays' (the leader to chase: the live gap
+        from its splits; the split standings under the timer, as the dailies')."""
+        b = self.board
+        if not t or not isinstance(b, dict) or str((t.get('ch') or {}).get('id', '')).startswith('cx:'):
+            return
+        entries = []
+        for e in b.get('entries') or []:
+            d, c = e.get('driver') or {}, e.get('codriver') or {}
+            entries.append({'runId': e.get('runId'), 'steamId': d.get('steamId'),
+                            'name': '%s / %s' % (d.get('name') or '?', c.get('name') or '?'),
+                            'totalMs': e.get('totalMs') if e.get('status') == 'finished' else None, 'splits': e.get('splits')})
+        t['board'] = {'entries': entries}
+        j = t.get('judge')
+        lead = next((e for e in entries if e['totalMs'] is not None and e.get('splits')), None)
+        if j is not None and lead is not None and t.get('ghost_for') != lead['runId']:
+            t['ghost_for'] = lead['runId']
+            j.set_ghost_splits(lead['splits'], lead['totalMs'])
+            t['ghost_name'] = _('LEADER')
+
     def _take_day(self, d, b, r=None):
         self._polling = False
         self.day, self.board = d, b
+        self._apply_board((getattr(self.app, 'tt', None) or {}).get(self.SLOT))
         if r is not None:
             self.ranking = r
         if d.get('lobby') is not None or self.lobby is None:
@@ -166,7 +207,7 @@ class Copilot:
 
             def go():
                 try:
-                    r = a.api.copilot_lobby(l['id'])
+                    r = self._fetch_lobby(l['id'])
                     a.root.after(0, self._lobby_in, r.get('lobby'))
                 except Exception as e:
                     a.root.after(0, self._lobby_failed, e)
@@ -176,13 +217,37 @@ class Copilot:
             link.room = None
         elif link is not None and self.room() and getattr(link, 'room', None) != self.room():
             link.room = self.room()                    # (without live rallies on: liverallyui._lr_room does it too)
-        self._wire()
-        if self.link is not None and now - self._status_at >= STATUS_S:
-            self._status_at = now                      # (my game's own co-driver, to the partner: the driver's check)
-            off = self.game_codriver_off()
-            self.link.send_status({True: '1', False: '0', None: '-'}[off])
+        if self.crew is not None:
+            self.crew.wire()
+            if now - self._status_at >= STATUS_S:
+                self._status_at = now                  # (my game's own co-driver, to the partner: the driver's check;
+                self.crew.send_status(self.status_line())   # and the driver's stage: the co-driver's page)
+        if self.mic_test is not None and not self.mic_test.on:
+            self.mic_test = None
         if self.capturing:
             self._capture_tick(now)
+
+    def _fetch_lobby(self, lobby_id):
+        return self.app.api.copilot_lobby(lobby_id)
+
+    def start_alert(self):
+        """(ttui) The crew's start line: (title, lines, 'stop' / 'warn') for the timer's note: the game's own co-driver on
+        (mine, or my co-driver's) must be off; else the rules."""
+        if self.game_codriver_off() is False:
+            return (_("THE GAME'S CO-DRIVER IS ON"),
+                    (_("Switch it off in the game's settings (Co-driver), or this run won't count."),
+                     _('Your co-driver reads the notes: the game must not.')), 'stop')
+        if self.partner_off is False:
+            return (_("YOUR CO-DRIVER'S GAME CALLS THE NOTES"),
+                    (_("Their game's own co-driver is on: it must be off, or it's a DNF for the crew."),), 'stop')
+        return (_('CODRIVER · ONE GO'),
+                (_('Good luck! Your co-driver reads the notes: the game\'s own co-driver is off.'),
+                 _('Changing settings, driving aids, the co-driver or pacenotes on the stage is a DNF.')), 'warn')
+
+    def armed_line(self):
+        """(ttui) The timer's line on the start line: (text, colour)."""
+        from .ttui import _c
+        return _('Good luck! One go · settings changed = DNF'), _c().SLOW
 
     def game_codriver_off(self):
         """My game's own co-driver as the mod keeps it (True off, False on, None: can't be told)."""
@@ -191,9 +256,34 @@ class Copilot:
         except Exception:
             return None
 
-    def _status_in(self, s):
-        """The partner's word on their game's own co-driver ('1' off, '0' on, '-' can't be told)."""
-        self.partner_off = {'1': True, '0': False}.get(s[:1] if isinstance(s, str) else s.decode('ascii', 'replace')[:1])
+    def status_line(self):
+        """My status for the partner: '<1 / 0 / - my game's own co-driver off / on / unknown>' and, from the driver,
+        '|<w / r / f / d: waiting, running, finished, DNF>|<clock ms>|<gap to the leader ms>|<percent>'."""
+        line = {True: '1', False: '0', None: '-'}[self.game_codriver_off()]
+        if self.role() != 'driver':
+            return line
+        t = (getattr(self.app, 'tt', None) or {}).get(self.SLOT) or {}
+        j = t.get('judge')
+        if j is None:
+            return line
+        st = {'running': 'r', 'finished': 'f', 'dnf': 'd', 'invalid': 'd'}.get(j.state, 'w')
+        r = j.result or {}
+        ms = j.total_ms if st == 'r' else int(r.get('totalMs') or r.get('clockMs') or 0) if st in 'fd' else 0
+        gap = j.gap_ms if st == 'r' and j.gap_ms is not None else None
+        return '%s|%s|%d|%s|%d' % (line, st, max(0, int(ms)), '' if gap is None else int(gap), round(j.progress * 100))
+
+    def _status_in(self, s, sid=None):
+        """The partner's word on their game's own co-driver ('1' off, '0' on, '-' can't be told) and, from the driver,
+        their stage (status_line)."""
+        s = s if isinstance(s, str) else s.decode('ascii', 'replace')
+        self.partner_off = {'1': True, '0': False}.get(s[:1])
+        parts = s.split('|')
+        if len(parts) >= 5:
+            try:
+                self.driver_state = {'state': parts[1], 'ms': int(parts[2]), 'gap': int(parts[3]) if parts[3] else None,
+                                     'pct': int(parts[4]), 'at': time.monotonic()}
+            except ValueError:
+                pass
 
     def _lobby_in(self, l):
         self._polling = False
@@ -213,8 +303,7 @@ class Copilot:
             return
         if l.get('notes') is not None and l.get('notes') != self.notes:
             self.notes = l['notes']
-        if self.link is not None and l.get('signal'):
-            self.link.peer(l['signal'], (self.partner() or {}).get('steamId'))
+        self._signals_in(l)
         if l.get('state') == 'started' and self.started_id != l.get('id'):
             fresh = time.time() * 1000 - (l.get('started') or 0) < RESUME_S * 1000
             if fresh:
@@ -222,19 +311,24 @@ class Copilot:
 
     def _ended(self, l):
         """The lobby over (finished, a DNF, closed): its link and voice gone, the day again (the stage revealed)."""
+        res = (l or {}).get('result')
+        if res and (l or {}).get('myRole') == 'codriver':       # (the driver's app says its own: on_result)
+            from .judge import fmt_ms
+            self.final = (_('CODRIVER: your crew finished in %s.') % fmt_ms(res['totalMs']) if res.get('status') == 'finished'
+                          and res.get('totalMs') else _('CODRIVER: your crew did not finish.'))
         self.stop_link()
         self.app.root.after(1500, lambda: self.refresh(force=True))
         tt = getattr(self.app, 'tt', None) or {}
-        t = tt.get(CP_SLOT)
+        t = tt.get(self.SLOT)
         if t and not (t.get('judge') and t['judge'].state == 'running'):
-            del tt[CP_SLOT]
+            del tt[self.SLOT]
         w = getattr(self.app, 'watch', None)
         if w is not None and w.on and w.copilot() and (l or {}).get('state') in ('finished', 'dnf', 'closed'):
             pass                                        # (the co-driver sees the finish: WATCH ends as they leave the stage)
 
     # ---- the buttons
-    def create(self, role, private=False):
-        self._bg(lambda: self.app.api.copilot_create(role, private), lambda r: self._take_lobby(r.get('lobby')))
+    def create(self, role, private=False, langs=None):
+        self._bg(lambda: self.app.api.copilot_create(role, private, langs), lambda r: self._take_lobby(r.get('lobby')))
 
     def join(self, lobby_id=None, code=None):
         self._bg(lambda: self.app.api.copilot_join(lobby_id, code), lambda r: self._take_lobby(r.get('lobby')))
@@ -278,9 +372,10 @@ class Copilot:
         if judge is None:
             self.msg = _('The stage has no route: it can\'t be driven from here.')
             return
-        a.tt[CP_SLOT] = {'ch': ch, 'judge': judge, 'board': None, 'ghost_for': None, 'ghost_name': None,
-                         'ghosts': GhostSet(judge.route, 0), 'ghost_loading': set(), 'copilot': True}
-        a._tt_drive_go(CP_SLOT)
+        a.tt[self.SLOT] = {'ch': ch, 'judge': judge, 'board': None, 'ghost_for': None, 'ghost_name': None,
+                           'ghosts': GhostSet(judge.route, 0), 'ghost_loading': set(), 'copilot': True}
+        self._apply_board(a.tt[self.SLOT])
+        a._tt_drive_go(self.SLOT)
 
     def _watch(self, ch):
         a = self.app
@@ -289,7 +384,7 @@ class Copilot:
         from .judge import Judge
         driver = (self.partner() or {})
         held = {'ch': dict(ch, weekend=None), 'judge': Judge(ch) if ch.get('route') else None, 'live': [], 'board': None,
-                'name': 'CODRIVER', 'eventId': int(self.lobby['id']), 'kind': 'copilot', 'cars': []}
+                'name': 'CODRIVER', 'eventId': self.room_id(), 'kind': 'copilot', 'cars': []}
         try:
             setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], None)
         except (saveslot.SaveError, KeyError, ValueError):
@@ -317,61 +412,66 @@ class Copilot:
             self.cursor = max(0, min(len(self.notes) - 1, int(n)))
 
     # ---- the link and the voice
+    def peers(self):
+        """The others in my lobby as (steam id, seat): the partner (seat 0 the driver, 1 the co-driver)."""
+        p = self.partner() or {}
+        return [(p['steamId'], 0 if p.get('role') == 'driver' else 1)] if p.get('steamId') else []
+
+    def my_seat(self):
+        return 0 if self.role() == 'driver' else 1
+
+    def speakers(self):
+        """The speaker icons' data: [(name, seat, talking now)], the partner, then me (seat 'me')."""
+        v = self.voice
+        now = v.speaking() if v is not None else set()
+        p = self.partner() or {}
+        seat = 0 if p.get('role') == 'driver' else 1
+        out = [(p.get('name') or '?', seat, seat in now)] if p else []
+        out.append((_('You'), 'me', 'me' in now))
+        return out
+
+    def _publish(self, lid, sid, data):
+        """My link details to a member of the lobby (copilotlink: the lobby's signal)."""
+        self.app.api.copilot_signal(lid, data)
+
+    def _signals_in(self, l):
+        """The others' link details the lobby carries for me."""
+        if self.crew is not None and l.get('signal'):
+            sid = (self.partner() or {}).get('steamId')
+            if sid:
+                self.crew.signals({sid: l['signal']})
+
+    def voice_args(self):
+        c = settings_of(self.app.s)
+        return dict(held=self._held, mode=c['talk'], gain=c['gain'], radio=c['radio'], mic_name=c['mic'],
+                    mic_gain=c['micgain'])
+
     def start_link(self):
-        if self.link is not None:
+        if self.crew is not None:
             return
-        a = self.app
         l = self.lobby or {}
         lid = l.get('id')
         if not lid:
             return
-        from .copilotlink import Link
-        from .voice import Voice
-
-        def publish(d):
-            a.api.copilot_signal(lid, json.dumps(d, separators=(',', ':')))
-
-        def relay():
-            return getattr(getattr(a, 'ghostcars', None), 'live', None)
-
-        def samples(m):
-            r = relay()
-            if r is not None:
-                r.take_direct(m)
-
-        self.link = Link(publish, samples, lambda p: self.voice and self.voice.heard(p), relay, on_status=self._status_in)
-        if l.get('signal'):
-            self.link.peer(l['signal'], (self.partner() or {}).get('steamId'))
-        c = settings_of(a.s)
-        self.voice = Voice(self.link.send_voice, self._held, mode=c['talk'], gain=c['gain'], radio=c['radio'])
-        self._wired = None
-
-    def _wire(self):
-        """The relay's link (it can be made again: ghost cars switched, a reconnect) tied to ours: the driver's
-        samples sent straight too, the crew's voice through it."""
-        if self.link is None:
-            return
-        live = getattr(getattr(self.app, 'ghostcars', None), 'live', None)
-        if live is None or getattr(self, '_wired', None) is live:
-            return
-        self._wired = live
-        link, me = self.link, self.app.s
-        live.on_crew = link.crew
-        if self.role() == 'driver':
-            live.tee = lambda m: link.send_samples(dict(m, sid=me.get('steamId') or '', name=me.get('name') or '',
-                                                        car=getattr(live, 'car', '') or ''))
-        else:
-            live.tee = None
+        from .crew import Crew
+        self.crew = Crew(self.app, self.my_seat(), self.role() == 'driver', lambda sid, d: self._publish(lid, sid, d),
+                         self.peers(), self.voice_args(), on_status=lambda sid, s: self._status_in(s, sid))
+        self._signals_in(l)
 
     def stop_link(self):
-        live = getattr(getattr(self.app, 'ghostcars', None), 'live', None)
-        if live is not None:
-            live.tee, live.on_crew, live.direct_sid = None, None, None
-        if self.voice is not None:
-            self.voice.close()
-        if self.link is not None:
-            self.link.close()
-        self.link = self.voice = self._wired = None
+        if self.crew is not None:
+            self.crew.close()
+        self.crew = None
+        self.driver_state = None
+
+    def voices(self):
+        """Every voice that is on (this mode's and the other's): the settings change them all."""
+        out = [self.voice]
+        for name in ('copilot', 'casual'):
+            o = getattr(self.app, name, None)
+            if o is not None and o is not self:
+                out.append(o.voice)
+        return [v for v in out if v is not None]
 
     def set_radio(self, on):
         """The partner's voice through the rally intercom, or as it is."""
@@ -379,8 +479,8 @@ class Copilot:
         c['radio'] = bool(on)
         from . import settings
         settings.save(self.app.s)
-        if self.voice is not None:
-            self.voice.radio = bool(on)
+        for v in self.voices():
+            v.radio = bool(on)
 
     def set_talk(self, mode):
         c = settings_of(self.app.s)
@@ -388,9 +488,74 @@ class Copilot:
             c['talk'] = mode
             from . import settings
             settings.save(self.app.s)
-            if self.voice is not None:
-                self.voice.mode = mode
+            for v in self.voices():
+                v.mode = mode
 
+    def mics(self):
+        """The microphones Windows has: ['' (the default one), names...]."""
+        from .voice import mic_devices
+        return [''] + mic_devices()
+
+    def set_mic(self, name):
+        """Another microphone (its name; '' the default one): kept; used from the next lobby (or the test's restart)."""
+        c = settings_of(self.app.s)
+        c['mic'] = name or ''
+        from . import settings
+        settings.save(self.app.s)
+        if self.mic_test is not None:
+            self.test_mic(False)
+            self.test_mic(True)
+
+    def next_mic(self):
+        names = self.mics()
+        c = settings_of(self.app.s)
+        self.set_mic(names[(names.index(c['mic']) + 1) % len(names)] if c['mic'] in names else '')
+
+    def set_mic_gain(self, gain):
+        """How loud my voice goes out (0.25 to 4)."""
+        c = settings_of(self.app.s)
+        c['micgain'] = max(0.25, min(4.0, round(float(gain), 2)))
+        from . import settings
+        settings.save(self.app.s)
+        for v in self.voices():
+            v.mic_gain = c['micgain']
+        if self.mic_test is not None:
+            self.mic_test.gain = c['micgain']
+
+    def test_mic(self, on=True):
+        """The settings' level meter: the microphone alone (not while a crew's voice has it)."""
+        if not on:
+            if self.mic_test is not None:
+                self.mic_test.close()
+            self.mic_test = None
+            return
+        if self.voice is not None or self.mic_test is not None:
+            return
+        from .voice import MicTest
+        c = settings_of(self.app.s)
+        self.mic_test = MicTest(c['mic'], c['micgain'])
+
+    def mic_level(self):
+        """The microphone's level now, 0..1 (the crew's voice, or the test's), or None when neither is on."""
+        if self.voice is not None:
+            return self.voice.level
+        return self.mic_test.level if self.mic_test is not None else None
+
+    def speaking(self):
+        """Who is talking now, by name: ['you', 'Anna'...] (the speaker icons)."""
+        v = self.voice
+        if v is None:
+            return []
+        names = {}
+        for m in (self.lobby or {}).get('members') or []:
+            names[m.get('seat')] = m.get('name') or '?'
+        for p in (self.lobby or {}).get('host'), (self.lobby or {}).get('guest'):
+            if p:
+                names.setdefault(0 if p.get('role') == 'driver' else 1, p.get('name') or '?')
+        out = []
+        for s in sorted(v.speaking(), key=lambda x: (x == 'me', x if x != 'me' else 0)):
+            out.append(_('You') if s == 'me' else names.get(s, '?'))
+        return out
     def _held(self):
         """Push to talk held now: its key, or its wheel's / pad's button."""
         c = settings_of(self.app.s)
@@ -428,15 +593,16 @@ class Copilot:
             self.capturing = None
 
     def link_text(self):
-        """How the two are linked, for the page: 'DIRECT · 23 MS', 'THROUGH THE RELAY', 'CONNECTING…'."""
-        if self.link is None:
+        """How the crew is linked, for the page: 'DIRECT · 23 MS', 'THROUGH THE RELAY', 'CONNECTING…' (several: the worst)."""
+        if self.crew is None or not self.crew.links:
             return ''
-        m = self.link.mode()
-        if m == 'direct':
-            return _('DIRECT · %d MS') % round(self.link.rtt_ms) if self.link.rtt_ms is not None else _('DIRECT')
-        if m == 'relay':
-            return _('THROUGH THE RELAY')
-        return _('CONNECTING…')
+        modes = self.crew.modes()
+        if all(m == 'direct' for m in modes):
+            rtts = [l.rtt_ms for l in self.crew.links.values() if l.rtt_ms is not None]
+            return _('DIRECT · %d MS') % round(max(rtts)) if rtts else _('DIRECT')
+        if 'connecting' in modes or 'none' in modes:
+            return _('CONNECTING…')
+        return _('THROUGH THE RELAY')
 
     # ---- the driver's run (ttui.py)
     def watch_run(self, t, j, evs):
@@ -473,6 +639,7 @@ class Copilot:
         """The driver's run with the game's official result (or a DNF): to the server, as the crew's."""
         a = self.app
         if not a.api.configured or not a.s.get('token'):
+            self.final = _('CODRIVER: not sent: sign in with Steam.')
             return
         from . import __version__
 
@@ -481,7 +648,16 @@ class Copilot:
                 r = a.api._req('POST', '/api/copilot/runs', dict(result, appVersion=__version__), auth=True)
                 text = (_('CODRIVER: P%s of %s crews. The stage is revealed.') % (r.get('rank'), r.get('drivers'))
                         if r.get('status') == 'finished' and r.get('rank') else _('CODRIVER: DNF. The stage is revealed.'))
+                said = (_('P%s OF %s CREWS') % (r.get('rank'), r.get('drivers'))
+                        if r.get('status') == 'finished' and r.get('rank') else _('CREW DNF'))
             except Exception as e:
-                text = _('CODRIVER: not sent: %s') % e
-            a.root.after(0, lambda: (a.sub_l.configure(text=text), self.refresh(force=True)))
+                text, said = _('CODRIVER: not sent: %s') % e, _('NOT SENT')
+            def shown():
+                t = (getattr(a, 'tt', None) or {}).get(self.SLOT)
+                if t is not None:
+                    t['said'] = said                 # (the timer's line under the finish time)
+                self.final = text
+                a.sub_l.configure(text=text)
+                self.refresh(force=True)
+            a.root.after(0, shown)
         threading.Thread(target=go, daemon=True).start()

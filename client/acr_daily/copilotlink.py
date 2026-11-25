@@ -79,7 +79,7 @@ def local_addresses(port):
 
 
 class Link:
-    """publish(details): this side's details to the lobby (a dict); on_samples(message dict), on_voice(packet): what
+    """publish(details): this side's details to the lobby (a dict); on_samples(message dict), on_voice(packet, seat): what
     came from the other; relay(): the live relay's link (livelink.LiveLink) or None, for the voice when there is no
     direct way. stun: (host, port) servers (tests: none)."""
 
@@ -147,17 +147,20 @@ class Link:
             if len(data) < 1200:
                 self._send(self._packet(b'S', data), self.addr)
 
-    def send_voice(self, packet):
+    def send_voice(self, packet, who=0, relay=True):
+        """A voice packet to the other, tagged with the seat of whoever spoke (0 the driver, 1..3 the co-drivers): straight
+        when there is a way, else through the relay (relay False: only straight; copilot.py sends a relay one once)."""
+        tagged = bytes([who & 3]) + packet
         if self.direct:
-            self._send(self._packet(b'V', packet), self.addr)
-        else:
+            self._send(self._packet(b'V', tagged), self.addr)
+        elif relay:
             r = self.relay()
             if r is not None:
-                r.send_crew('v' + base64.b64encode(packet).decode())
+                r.send_crew('v' + base64.b64encode(tagged).decode())
 
     def send_status(self, s):
         """A short status for the other (copilot.py: '1' / '0' / '-', my game's own co-driver off / on / not known)."""
-        s = str(s)[:16]
+        s = str(s)[:48]
         if self.direct:
             self._send(self._packet(b'C', s.encode('ascii', 'replace')), self.addr)
         else:
@@ -180,8 +183,9 @@ class Link:
             return
         if isinstance(b, str) and b.startswith('v'):
             try:
-                self.on_voice(base64.b64decode(b[1:]))
-            except (ValueError, TypeError):
+                raw = base64.b64decode(b[1:])
+                self.on_voice(raw[1:], raw[0] & 3)
+            except (ValueError, TypeError, IndexError):
                 pass
         elif isinstance(b, str) and b.startswith('c'):
             self._status(b[1:])
@@ -276,9 +280,9 @@ class Link:
                     self.on_samples(m)
                 except Exception:
                     pass
-        elif kind == b'V':
+        elif kind == b'V' and body:
             try:
-                self.on_voice(body)
+                self.on_voice(body[1:], body[0] & 3)
             except Exception:
                 pass
         elif kind == b'C':

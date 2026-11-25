@@ -53,7 +53,7 @@ TABS = (('home', _('HOME')), ('events', _('EVENTS'))) + (
     ('comp', _('ONLINE RALLIES')), ('watch', _('WATCH')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')),
     ('profile', _('PROFILE')), ('settings', _('SETTINGS')))
 # each tab's page (ig_<name>.py); 'daily' and 'tt' are EVENTS' sub-tabs, each its own page still
-PAGES = {'home': 'ig_home', 'events': 'ig_events', 'daily': 'ig_daily', 'tt': 'ig_tt', 'copilot': 'ig_copilot',
+PAGES = {'home': 'ig_home', 'events': 'ig_events', 'daily': 'ig_daily', 'tt': 'ig_tt', 'copilot': 'ig_copilot', 'casual': 'ig_casual',
          'live': 'ig_ranked', 'comp': 'ig_comp', 'watch': 'ig_watchlist', 'community': 'ig_community', 'inbox': 'ig_inbox',
          'profile': 'ig_profile', 'settings': 'ig_settings',
          'prep': 'ig_prep'}                 # (DRIVE's set-up screen: no tab of its own)
@@ -254,6 +254,9 @@ class InGameApp:
         if getattr(app, 'copilot', None) is None:    # COPILOT, the daily for two (copilot.py, ig_copilot.py)
             from .copilot import Copilot
             app.copilot = Copilot(app)
+        if getattr(app, 'casual', None) is None:     # CASUAL, up to four (casual.py, ig_casual.py)
+            from .casual import Casual
+            app.casual = Casual(app)
 
     # ---- what a page has to hand
     def mem(self, tab):
@@ -350,13 +353,14 @@ class InGameApp:
             self.event(what, rest)
         self.drives.check(now)
         self._dialog_upkeep()
-        cp = getattr(self.app, 'copilot', None)
-        if cp is not None:                         # (COPILOT: my lobby, its link and voice)
-            try:
-                cp.tick()
-            except Exception as e:
-                from . import waiting
-                waiting.note('copilot: %r' % (e,))
+        for name in ('copilot', 'casual'):          # (COPILOT and CASUAL: my lobby, its link and voice)
+            cp = getattr(self.app, name, None)
+            if cp is not None:
+                try:
+                    cp.tick()
+                except Exception as e:
+                    from . import waiting
+                    waiting.note('%s: %r' % (name, e))
         if self.shown and not self.game_up():
             # the game gone (closed for a restart, crashed) with the pages on: they are not, and the app's questions go
             # to its window again (a review, 21 Nov 2026: they went to pages nobody saw and the set-up stopped)
@@ -759,7 +763,7 @@ class InGameApp:
                           'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
                 'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.stage_overlay(),
                 # (COPILOT: a crew's stage on, the game's own co-driver kept off: main.lua codriver_off)
-                'copilot': 1 if getattr(getattr(self.app, 'copilot', None), 'mod_on', lambda: False)() else 0,
+                'copilot': 1 if any(getattr(getattr(self.app, n, None), 'mod_on', lambda: False)() for n in ('copilot', 'casual')) else 0,
                 'chat': self._chat_on_stage,       # (RANKED's chat over the stage: T opens the mod's box to write)
                 # (an event without driving aids, its run on the start line: the mod switches them off, main.lua)
                 'aidsOff': 1 if self._aids_off() else 0,

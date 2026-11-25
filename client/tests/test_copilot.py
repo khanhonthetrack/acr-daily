@@ -159,10 +159,10 @@ class DirectLink(unittest.TestCase):
     def test_two_apps_find_each_other_and_pass_samples_and_voice(self):
         got = {'a': [], 'b': [], 'av': [], 'bv': []}
         pub = {}
-        a = copilotlink.Link(lambda d: pub.__setitem__('a', d), got['a'].append, got['av'].append, stun=(),
-                             bind=('127.0.0.1', 0))
-        b = copilotlink.Link(lambda d: pub.__setitem__('b', d), got['b'].append, got['bv'].append, stun=(),
-                             bind=('127.0.0.1', 0))
+        a = copilotlink.Link(lambda d: pub.__setitem__('a', d), got['a'].append, lambda p, w: got['av'].append((p, w)),
+                             stun=(), bind=('127.0.0.1', 0))
+        b = copilotlink.Link(lambda d: pub.__setitem__('b', d), got['b'].append, lambda p, w: got['bv'].append((p, w)),
+                             stun=(), bind=('127.0.0.1', 0))
         try:
             self.assertTrue(wait(lambda: 'a' in pub and 'b' in pub))
             # (only this PC: the addresses on its own network, as the lobby passes them on)
@@ -176,24 +176,24 @@ class DirectLink(unittest.TestCase):
             status = []
             a.on_status = status.append
             a.send_samples({'t': 's', 'sid': 'sid-a', 's': [[1000, 1, 2, 3, 0, 0, 0]]})
-            b.send_voice(b'\x01\x00abc')
+            b.send_voice(b'\x01\x00abc', 2)
             b.send_status('0')
             self.assertTrue(wait(lambda: got['b'] and got['av'] and status))
             self.assertEqual(status, ['0'])
             self.assertEqual(got['b'][0]['s'], [[1000, 1, 2, 3, 0, 0, 0]])
-            self.assertEqual(got['av'][0], b'\x01\x00abc')
+            self.assertEqual(got['av'][0], (b'\x01\x00abc', 2), 'the packet and the seat of whoever spoke')
         finally:
             a.close()
             b.close()
 
     def test_another_key_is_not_theirs(self):
         got = []
-        a = copilotlink.Link(lambda d: None, got.append, got.append, stun=(), bind=('127.0.0.1', 0))
+        a = copilotlink.Link(lambda d: None, got.append, lambda p, w: got.append(p), stun=(), bind=('127.0.0.1', 0))
         try:
             a.peer({'key': '00' * 8, 'loc': []})
-            a._take(copilotlink.MAGIC + b'V' + b'\x11' * 8 + b'xx', ('127.0.0.1', 1), time.monotonic())
+            a._take(copilotlink.MAGIC + b'V' + b'\x11' * 8 + b'\x00xx', ('127.0.0.1', 1), time.monotonic())
             self.assertEqual(got, [])
-            a._take(copilotlink.MAGIC + b'V' + b'\x00' * 8 + b'xx', ('127.0.0.1', 1), time.monotonic())
+            a._take(copilotlink.MAGIC + b'V' + b'\x00' * 8 + b'\x00xx', ('127.0.0.1', 1), time.monotonic())
             self.assertEqual(got, [b'xx'])
         finally:
             a.close()
@@ -201,14 +201,14 @@ class DirectLink(unittest.TestCase):
     def test_no_way_through_the_voice_goes_by_the_relay(self):
         relay = mock.Mock(state='live')
         heard = []
-        a = copilotlink.Link(lambda d: None, lambda m: None, heard.append, relay=lambda: relay, stun=())
+        a = copilotlink.Link(lambda d: None, lambda m: None, lambda p, w: heard.append((p, w)), relay=lambda: relay, stun=())
         try:
             a.peer({'key': 'ab' * 8, 'loc': []}, 'sid-b')
-            a.send_voice(b'\x05\x00zz')
+            a.send_voice(b'\x05\x00zz', 1)
             sent = relay.send_crew.call_args[0][0]
             self.assertTrue(sent.startswith('v'))
             a.crew('sid-b', sent)                     # (the other's, back through the relay)
-            self.assertEqual(heard, [b'\x05\x00zz'])
+            self.assertEqual(heard, [(b'\x05\x00zz', 1)])
             a.crew('someone-else', sent)
             self.assertEqual(len(heard), 1, 'only the partner\'s')
         finally:
@@ -263,6 +263,8 @@ def app_stub():
     a.root.after = lambda ms, fn, *args: fn(*args)
     a.ghostcars.live = None
     a.watch.on = False
+    a.casual = None
+    a.crew_owner = lambda: getattr(a, 'copilot', None)
     return a
 
 
@@ -461,6 +463,89 @@ class Pages(unittest.TestCase):
         c = copilot.settings_of(a.s)
         self.assertEqual((c['talk'], c['gain'], c['key']), ('open', 1.25, 'B'))
         self.assertNotIn('copilot.key', json.dumps(ig_copilot.settings_panel(ig)), 'open mic: no key to set')
+
+
+class Seats(unittest.TestCase):
+    """Up to four in a crew (CASUAL): each speaker a seat of their own, mixed; the hub passes voice on; a mic by name."""
+
+    def test_two_speakers_are_mixed_and_each_one_shows_as_speaking(self):
+        spk = FakeSpeaker()
+        v = voice.Voice(lambda p: None, mode='off', mic=FakeMic([]), speaker=spk, radio=False, seat=2)
+        try:
+            for k in range(6):
+                v.heard(struct.pack('<H', k + 1) + voice.encode(tone(start=k * voice.FRAME)), 0)
+                v.heard(struct.pack('<H', k + 1) + voice.encode(tone(hz=700, start=k * voice.FRAME)), 1)
+            v.heard(struct.pack('<H', 9) + voice.encode(tone()), 2)          # (my own seat: dropped)
+            self.assertTrue(wait(lambda: len(spk.played) >= 6))
+            self.assertEqual(v.speaking(), {0, 1})
+            self.assertEqual(len(spk.played[0]), voice.FRAME_BYTES)
+            time.sleep(0.5)
+            self.assertEqual(v.speaking(), set(), 'nobody now')
+            self.assertEqual(len(spk.played), 6, 'one mixed frame for both, none for the dropped one')
+        finally:
+            v.close()
+
+    def test_my_voice_is_scaled_and_the_level_is_kept(self):
+        sent = []
+        v = voice.Voice(sent.append, lambda: True, mode='ptt', mic=FakeMic([tone(amp=4000)] * 3), speaker=FakeSpeaker(),
+                        mic_gain=2.0)
+        try:
+            self.assertTrue(wait(lambda: len(sent) == 3))
+            back = struct.unpack('<%dh' % voice.FRAME, voice.decode(sent[1][2:]))
+            self.assertGreater(max(back), 6500, 'twice as loud as the 4000 it heard')
+            self.assertGreater(v.level, 0.2)
+        finally:
+            v.close()
+        self.assertEqual(voice.scale(b'\x00\x40' * 4, 8.0), b'\xff\x7f' * 4, 'clipped, never wrapped')
+
+    def test_the_microphone_is_found_by_name_else_the_default(self):
+        self.assertEqual(voice.mic_index('', ['A', 'B']), voice.WAVE_MAPPER)
+        self.assertEqual(voice.mic_index('B', ['A', 'B']), 1)
+        self.assertEqual(voice.mic_index('gone', ['A', 'B']), voice.WAVE_MAPPER, 'unplugged since: the default one')
+
+    def test_the_hub_passes_a_co_driver_s_voice_to_the_others_tagged_with_the_seat(self):
+        from acr_daily import crew
+        sent, heard = [], []
+
+        class L:
+            direct = True
+
+            def __init__(self):
+                self.sid = None
+
+            def send_voice(self, packet, who=0, relay=True):
+                sent.append((self.sid, packet, who))
+
+            def close(self):
+                pass
+
+        class V:
+            def __init__(self, send, seat=None, **kw):
+                self.heard = lambda p, w: heard.append((p, w))
+                self.close = lambda: None
+        c = crew.Crew(mock.Mock(), 0, True, lambda *a: None, [('s1', 1), ('s2', 2), ('s3', 3)], {},
+                      link_factory=lambda pub, smp, vin, relay, on_status=None: L(), voice_factory=V)
+        for sid, l in c.links.items():
+            l.sid = sid
+        c._voice_in('s2', b'pkt', 0)                      # (seat 2 spoke: whatever the packet says)
+        self.assertEqual(heard, [(b'pkt', 2)])
+        self.assertEqual(sorted((s, w) for s, _p, w in sent), [('s1', 2), ('s3', 2)], 'not back to the speaker')
+        sent.clear()
+        c.send_voice(b'mine')                             # (mine: to all three, as seat 0)
+        self.assertEqual(sorted((s, w) for s, _p, w in sent), [('s1', 0), ('s2', 0), ('s3', 0)])
+
+
+class Scoreboard(unittest.TestCase):
+    def test_a_split_ghost_gives_the_live_gap_between_the_leader_s_splits(self):
+        from acr_daily.judge import Judge
+        j = Judge(dict(CH))
+        j.set_ghost_splits([10000, 20000, 30000], 40000)
+        n = len(j.route.points)
+        self.assertEqual(j.ghost.total_at(0), 0)
+        self.assertAlmostEqual(j.ghost.total_at(n // 2) / 20000.0, 1.0, delta=0.06)
+        self.assertEqual(j.ghost.total_at(n - 1), 40000)
+        j.set_ghost_splits(None, None)
+        self.assertIsNone(j.ghost)
 
 
 if __name__ == '__main__':

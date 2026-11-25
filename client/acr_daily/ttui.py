@@ -170,6 +170,13 @@ class TimeTrialUI:
     def _dailies_judged(self):
         return self.drive_target == 'daily' or (self.drive_target == 'tt' and not self._tt_clash())
 
+    def crew_owner(self):
+        """The mode that has my lobby now: CASUAL's (app.casual) when it has one, else the daily crew's (app.copilot); None."""
+        c = getattr(self, 'casual', None)
+        if c is not None and (c.lobby or {}).get('state') in ('open', 'started'):
+            return c
+        return getattr(self, 'copilot', None)
+
     def _tt_judged(self):
         return self.drive_target == 'tt' or (self.drive_target == 'daily' and not self._tt_clash())
 
@@ -590,7 +597,7 @@ class TimeTrialUI:
                 continue
             evs = j.feed(f, unloaded)
             evs = evs + self._watch_run(t, j, evs, (t.get('ch') or {}).get('weekend'))   # (not allowed: DNF, app.py)
-            cp = getattr(self, 'copilot', None) if slot == CP_SLOT else None
+            cp = self.crew_owner() if slot == CP_SLOT else None
             if cp is not None:                       # (COPILOT: the game's own co-driver on during the stage: a DNF)
                 evs = evs + cp.watch_run(t, j, evs)
             for ev in evs:
@@ -741,8 +748,8 @@ class TimeTrialUI:
     def on_tt_result(self, result):
         """A time trial run with the game's official time (or a DNF without it): sent, or queued for later."""
         settings.append_result(result)
-        if is_cp(result.get('challengeId')) and getattr(self, 'copilot', None) is not None:
-            self.copilot.on_result(result)          # (a COPILOT crew's run: its own board, finished or not)
+        if is_cp(result.get('challengeId')) and self.crew_owner() is not None:
+            self.crew_owner().on_result(result)          # (a COPILOT crew's run: its own board, finished or not)
             return
         slot = parse_id(result.get('challengeId')) or 1
         if result.get('status') != 'finished':     # (no official time from the game after all: nothing to send)
@@ -869,18 +876,9 @@ class TimeTrialUI:
             problems = self.settings_changed((t.get('ch') or {}).get('weekend'))
             if problems:
                 return self.problems_alert(problems, self.check_rows((t.get('ch') or {}).get('weekend')))
-            cp = getattr(self, 'copilot', None) if slot == CP_SLOT else None
+            cp = self.crew_owner() if slot == CP_SLOT else None
             if cp is not None:                     # (COPILOT: one go; the game's own co-driver must be off)
-                if cp.game_codriver_off() is False:
-                    return (_("THE GAME'S CO-DRIVER IS ON"),
-                            (_("Switch it off in the game's settings (Co-driver), or this run won't count."),
-                             _('Your co-driver reads the notes: the game must not.')), 'stop')
-                if cp.partner_off is False:
-                    return (_("YOUR CO-DRIVER'S GAME CALLS THE NOTES"),
-                            (_("Their game's own co-driver is on: it must be off, or it's a DNF for the crew."),), 'stop')
-                return (_('CODRIVER · ONE GO'),
-                        (_('Your co-driver reads the notes: the game\'s own co-driver is off.'),
-                         _('Changing settings, driving aids, the co-driver or pacenotes on the stage is a DNF.')), 'warn')
+                return cp.start_alert()
         return None
 
     def _tt_overlay_state(self, f):
@@ -936,8 +934,10 @@ class TimeTrialUI:
             problems = self.settings_changed(ch.get('weekend')) if self.mode_rw() is not False else None
             if problems:                           # (changed in the game's menu, or aids it doesn't allow)
                 return j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems)
-            if slot == CP_SLOT:                    # (COPILOT: one go, and what ends it)
-                return j.message, '', ('ready', stage, 0, 0, _('ONE GO · settings changed = DNF'), c.SLOW)
+            if slot == CP_SLOT:                    # (COPILOT / CASUAL: good luck, and what ends it)
+                cp = self.crew_owner()
+                line, lc = cp.armed_line() if cp is not None else (_('Good luck!'), c.SOFT)
+                return j.message, '', ('ready', stage, 0, 0, line, lc)
             best = (ch.get('me') or {}).get('bestMs')
             mine = next((e for e in (t.get('board') or {}).get('entries', []) if e.get('steamId') == self.s.get('steamId')), None)
             best = mine['totalMs'] if mine else best
