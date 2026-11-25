@@ -106,17 +106,30 @@ test('the events: a new fastest time, a finish with its place and gap, a better 
 
 test('a decline or Claude not answering: no new line, tried again after 15 s; names in the line are marked', async () => {
   const w = world(), cache = fakeCache();
-  w.boards[2] = [{ steamId: 'x', name: 'osiek', status: 'finished', totalMs: 535000 }];
+  w.boards[1] = [{ steamId: 'x', name: 'osiek', status: 'finished', totalMs: 535000 }];
   const refuse = fakeClaude({ stop_reason: 'refusal', content: [] });
   assert.deepEqual(await run(w, { client: refuse, cache, now: 0 }), { on: true, id: null, line: null, names: [], at: null });
   const down = fakeClaude(() => { throw new Error('overloaded'); });
   assert.equal((await run(w, { client: down, cache, now: 5000 })).line, null);
   assert.equal(down.calls.length, 0);                                // (within 15 s of the last try)
-  const ok = fakeClaude('  "osiek owns SS2 with an 8:55.000 nobody has touched."  ');
+  const ok = fakeClaude('  "osiek owns SS1 with an 8:55.000 nobody has touched."  ');
   const r = await run(w, { client: ok, cache, now: 20000 });
-  assert.equal(r.line, 'osiek owns SS2 with an 8:55.000 nobody has touched.');
+  assert.equal(r.line, 'osiek owns SS1 with an 8:55.000 nobody has touched.');
   assert.deepEqual(r.names, ['osiek']);
   assert.deepEqual(JSON.parse(ok.calls[0].messages[0].content).events, []);   // (still the day's first line)
+});
+
+test('SS1 only: SS2\'s board, its cars and what happens on it never reach Claude', async () => {
+  const w = world(), client = fakeClaude(), cache = fakeCache();
+  w.boards[2] = [{ steamId: 'x', name: 'osiek', status: 'finished', totalMs: 535000 }];
+  await run(w, { client, cache, now: 0 });
+  w.live[2] = [{ steamId: 'y', name: 'Mia', state: 'live', progress: 0.2, totalMs: 60000 }];
+  w.boards[2] = [...w.boards[2], { steamId: 'z', name: 'Kalle', status: 'finished', totalMs: 520000 }];
+  await run(w, { client, cache, now: 30000 });
+  assert.equal(client.calls.length, 1);                              // (nothing on SS1 happened: no second line)
+  const sent = JSON.parse(client.calls[0].messages[0].content);
+  assert.deepEqual(sent.stages.map((s) => s.stage), ['SS1']);
+  assert.doesNotMatch(client.calls[0].messages[0].content, /osiek|Mia|Kalle/);
 });
 
 test('the endpoint: off without a key, and off on another address than the site\'s', async () => {

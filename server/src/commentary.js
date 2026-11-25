@@ -20,13 +20,14 @@ const DEFAULT_MODEL = 'claude-haiku-5-5';
 // there is simply no line
 const FALLBACK = /^claude-(opus-5|sonnet-5-5|fable-5)/;
 const MIN_GAP_MS = 15000;
+const COMMENTARY_SLOTS = [1];   // the dailies the voice talks about: SS1 only
 const KEEP_S = 6 * 3600;
 const LAST_KEY = (lang) => `https://acrdaily.internal/commentary/dailies/${encodeURIComponent(lang)}`;
 const MAX_LINE = 300;      // (spoken: about 30 words, 15 s of voice)
 
 const LINE_KEY = (id) => `https://acrdaily.internal/commentary/line/${encodeURIComponent(id)}`;
 
-const SYSTEM = `You are the live commentator on the ACR DAILY stream: two daily time-trial stages (SS1 and SS2) in the rally game Assetto Corsa Rally, driven by players all day, each trying for the best time.
+const SYSTEM = `You are the live commentator on the ACR DAILY stream: today's daily time-trial stage, SS1, in the rally game Assetto Corsa Rally, driven by players all day, each trying for the best time. You talk about SS1 only.
 
 Each message gives you JSON: the stages and their boards now, the cars on a stage now ("onStageNow": where they are, their clock, their speed in km/h, whether they are stopped, how far up or down they are on the stage leader's pace at this point of the stage, and the place that would make at the finish), what has just happened since your last line ("events", empty for your first line of the day), and your recent lines.
 
@@ -265,8 +266,10 @@ const answer = (s) => (s && s.line ? { on: true, id: s.id, line: s.line, names: 
 export async function dailiesCommentary(env, ask, { lang = 'en', client = null, cache = cacheOf(), now = Date.now() } = {}) {
   if (!client && !env.ANTHROPIC_API_KEY) return { on: false };
   if (!cache) return { on: false };                   // (no cache to hold the last line: never one call per poll)
-  const day = await ask('/api/v1/dailies');
-  if (!day || !day.date || !(day.dailies || []).length) return { on: false };
+  const today = await ask('/api/v1/dailies');
+  // SS1 only (the user, 25 Nov 2026: "for haiku, just skip SS2 comments. Just SS1"; the HIGHLIGHTS box keeps both)
+  const day = today && { ...today, dailies: (today.dailies || []).filter((d) => COMMENTARY_SLOTS.includes(d.slot)) };
+  if (!day || !day.date || !day.dailies.length) return { on: false };
   const boards = {}, live = {};
   await Promise.all(day.dailies.map(async (d) => {
     boards[d.slot] = (await ask(`/api/v1/dailies/${day.date}/${d.slot}`)) || {};
