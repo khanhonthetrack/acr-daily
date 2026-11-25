@@ -8,8 +8,8 @@ from . import settings
 from .casual import LANG_FLAG, LANGS, MAX_LANGS
 from .i18n import _, n_
 from . import i18n
-from .ingamekit import (ACC, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, box, btn, chip, col, edit,
-                        empty, img, kicker, primary, quiet, row, scroll, size, sp, tab_id, txt)
+from .ingamekit import (ACC, BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SLOW, SOFT, WHITE, banner, box, btn, chip, col,
+                        edit, empty, img, kicker, primary, quiet, row, scroll, size, sp, stack, tab_id, txt)
 
 TAB = 'casual'
 COLOUR = 'FF9F0A'
@@ -29,6 +29,14 @@ def opened(ig):
 
 
 # ---------------------------------------------------------------------- languages as flags
+LANG_NAMES = {'en': 'English', 'es': 'Español', 'fr': 'Français', 'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português',
+              'pl': 'Polski', 'cs': 'Čeština', 'sk': 'Slovenčina', 'hu': 'Magyar', 'ro': 'Română', 'ru': 'Русский',
+              'uk': 'Українська', 'tr': 'Türkçe', 'nl': 'Nederlands', 'sv': 'Svenska', 'no': 'Norsk', 'da': 'Dansk',
+              'fi': 'Suomi', 'el': 'Ελληνικά', 'ja': '日本語', 'ko': '한국어', 'zh': '中文', 'ar': 'العربية', 'he': 'עברית',
+              'id': 'Indonesia', 'th': 'ไทย', 'vi': 'Tiếng Việt', 'lt': 'Lietuvių', 'lv': 'Latviešu', 'et': 'Eesti',
+              'bg': 'Български', 'hr': 'Hrvatski', 'sr': 'Srpski', 'sl': 'Slovenščina'}
+
+
 def flags(langs, size_=(27, 18)):
     """The languages as small flags (the country most often meant; its code beside while the picture comes)."""
     from .ig_ranked import flag_png
@@ -46,16 +54,18 @@ def options(ig, field):
     """[(value, label)] for a field of the set-up form, from the server's list."""
     o = _cs(ig).options or {}
     if field == 'stage':
-        return [(s['track'], '%s · %s' % (s.get('rally') or '', s.get('menuName') or s.get('stageName') or s['track']))
+        return [(s['track'], '%s · %s%s' % (s.get('rally') or '', s.get('menuName') or s.get('stageName') or s['track'],
+                                             '  ·  %.1f km' % (s['lengthM'] / 1000.0) if s.get('lengthM') else ''))
                 for s in o.get('stages') or []]
     if field == 'car':
-        return [(c['id'] or c['name'], c['name']) for c in o.get('cars') or []]
+        return [(c['id'] or c['name'], '%s  ·  %s' % (c['name'], c['cls']) if c.get('cls') else c['name'])
+                for c in o.get('cars') or []]
     if field == 'weather':
         return [(w['code'], w['label']) for w in o.get('weather') or []]
     if field == 'time':
         return [(t['code'], t['label']) for t in o.get('times') or []]
     if field == 'lang':
-        return [(c, c.upper()) for c in LANGS]
+        return [(c, LANG_NAMES.get(c, c.upper())) for c in LANGS]
     return []
 
 
@@ -72,6 +82,8 @@ def chosen(ig, field):
         return v
     if field == 'time':                                   # (midday: the game's default light)
         return next((o[0] for o in opts if o[0] == 'midday'), opts[0][0] if opts else None)
+    if field == 'car':                                    # (a car of today: the first of the list was a 1960s one)
+        return next((o[0] for o in opts if o[0] == 'SkodaFabiaRSRally2'), opts[0][0] if opts else None)
     return opts[0][0] if opts else None
 
 
@@ -111,15 +123,20 @@ def _setup(ig, cs):
                         pad=[0, 6, 0, 0], va='c'))
     langs = chosen(ig, 'lang')
     rows.append(row(size(txt(_('I speak'), 17, 'semi', FG2, va='c'), w=170),
-                    btn(tab_id(TAB, 'open', 'lang'), c=row(flags(langs) or txt(_('pick up to 3'), 16, 'medium', MUTED, va='c'),
-                                                           sp(fill=1), txt('›', 17, 'semi', SOFT, va='c'), va='c'),
-                        bg='-', hov=PANEL2, p=[20, 8, 20, 8], r=2, ol=LINE2),
+                    size(btn(tab_id(TAB, 'open', 'lang'),
+                             c=row(flags(langs), sp(10) if langs else None,
+                                   txt(', '.join(LANG_NAMES.get(x, x.upper()) for x in langs) if langs else _('pick up to 3'), 17,
+                                       'semi', WHITE if langs else MUTED, va='c'),
+                                   sp(10), txt('›', 17, 'semi', SOFT, va='c'), va='c'),
+                             bg='-', hov=PANEL2, p=[20, 8, 20, 8], r=2, ol=LINE2), minw=480),
                     pad=[0, 6, 0, 0], va='c'))
     pick = lambda key, label, on: btn(tab_id(TAB, 'priv', key), label, bg=WHITE if on else '-', hov=ACC,
                                       fg=BG if on else SOFT, hfg=WHITE, sz=17, f='bold', sp=60, p=[18, 7, 18, 7], r=2,
                                       ol=None if on else LINE2, pad=[8, 0, 0, 0])
     vis = row(pick('public', _('PUBLIC'), not private), pick('private', _('PRIVATE'), private), pad=[0, 12, 0, 0])
-    return box(col(kicker(_('Set up a lobby'), fg=COLOUR), col(*rows, pad=[0, 10, 0, 0]), vis,
+    sid = next((s.get('stageId') for s in (cs.options or {}).get('stages') or [] if s['track'] == chosen(ig, 'stage')), None)
+    pic = banner(sid, 652, 150) if sid else None
+    return box(col(kicker(_('Set up a lobby'), fg=COLOUR), col(pic, pad=[0, 10, 0, 0]) if pic else None, col(*rows, pad=[0, 10, 0, 0]), vis,
                    row(primary(tab_id(TAB, 'create'), _('SET UP  ›')), pad=[0, 16, 0, 0]),
                    row(txt(_('You drive; up to 3 co-drivers read the notes. Alone is fine.'), 15, 'medium', MUTED, wrap=True,
                            pad=[0, 12, 0, 0]))), bg=PANEL, p=[24, 18, 24, 20])
@@ -188,7 +205,7 @@ def qr_file(url):
         return None
     import hashlib
     from . import qrcode_min
-    path = os.path.join(settings.DIR, QR_DIR, 'qr-%s.png' % hashlib.sha1(url.encode()).hexdigest()[:12])
+    path = os.path.join(settings.DIR, QR_DIR, 'qr2-%s.png' % hashlib.sha1(url.encode()).hexdigest()[:12])
     if not os.path.exists(path):
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -213,7 +230,7 @@ def _member(m, me):
     ready = chip(_('READY'), bg=GOOD, fg=BG) if m.get('ready') or m.get('seat') == 0 else chip(_('NOT READY'), bg=LINE2, fg=SOFT)
     role = _('DRIVER') if m.get('role') == 'driver' else _('CO-DRIVER')
     mine = m.get('steamId') == me.get('steamId')
-    return box(row(kicker(role, fg=COLOUR if m.get('seat') == 0 else MUTED), sp(14),
+    return box(row(kicker(role, fg=COLOUR if m.get('seat') == 0 else MUTED, va='c'), sp(14),
                    txt((m.get('name') or '?') + ('  ·  ' + _('YOU') if mine else ''), 20, 'bold', WHITE), sp(fill=1), ready,
                    va='c'), bg=PANEL2, p=[18, 10, 18, 10], pad=[0, 6, 0, 0])
 
@@ -225,7 +242,8 @@ def _lobby(ig, cs):
     started = l.get('state') == 'started'
     st, car = l.get('stage') or {}, (l.get('car') or {}).get('name') or ''
     note = txt(cs.msg, 17, 'semi', BAD, wrap=True, pad=[0, 0, 0, 10]) if cs.msg else None
-    stage = col(kicker(_('Stage'), fg=COLOUR), txt((st.get('menuName') or st.get('stageName') or '').upper(), 26, 'bold', WHITE, wrap=True),
+    stage = col(banner(st.get('stageId'), 900, 130, pad=[0, 0, 0, 10]) if st.get('stageId') else None,
+                kicker(_('Stage'), fg=COLOUR), txt((st.get('menuName') or st.get('stageName') or '').upper(), 26, 'bold', WHITE, wrap=True),
                 txt(' · '.join(p for p in (st.get('rally'), car, (l.get('weather') or {}).get('label'),
                                            (l.get('time') or {}).get('label')) if p), 16, 'semi', FG2, wrap=True),
                 row(flags(l.get('langs')), pad=[0, 8, 0, 0]) if l.get('langs') else None)
@@ -248,7 +266,7 @@ def _lobby(ig, cs):
                       txt(_('Start when you like, even alone.') if host else _('Waiting for the driver to start.'), 15, 'semi',
                           MUTED, va='c'))
         hint = None
-    left = box(col(stage, code, note, members, hint, buttons, row(_voice(ig, cs), pad=[0, 14, 0, 0])), bg=PANEL, p=[24, 18, 24, 20])
+    left = box(col(stage, code, note, members, hint, buttons, _voice(ig, cs)), bg=PANEL, p=[24, 18, 24, 20])
     right = _qr_panel(cs)
     return row(col(left, fill=1), sp(24), right, al='f') if right else left
 
@@ -259,7 +277,7 @@ def _is_ready(cs):
 
 def _voice(ig, cs):
     from .ig_copilot import _voice_line
-    return col(_voice_line(ig, cs), speakers(cs))
+    return _voice_line(ig, cs)
 
 
 def _qr_panel(cs):
@@ -322,7 +340,7 @@ def click(ig, action, arg):
         cs.start()
     elif action == 'leave':
         if cs.started() and cs.is_host() and not cs.solo():
-            ig.ask(_('LEAVE'), [_('The stage is on: your co-drivers lose their driver.')], _('LEAVE'), cs.leave, safe=True)
+            ig.ask(_('LEAVE'), [_('The stage is on: everyone goes back to the lobbies.')], _('LEAVE'), cs.leave, safe=True)
         else:
             cs.leave()
     elif action == 'go':

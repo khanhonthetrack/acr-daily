@@ -83,16 +83,39 @@ class Lobby(unittest.TestCase):
         self.assertEqual(cs.partner()['name'], 'Me')
         self.assertEqual(cs.room_id(), casual.ROOM_BASE + 4)
 
-    def test_alone_there_is_no_link_and_the_games_own_co_driver_stays(self):
+    def test_alone_there_is_no_link_but_the_games_own_co_driver_is_off_on_the_lobby_s_stage(self):
         a, cs = made()
         cs.lobby = lobby('1', 'started', n=1)
         self.assertTrue(cs.solo())
-        self.assertFalse(cs.mod_on(), 'solo: the game\'s own co-driver is left on')
         cs.start_link()
         self.assertIsNone(cs.crew)
-        self.assertIsNone(cs.start_alert())
+        self.assertFalse(cs.mod_on(), 'not on its stage yet')
+        a.tt[casual.CP_SLOT] = {'ch': CX}
+        self.assertTrue(cs.mod_on(), 'alone too: the game\'s own co-driver off (the user, 26 Nov 2026)')
+        a.tt[casual.CP_SLOT] = {'ch': dict(CX, id='cp:2026-11-26/1')}
+        self.assertFalse(cs.mod_on(), 'another crew\'s stage: not this lobby\'s')
+        a._pulse.return_value.codriver_off.return_value = False
+        self.assertIn("CO-DRIVER IS ON", cs.start_alert()[0])
+
+    def test_the_host_leaving_sends_everyone_back_to_the_lobbies(self):
+        a, cs = made()
+        ig = Fake(cs)
+        ig.cmd = {'n': 3}
+        a.ingame_app = ig
+        a._on_stage = lambda: True
+        a.watch.on = True
+        a.watch.copilot.return_value = True
+        cs.lobby = lobby('2', 'started', n=2)
+        cs._take_lobby(lobby('2', 'finished', n=2))
+        a.watch.stop.assert_called_once()
+        self.assertEqual(ig.cmd, {'n': 4, 'do': 'menu'}, 'the game back to its main menu')
+        self.assertIn('host left', cs.msg)
+        self.assertEqual(ig.mem('copilot')['mode'], 'casual')
+        # the host's own leave is not "the host left"
+        a.watch.stop.reset_mock()
         cs.lobby = lobby('1', 'started', n=2)
-        self.assertTrue(cs.mod_on())
+        cs._take_lobby(lobby('1', 'finished', n=2))
+        a.watch.stop.assert_not_called()
 
     def test_the_stage_is_driven_by_the_driver_and_watched_by_the_others_without_rules(self):
         a, cs = made()
@@ -196,7 +219,7 @@ class Pages(unittest.TestCase):
         page = ig_casual.page(ig)
         self.assertEqual(check(page), [])
         words = json.dumps(page)
-        for w in ('casual.start', 'casual.leave', 'ABC234', 'Ann', 'qr-', 'acrdaily.com/n/abcdefghijkl'):
+        for w in ('casual.start', 'casual.leave', 'ABC234', 'Ann', 'qr2-', 'acrdaily.com/n/abcdefghijkl'):
             self.assertIn(w, words)
         self.assertEqual(cs.notes_url(), 'https://acrdaily.com/n/abcdefghijkl')
         # a co-driver: READY, not START; the driver's started stage: TO THE CAR

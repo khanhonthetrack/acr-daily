@@ -46,7 +46,7 @@ test('options: what a lobby may use', async () => {
   const w = world();
   const o = (await w.call('GET', '/api/casual/options')).data;
   assert.deepEqual(o.stages.map((s) => s.track).sort(), ['Wales A', 'Wales B'], 'only stages with the game\'s notes');
-  assert.deepEqual(Object.keys(o.stages[0]).sort(), ['lengthM', 'menuName', 'rally', 'stageName', 'track']);
+  assert.deepEqual(Object.keys(o.stages[0]).sort(), ['lengthM', 'menuName', 'rally', 'stageId', 'stageName', 'track']);
   assert.ok(o.cars.length > 10 && o.cars.every((c) => c.id && c.name && c.cls));
   assert.ok(o.weather.some((x) => x.code === 'LightRain' && x.label === 'Light rain'));
   assert.deepEqual(o.times[0], { code: 'morning', label: 'Morning (08:00)' });

@@ -25,7 +25,9 @@ import threading
 import time
 
 MAGIC = b'ACP1'
-STUN = (('stun.cloudflare.com', 3478), ('stun.l.google.com', 19302))
+STUN = (('stun.cloudflare.com', 3478), ('stun.l.google.com', 19302), ('stun1.l.google.com', 19302),
+        ('stun.nextcloud.com', 3478))
+PREDICT = 3                      # a router that gives each new destination the next port: its next few tried too
 PUNCH_S = 0.2                    # hello to every address of the other's this often until one answers
 PING_S = 1.0                     # then a hello a second: the ping, and the way kept open in the routers
 DEAD_S = 6.0                     # nothing from the other this long: the direct way is gone (punching again)
@@ -57,13 +59,34 @@ def stun_address(data, tid):
 
 
 def _addr(s):
+    """'ip:port' or '[ipv6]:port' -> (ip, port), or None."""
     try:
         host, port = str(s).rsplit(':', 1)
-        socket.inet_aton(host)
         port = int(port)
+        if host.startswith('[') and host.endswith(']'):
+            host = host[1:-1]
+            socket.inet_pton(socket.AF_INET6, host)
+        else:
+            socket.inet_aton(host)
+            if host.count('.') != 3:
+                return None
         return (host, port) if 0 < port < 65536 else None
     except (ValueError, OSError):
         return None
+
+
+def _v6(addr):
+    """An address for a dual-stack IPv6 socket: an IPv4 one as ::ffff:a.b.c.d."""
+    host, port = addr[0], addr[1]
+    return (host if ':' in host else '::ffff:' + host, port, 0, 0)
+
+
+def _plain(addr):
+    """(the other way) an address a dual-stack socket gave -> (ip, port), IPv4 ones without their ::ffff:."""
+    host = addr[0]
+    if host.startswith('::ffff:') and host.count('.') == 3:
+        host = host[7:]
+    return (host, addr[1])
 
 
 def local_addresses(port):
@@ -75,7 +98,15 @@ def local_addresses(port):
                 out.append(ip)
     except OSError:
         pass
-    return ['%s:%d' % (ip, port) for ip in out[:4]]
+    v6 = []
+    try:                               # (IPv6: most homes have it, often with no router in the way at all)
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6):
+            ip = info[4][0].split('%')[0]
+            if ip not in v6 and not ip.lower().startswith(('fe80', '::1')) and ip != '::':
+                v6.append(ip)
+    except OSError:
+        pass
+    return ['%s:%d' % (ip, port) for ip in out[:4]] + ['[%s]:%d' % (ip, port) for ip in v6[:3]]
 
 
 class Link:
@@ -97,8 +128,18 @@ class Link:
         self._heard_at = -1e9
         self._peer_at = None              # when the other's details came
         self._stun = list(stun)
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.bind(bind)
+        self.v6 = False                   # a dual-stack IPv6 socket (IPv4 and IPv6 both), when the PC has IPv6
+        if bind[0] in ('0.0.0.0', '::') and socket.has_ipv6:
+            try:
+                sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                sock.bind(('::', bind[1]))
+                self.sock, self.v6 = sock, True
+            except (OSError, AttributeError):
+                self.v6 = False
+        if not self.v6:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.bind(bind)
         self.sock.settimeout(0.05)
         self.port = self.sock.getsockname()[1]
         threading.Thread(target=self._run, daemon=True).start()
@@ -116,7 +157,12 @@ class Link:
             return
         if len(key) != 8:
             return
-        cands = [a for a in [_addr(d.get('pub'))] + [_addr(x) for x in (d.get('loc') or [])[:4]] if a]
+        pub = _addr(d.get('pub'))
+        cands = [a for a in [pub] + [_addr(x) for x in (d.get('loc') or [])[:7]] if a]
+        if pub:                            # (a router that moves on a port for each new destination: the next ones too)
+            cands += [(pub[0], pub[1] + k) for k in range(1, PREDICT + 1) if pub[1] + k < 65536]
+        if not self.v6:
+            cands = [a for a in cands if ':' not in a[0]]
         if key != self.peer_key or set(cands) != set(self.cands):
             self.peer_key, self.cands = key, cands
             if self._peer_at is None:
@@ -193,7 +239,7 @@ class Link:
 
     def _send(self, data, addr):
         try:
-            self.sock.sendto(data, addr)
+            self.sock.sendto(data, _v6(addr) if self.v6 else addr)
             self.sent += 1
         except OSError:
             pass
@@ -210,7 +256,8 @@ class Link:
                     stun_at, stun_tries = now, stun_tries + 1
                     for host, port in self._stun:
                         try:
-                            self.sock.sendto(stun_request(tid), (socket.gethostbyname(host), port))
+                            ip = socket.gethostbyname(host)
+                            self.sock.sendto(stun_request(tid), _v6((ip, port)) if self.v6 else (ip, port))
                         except OSError:
                             pass
                 if not published and (self.public is not None or stun_tries >= 6 or not self._stun) and now - publish_at >= 2.0:
@@ -243,7 +290,7 @@ class Link:
                         if published:
                             self._publish()
                     continue
-                self._take(data, addr, time.monotonic())
+                self._take(data, _plain(addr), time.monotonic())
         finally:
             try:
                 self.sock.close()

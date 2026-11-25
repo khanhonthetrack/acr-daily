@@ -479,6 +479,18 @@ end
 
 function D.busy() return job ~= nil end
 
+-- Back to the game's main menu from a stage, the game's own way: its flow "Exit" (FSM_PlayerPauseServer's, as its pause
+-- menu's MAIN MENU, without the question; "ExitToMain" did nothing from the stage: both tried in the game 26 Nov 2026).
+-- For a crew's co-driver whose host left (the app's cmd "menu"). -> true when asked.
+function D.to_menu()
+    if in_main_menu() then return false end
+    local flow = live("PlayerFlowComponent")
+    if not flow then error("no PlayerFlowComponent") end
+    flow:ServerExecuteFlow(FName("FSM.Flow.Exit"))
+    log("to the main menu (Exit)")
+    return true
+end
+
 -- The game's list of the player's own liveries read again from Documents\My Games\acr\Liveries: one installed while it
 -- runs is there at once, no restart (probed 21 Nov 2026: LiveryCustomizationSubsystem:OnDbInited, then the new
 -- folder's "usergen_<name>" took on the car; without it, nothing).

@@ -1303,6 +1303,11 @@ function M.tick(t)
                 ksl:QuitGame(UEHelpers.GetWorld(), UEHelpers.GetPlayerController(), 0, false)
             end)
         end
+        -- "menu": back to the game's main menu from a stage (a crew's co-driver whose host left: the app's copilot.py)
+        if not first and cmd["do"] == "menu" and drive and drive.to_menu then
+            local ok, e = pcall(drive.to_menu)
+            if not ok then print("[ACRDailyApp] menu: " .. tostring(e) .. "\n") end
+        end
         if not first and cmd["do"] == "drive" then
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")

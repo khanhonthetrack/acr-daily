@@ -631,10 +631,20 @@ class LiveLink:
             except Exception:
                 pass
 
+    crew_room = None                  # your crew's room on the relay (copilot.py), joined whatever stage you are on, or None
+
+    def set_crew(self, room):
+        """Your crew's room ('cp:<n>', or None: out of it): the relay passes the crew's messages to the others in it,
+        in the game's menus too (a relay from 26 Nov 2026; an older one only on the same stage, by the stage's room)."""
+        if room == self.crew_room:
+            return
+        self.crew_room = room
+        self._put({'t': 'crew', 'room': room or ''})
+
     def send_crew(self, b):
-        """A crew message through the relay to the other one in your COPILOT room (its voice when the two apps can't
-        reach each other directly): False when the relay isn't there."""
-        if self.state != 'live' or not self.room:
+        """A crew message through the relay to the others in your COPILOT room (its voice when the apps can't reach
+        each other directly): False when the relay isn't there."""
+        if self.state != 'live' or not (self.room or self.crew_room):
             return False
         self._put({'t': 'x', 'b': b})
         return True
@@ -777,6 +787,8 @@ class LiveLink:
                 ws.send(json.dumps(self._hello()))
                 if getattr(self, 'follow', None):        # (WATCH's driver, told again on a new connection)
                     ws.send(json.dumps({'t': 'follow', 'id': int(self.follow)}))
+                if self.crew_room:                       # (the crew's room, joined again on a new connection)
+                    ws.send(json.dumps({'t': 'crew', 'room': self.crew_room}))
                 self.state = 'live'
                 tries = 0
                 threading.Thread(target=self._writer, args=(ws,), daemon=True).start()

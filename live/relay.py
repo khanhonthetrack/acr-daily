@@ -53,7 +53,9 @@ import time
 GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 MAX_MSG = 16 * 1024
 MAX_RATE = 25            # messages a second (a second's bucket)
-MAX_CREW_RATE = 60       # a COPILOT crew's own messages ('x': its voice when the two apps can't reach each other directly)
+MAX_CREW_RATE = 260      # a COPILOT crew's own messages ('x': its voice when the apps can't reach each other directly):
+                         # a CASUAL driver passes on up to 3 co-drivers' voices besides their own (4 x 50 a second)
+CREW_ROOM = re.compile(r'^cp:[0-9]{1,12}$')   # a crew's room on the relay (copilot.py: cp:<lobby>, cp:<1000000+lobby>)
 MAX_CREW_B = 4000        # ... and their size (characters of their payload)
 MAX_SAMPLES = 30
 MAX_CONNS = 500
@@ -135,6 +137,7 @@ class Conn:
         self.follow = None                       # WATCH: the driver they follow, in full however far (follow message)
         self.bucket, self.bucket_at = 0, 0.0
         self.xbucket = 0                         # (this second's crew messages: 'x')
+        self.crew = None                         # their crew's room (a 'crew' message), whatever stage they are on, if any
         self.last = time.monotonic()
         self.lock = asyncio.Lock()
 
@@ -184,6 +187,7 @@ class Relay:
         self.key = key                           # None: names not checked (tests on one PC)
         self.conns = set()
         self.rooms = {}                          # (stage name, n) -> set of Conn
+        self.crews = {}                          # a crew's room ('cp:<n>') -> set of Conn: its voice in the menus too
         self.anchors = {}                        # (stage name, n) -> where that stage starts [x, z] (or None)
         self._n = 0
         self._near_at = {}                       # room -> when its drivers' nearest were worked out
@@ -207,6 +211,13 @@ class Relay:
         key = (name, self._n)
         self.anchors[key] = at
         return key
+
+    def crew_leave(self, c):
+        if c.crew and c in self.crews.get(c.crew, ()):
+            self.crews[c.crew].discard(c)
+            if not self.crews[c.crew]:
+                del self.crews[c.crew]
+        c.crew = None
 
     def leave(self, c):
         if c.room and c in self.rooms.get(c.room, ()):
@@ -314,6 +325,7 @@ class Relay:
         finally:
             pinger.cancel()
             self.conns.discard(c)
+            self.crew_leave(c)
             room = c.room
             if self.leave(c):
                 await self.broadcast(room, json.dumps({'t': 'bye', 'id': c.id}))
@@ -391,13 +403,22 @@ class Relay:
             if self.leave(c):
                 c.room = None
                 await self.broadcast(room, json.dumps({'t': 'bye', 'id': c.id}))
-        elif t == 'x' and c.hello and c.room and str(c.room[0]).startswith('cp:'):
-            # a COPILOT crew's own message (its voice, when the two apps can't reach each other directly: the app's
-            # copilotlink.py): passed on as it is to the other one in the crew's room only, nothing kept
+        elif t == 'crew' and c.hello:
+            # a crew's own room, joined from the lobby (the app's copilot.py: in the game's menus too, before any
+            # stage; 26 Nov 2026): its 'x' messages go to the others in it. None / '': out of it.
+            room = m.get('room')
+            self.crew_leave(c)
+            if isinstance(room, str) and CREW_ROOM.match(room):
+                c.crew = room
+                self.crews.setdefault(room, set()).add(c)
+        elif t == 'x' and c.hello and (c.crew or (c.room and str(c.room[0]).startswith('cp:'))):
+            # a COPILOT crew's own message (its voice, when the apps can't reach each other directly: the app's
+            # copilotlink.py): passed on as it is to the others in the crew's room only, nothing kept
             b = m.get('b')
             if isinstance(b, str) and 0 < len(b) <= MAX_CREW_B:
                 out = json.dumps({'t': 'x', 'id': c.id, 'sid': c.sid, 'b': b}, separators=(',', ':'))
-                for o in list(self.rooms.get(c.room, ())):
+                to = self.crews.get(c.crew, ()) if c.crew else self.rooms.get(c.room, ())
+                for o in list(to):
                     if o is not c:
                         try:
                             await o.send_text(out)

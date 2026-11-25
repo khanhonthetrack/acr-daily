@@ -427,7 +427,9 @@ class GhostOverlay:
         if f is not None and f.track:
             self._share_seen = now
         signed_in = bool(self.app.s.get('token'))
-        keep = signed_in and now - getattr(self, '_share_seen', -1e9) < SHARE_IDLE_S
+        owner = getattr(self.app, 'crew_owner', lambda: None)()
+        crew = bool(owner is not None and getattr(owner, 'room', lambda: None)())   # (a crew's lobby: its voice by the relay)
+        keep = signed_in and (crew or now - getattr(self, '_share_seen', -1e9) < SHARE_IDLE_S)
         live = self._live_link(watch=False, on=keep)
         if live is None:
             self._fine_timer(False)

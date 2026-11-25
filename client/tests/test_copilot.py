@@ -264,6 +264,7 @@ def app_stub():
     a.ghostcars.live = None
     a.watch.on = False
     a.casual = None
+    a.drive_target, a.tt_active = 'tt', copilot.CP_SLOT     # (as _tt_drive_go leaves them)
     a.crew_owner = lambda: getattr(a, 'copilot', None)
     return a
 
@@ -437,12 +438,14 @@ class Pages(unittest.TestCase):
         a._pulse.return_value.codriver_off.return_value = False      # (the game's own co-driver on: said in red)
         self.assertIn("THE GAME'S CO-DRIVER IS ON", json.dumps(ig_copilot.overlay(ig)))
         a._pulse.return_value.codriver_off.return_value = True
-        cp.lobby = lobby('started', role='driver')
+        cp.lobby = lobby('started', role='driver', ch=CH)
         a.tt = {}
+        self.assertIsNone(ig_copilot.overlay(ig), 'not on the crew\'s stage (another one driven): nothing')
+        a.tt = {copilot.CP_SLOT: {'ch': CH, 'judge': None}}
         ov = ig_copilot.overlay(ig)
         self.assertEqual(check(ov), [])
         self.assertIn('DNF for the crew', json.dumps(ov), 'the rules before the start')
-        a.tt = {copilot.CP_SLOT: {'judge': mock.Mock(state='running')}}
+        a.tt = {copilot.CP_SLOT: {'ch': CH, 'judge': mock.Mock(state='running')}}
         self.assertIsNone(ig_copilot.overlay(ig), 'driving, all fine, no voice yet: nothing in the way')
         cp.partner_off = False
         self.assertIn("co-driver's game", json.dumps(ig_copilot.overlay(ig)))

@@ -1,7 +1,7 @@
 """A small QR code maker (no packages): byte mode, error correction M, versions 1 to 6 (up to 106 bytes: a web address).
 
 matrix(text) -> a list of rows of 0 / 1 (1 dark) with no quiet zone; png(text, scale, border) -> a PNG's bytes (black
-on white, with the quiet zone the scanners need); write_png(path, text, ...).
+on white, RGB: the game draws a grey-only PNG in red; with the quiet zone the scanners need); write_png(path, text, ...).
 """
 import struct
 import zlib
@@ -228,13 +228,13 @@ def png(text, scale=8, border=4):
         line = bytearray()
         for c in range(-border, n + border):
             dark = 0 <= r < n and 0 <= c < n and m[r][c]
-            line += (b'\x00' if dark else b'\xff') * scale
+            line += (b'\x00\x00\x00' if dark else b'\xff\xff\xff') * scale
         rows += [b'\x00' + bytes(line)] * scale
 
     def chunk(kind, body):
         c = struct.pack('>I', len(body)) + kind + body
         return c + struct.pack('>I', zlib.crc32(kind + body) & 0xFFFFFFFF)
-    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 0, 0, 0, 0)) +
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0)) +
             chunk(b'IDAT', zlib.compress(b''.join(rows), 9)) + chunk(b'IEND', b''))
 
 

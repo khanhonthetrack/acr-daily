@@ -7,6 +7,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 
 const CSS = `
 :root{--bg:#0b0b0d;--bg2:#15151a;--line:#2a2a33;--fg:#f4f4f6;--fg2:#a9a9b4;--acc:#FF4655}
+/* the note on now: the in-game notes' orange bar (seen on a phone 26 Nov 2026: a thin line, under the header) */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif}
 header{position:sticky;top:0;z-index:5;background:var(--bg2);border-bottom:2px solid var(--acc);padding:10px 16px;display:flex;
@@ -15,13 +16,14 @@ header .mark{font-weight:800;letter-spacing:.12em;color:var(--fg);font-size:15px
 header .t{min-width:0;flex:1}
 header .t b{display:block;font-size:22px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header .t span{display:block;color:var(--fg2);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-ol{list-style:none;margin:0;padding:0 0 38vh}
+ol{list-style:none;margin:0;padding:34vh 0 42vh}
 li.n{display:flex;align-items:baseline;gap:14px;padding:16px;border-bottom:1px solid var(--line);cursor:pointer;opacity:.55}
 li.n .num{width:2.2em;color:var(--fg2);font-size:20px;text-align:right}
 li.n .tx{flex:1;font-size:34px;font-weight:700;line-height:1.1;letter-spacing:.02em;text-transform:uppercase}
 li.n .d{color:var(--fg2);font-size:20px;white-space:nowrap}
 li.n.past{opacity:.3}
-li.n.cur{opacity:1;background:#1d1d24;border-left:6px solid var(--acc);padding-left:10px}
+li.n.cur{opacity:1;background:#FF9F0A;color:#0b0b0d}
+li.n.cur .num,li.n.cur .d{color:#0b0b0d}
 li.n.cur .tx{font-size:44px}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
   background:var(--bg2);border-top:1px solid var(--line)}

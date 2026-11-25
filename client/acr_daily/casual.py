@@ -1,8 +1,8 @@
 """CASUAL (server src/casual.js): a lobby of up to four, the user's ask of 25 Nov 2026. The host (the driver) picks the
 stage, car, weather, time of day, the languages they speak, and public or private (a code); up to three co-drivers join
 and read the notes (voice over the crew's links, crew.py; the notes also on the website for a co-driver without the game:
-a QR code in the lobby). No results and no limits: driving alone (1 of 4) is fine, and then the game's own co-driver
-stays on. Built on copilot.py's machinery (the driver's stage in the app's tt under CP_SLOT, the co-driver's WATCH, the
+a QR code in the lobby). No results and no limits: driving alone (1 of 4) is fine. The game's own co-driver is off on
+the lobby's stage, alone or not (the user, 26 Nov 2026). When the host leaves, everyone goes back to the lobbies. Built on copilot.py's machinery (the driver's stage in the app's tt under CP_SLOT, the co-driver's WATCH, the
 voice): the same one lobby at a time, either mode.
 """
 import threading
@@ -33,6 +33,7 @@ def flag_emoji(lang):
 
 class Casual(Copilot):
     SLOT = CP_SLOT
+    MODE = 'casual'
 
     def __init__(self, app):
         super().__init__(app)
@@ -67,9 +68,10 @@ class Casual(Copilot):
     def room_id(self):
         return ROOM_BASE + int((self.lobby or {})['id'])
 
-    def mod_on(self):
-        """The game's own co-driver off only when someone reads the notes (a solo driver keeps it)."""
-        return self.started() and not self.solo()
+    def host_left(self, l):
+        """The host (the driver) ended the lobby (LEAVE: finished / closed), seen by a co-driver."""
+        l = l or {}
+        return l.get('state') in ('finished', 'closed') and (l.get('me') or {}).get('seat') not in (None, 0)
 
     def notes_url(self):
         """The notes on the website, for a co-driver without the game (the QR code): the full address, or ''."""
@@ -124,6 +126,8 @@ class Casual(Copilot):
             self.stop_link()                           # (everyone left: nobody to talk to)
 
     def _ended(self, l):
+        if self.host_left(l):
+            self.leave_stage(_('The host left: back to the lobbies.'))
         self.stop_link()
         self.app.root.after(1500, lambda: self.refresh(force=True))
         tt = getattr(self.app, 'tt', None) or {}
@@ -207,11 +211,10 @@ class Casual(Copilot):
         return []                                      # (no rules to judge: a casual drive has no result)
 
     def start_alert(self):
-        if self.solo():
-            return None
+        """The game's own co-driver is off in CASUAL too, alone or not (the user, 26 Nov 2026): said if the mod can't."""
         if self.game_codriver_off() is False:
             return (_("THE GAME'S CO-DRIVER IS ON"),
-                    (_("Switch it off in the game's settings (Co-driver): your co-driver reads the notes."),), 'warn')
+                    (_("ACR DAILY keeps it off in CASUAL: switch it off in the game's settings (Co-driver)."),), 'warn')
         return None
 
     def armed_line(self):

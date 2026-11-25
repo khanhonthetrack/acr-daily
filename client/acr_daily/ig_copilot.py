@@ -101,12 +101,15 @@ def _voice_line(ig, cp):
     """The voice as set (SETTINGS has it), and what it does now: talking, hearing, the link."""
     c = settings_of(ig.app.s)
     how = TALK_NAMES[c['talk']] + ((' · %s' % c['key']) if c['talk'] == 'ptt' else '')
-    out = [kicker(_('Voice'), va='c'), sp(10), txt(how, 16, 'bold', WHITE, va='c'), sp(10),
-           txt(_('(SETTINGS › CODRIVER VOICE)'), 14, 'semi', MUTED, va='c'), sp(fill=1)]
+    out = [kicker(_('Voice'), va='c'), sp(12)]
     v = cp.voice
     if v is not None:
-        out += [chip(_('TALKING'), bg=GOOD, fg=BG, va='c') if v.talking else None,
-                chip(_('HEARING'), bg=COLOUR, fg=BG, va='c', pad=[6, 0, 0, 0]) if v.hearing else None]
+        for name, _seat, on in cp.speakers():
+            out.append(row(size(box(None, bg=GOOD if on else LINE2, r=5), w=10, h=10, va='c'), sp(7),
+                           txt(name, 16, 'bold' if on else 'semi', WHITE if on else MUTED, va='c'), sp(16), va='c'))
+    out += [txt(how, 15, 'semi', FG2, va='c'), sp(8), txt(_('(SETTINGS › CODRIVER VOICE)'), 14, 'semi', MUTED, va='c'),
+            sp(fill=1)]
+    if v is not None:
         if not getattr(v, 'mic_ok', True):
             out.append(txt(_('No microphone found.'), 15, 'semi', SLOW, va='c', pad=[8, 0, 0, 0]))
     link = cp.link_text()
@@ -141,7 +144,7 @@ def _lobby_part(ig, cp, d):
         ready = (quiet(tab_id(TAB, 'unready'), _('NOT READY')) if (me or {}).get('ready')
                  else primary(tab_id(TAB, 'ready'), _('READY')))
         hint = (_('Both READY: the stage starts for both of you.') if other else
-                _('Waiting for a %s to join.') % ROLE_NAMES.get(l.get('wants'), '').lower())
+                _('Waiting for a driver to join.') if l.get('wants') == 'driver' else _('Waiting for a co-driver to join.'))
         return box(col(kicker(_('Your lobby'), fg=COLOUR), code, note,
                        row(_person(me, _('You')), sp(14), _person(other, _('Your partner')), pad=[0, 6, 0, 0]),
                        row(ready, sp(14), quiet(tab_id(TAB, 'leave'), _('LEAVE')), sp(16),
@@ -403,7 +406,7 @@ def overlay(ig):
     seat) with the driver's clock; the driver's line (the voice, the link, the rules while not driving yet); the speaker
     icons on the side for both; None otherwise."""
     cp = _owner(ig)
-    if cp is None or not cp.started():
+    if cp is None or not cp.on_my_stage():           # (another stage driven meanwhile: nothing of the crew's over it)
         return None
     w = getattr(ig.app, 'watch', None)
     if cp.role() == 'codriver' and w is not None and w.on and w.copilot():
@@ -424,7 +427,7 @@ def _icons(cp):
         return None
     items = []
     for name, _seat, on in cp.speakers():
-        items.append(box(row(box(None, bg=GOOD if on else '52525B', r=6), sp(8),
+        items.append(box(row(size(box(None, bg=GOOD if on else '52525B', r=6), w=12, h=12, va='c'), sp(8),
                              txt(name, 14, 'bold' if on else 'semi', 'FFFFFF' if on else 'A1A1AA', va='c'), va='c'),
                          bg=NAVY, a=0.9 if on else 0.55, p=[10, 4, 12, 4], pad=[0, 0, 0, 4]))
     if not items:
@@ -524,16 +527,13 @@ def _driver_line(ig, cp):
     a = ig.app
     j = ((getattr(a, 'tt', None) or {}).get(cp.SLOT) or {}).get('judge')
     running = j is not None and j.state == 'running'
-    mine_on = cp.game_codriver_off() is False and not cp.solo() if hasattr(cp, 'solo') else cp.game_codriver_off() is False
+    mine_on = cp.game_codriver_off() is False
     partner_on = cp.partner_off is False
     chips = [c for c in _voice_chips(cp) if c]
     parts = []
     if chips:
         parts.append(box(row(txt(_('CREW'), 14, 'bold', 'FFFFFF', sp=120, va='c'), sp(10), *chips, va='c'),
                          bg=NAVY, a=0.8, p=[12, 4, 12, 4]))
-    if not running and _casual(cp):
-        parts.append(box(row(_logo(), sp(12), txt(_('Good luck!'), 20, 'bold', 'FFFFFF', va='c'), va='c'), bg=NAVY, a=0.85,
-                         p=[12, 6, 14, 6], pad=[0, 6 if parts else 0, 0, 0]))
     if not running or mine_on or partner_on:
         w = _warning(cp, mine_on, partner_on)
         if w is not None:

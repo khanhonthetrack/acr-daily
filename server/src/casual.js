@@ -55,7 +55,7 @@ const carOut = (name) => {
 const stageShort = (track, route) => {
   const parts = stageParts(track);
   return { track, stageName: parts.stageName, menuName: (route && menuName(route.stage_id)) || parts.stageName, rally: parts.rally,
-    lengthM: route && route.length ? Math.round(route.length) : null };
+    lengthM: route && route.length ? Math.round(route.length) : null, stageId: (route && route.stage_id) || null };
 };
 const langsOf = (s) => { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { return []; } };
 const labelOf = (weather, time) => {

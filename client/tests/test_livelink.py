@@ -253,6 +253,37 @@ class Relay(unittest.TestCase):
             for x in (a, b, c):
                 x.close()
 
+    def test_a_crew_s_room_works_in_the_menus_too_for_four_and_nobody_else(self):
+        """A crew's own room (a 'crew' message, 26 Nov 2026): its voice in the game's menus too (no stage at all), all
+        four of a CASUAL lobby, its rate high enough for a driver passing on three co-drivers; nobody else hears it."""
+        if self.KEY:
+            self.skipTest('names checked: needs tickets (the plain relay checks the routing)')
+        links = [livelink.LiveLink(self.url, n) for n in ('Driver', 'Co1', 'Co2', 'Co3', 'Stranger')]
+        heard = {i: [] for i in range(5)}
+        try:
+            self.assertTrue(wait(lambda: all(x.state == 'live' for x in links)))
+            for i, x in enumerate(links):
+                x.on_crew = lambda sid, b, i=i: heard[i].append(b)
+                if i < 4:
+                    x.set_crew('cp:1000042')
+            links[4].set_crew('cp:7')
+            time.sleep(0.3)
+            for k in range(150):                                 # (150 in one second: over the old cap of 60)
+                self.assertTrue(links[0].send_crew('v%d' % k))
+            self.assertTrue(wait(lambda: all(len(heard[i]) == 150 for i in (1, 2, 3))), [len(heard[i]) for i in heard])
+            self.assertEqual(heard[0], [], 'not back to the sender')
+            self.assertEqual(heard[4], [], 'another crew hears nothing')
+            links[2].set_crew(None)                              # (out of the lobby)
+            time.sleep(0.3)
+            links[0].send_crew('after')
+            self.assertTrue(wait(lambda: heard[1][-1] == 'after'))
+            time.sleep(0.2)
+            self.assertNotEqual(heard[2][-1], 'after')
+            self.assertFalse(links[2].send_crew('x'), 'no room: nothing sent')
+        finally:
+            for x in links:
+                x.close()
+
     def test_a_live_rally_has_a_room_of_its_own(self):
         """A live rally's session (liveui.py): its drivers hear each other, and nobody else on the same stage does."""
         a = livelink.LiveLink(self.url, 'Session driver')

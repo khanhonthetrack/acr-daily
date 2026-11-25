@@ -112,3 +112,25 @@ CODRIVER has two tabs in the game: CODRIVER DAILY and CASUAL (`ig_copilot.py` ho
 
 Not checked in the game: the passenger-seat camera, the speaker icons over a real stage, a mic picked by name on real hardware,
 three links at once across real routers.
+
+
+## Checked in the game (26 Nov 2026, local server + local relay, a recorded driver replayed as the host)
+
+- CASUAL: set up (stage picture, car, weather, time, languages by name with flags), the lobby browser with flags and
+  seats, a co-driver joining (live), START: the driver's game to the Service Park, the start line with the timer's strip
+  ("Good luck!"), the speaker names on the left, the game's own co-driver off (`C 1`) alone or not.
+- The co-driver: the game to the Service Park on the host's stage, the notes beside it, the camera in the **passenger
+  seat** of the host's car (`W seat`), the co-driver's own figure hidden, the driver's arm and the notes book in view.
+- The host leaving mid-stage: WATCH over, the game back to its main menu (the mod's cmd `menu` = the game's flow
+  `FSM.Flow.Exit`; `FSM.Flow.ExitToMain` did nothing from a stage), ACR DAILY open on CASUAL saying the host left.
+- The phone page: the note on now as an orange bar in the middle, NEXT / BACK / JUMP.
+- Found and fixed then: the QR drawn red (a grey PNG: now RGB), speaker dots of no size, the voice line twice, "Good luck!"
+  twice on the start line.
+- The relay (Pi updated 26 Nov, backup `relay.py.bak-20261125`): a crew's own room (`{"t": "crew", "room": "cp:<n>"}`)
+  so the voice through the relay works in the menus too, 260 crew messages a second (a driver passing on 3 co-drivers).
+- The direct link: one dual-stack IPv6 socket (IPv6 addresses offered too), 4 STUN servers, the next 3 ports of a
+  router's public one tried.
+
+Not checked: real voice between two PCs, a real second player, the daily crew's leader gap while driving (the test car
+would not move from the keyboard), Windows' microphone question: it comes up over the game the first time a lobby's voice
+starts (the packaged app asks once for ACR-Daily.exe).

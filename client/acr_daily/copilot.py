@@ -62,6 +62,7 @@ def settings_of(s):
 
 class Copilot:
     SLOT = CP_SLOT
+    MODE = 'daily'                   # (its tab on the CODRIVER page: ig_copilot.MODES)
 
     def __init__(self, app):
         self.app = app
@@ -111,8 +112,23 @@ class Copilot:
         return int((self.lobby or {})['id'])
 
     def mod_on(self):
-        """The game's own co-driver to be kept off (the app's state for the mod: 'copilot')."""
-        return self.started()
+        """The game's own co-driver to be kept off (the app's state for the mod: 'copilot'): on my crew's stage only
+        (another stage driven meanwhile keeps its co-driver)."""
+        return self.on_my_stage()
+
+    def on_my_stage(self):
+        """My crew's stage is the one in the game now: the driver's (the app judges its stage under SLOT, this lobby's),
+        the co-driver's (watching the driver's car)."""
+        a = self.app
+        if not self.started():
+            return False
+        if self.role() != 'driver':
+            w = getattr(a, 'watch', None)
+            return bool(w is not None and w.on and w.copilot())
+        t = (getattr(a, 'tt', None) or {}).get(self.SLOT) or {}
+        mine = ((self.lobby or {}).get('ch') or {}).get('id')
+        return bool(t) and mine is not None and (t.get('ch') or {}).get('id') == mine and \
+            getattr(a, 'drive_target', None) == 'tt' and getattr(a, 'tt_active', None) == self.SLOT
 
     def partner(self):
         l = self.lobby or {}
@@ -220,6 +236,8 @@ class Copilot:
             link.room = None                           # (not the other mode's: both modes tick, one lobby at a time)
         elif link is not None and self.room() and getattr(link, 'room', None) != self.room():
             link.room = self.room()                    # (without live rallies on: liverallyui._lr_room does it too)
+        if owner is self and link is not None and hasattr(link, 'set_crew'):
+            link.set_crew(self.room())                 # (the crew's own room on the relay: its voice in the menus too)
         if self.crew is not None:
             self.crew.wire()
             if now - self._status_at >= STATUS_S:
@@ -321,8 +339,34 @@ class Copilot:
             if fresh:
                 self.go()
 
+    def host_left(self, l):
+        """The lobby over because its driver went (a DNF 'the driver left', or closed before the start), seen by the
+        co-driver."""
+        l = l or {}
+        res = l.get('result') or {}
+        return l.get('myRole') == 'codriver' and (res.get('reason') == 'the driver left' or l.get('state') == 'closed')
+
+    def leave_stage(self, why):
+        """Everyone back to the lobbies (the user, 26 Nov 2026: 'if the leader leaves, everyone else also leave'): WATCH
+        over, the game back to its main menu from the stage (the mod's 'menu': its own ExitToMain), ACR DAILY's
+        CODRIVER page on the lobbies, saying why."""
+        a = self.app
+        self.msg = why
+        w = getattr(a, 'watch', None)
+        if w is not None and w.on and w.copilot():
+            w.stop()
+        ig = getattr(a, 'ingame_app', None)
+        on_stage = getattr(a, '_on_stage', lambda: False)()
+        if ig is not None and on_stage and isinstance(getattr(ig, 'cmd', None), dict):
+            ig.cmd = {'n': ig.cmd['n'] + 1, 'do': 'menu'}
+        if ig is not None and hasattr(ig, 'mem'):
+            ig.mem('copilot')['mode'] = self.MODE
+            ig.mem('copilot')['mode_set'] = True
+
     def _ended(self, l):
         """The lobby over (finished, a DNF, closed): its link and voice gone, the day again (the stage revealed)."""
+        if self.host_left(l):
+            self.leave_stage(_('Your driver left: back to the lobbies.'))
         res = (l or {}).get('result')
         if res and (l or {}).get('myRole') == 'codriver':       # (the driver's app says its own: on_result)
             from .judge import fmt_ms

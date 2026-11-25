@@ -933,7 +933,8 @@ class TimeTrialUI:
         if j.state in ('dnf', 'invalid'):
             r = j.result or {}
             return j.message, '', (j.state, stage, r.get('clockMs', 0), r.get('resets', 0),
-                                   (_('%s · the crew\'s DNF') if slot == CP_SLOT else _('%s · not sent'))
+                                   (('%s' if str((t.get('ch') or {}).get('id', '')).startswith('cx:') else _('%s · the crew\'s DNF'))
+                                    if slot == CP_SLOT else _('%s · not sent'))
                                    % i18n.cap(local(r.get('reason') or j.state)), c.BAD)
         if j.state == 'armed':
             if not self._tt_entered(slot):
