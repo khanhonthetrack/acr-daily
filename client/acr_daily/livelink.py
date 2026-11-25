@@ -62,6 +62,7 @@ GUESS_HYST_KMH = 6.0     # a guessed gear changes only this far past its change 
 # it is); one moving on with the stage clock stopped (rolling past the finish line) goes on in its run, on a clock that
 # keeps counting.
 STAND_S = 0.5
+PRE_MOVE_KMH = 2.0       # faster than this before the start: sent as a run is (LiveLink._pre_move), not a standing pose
 STAND_MAX_S = 600        # standing this long after the clock stopped: no longer sent (gone for the others)
 FROZEN_S = 0.3           # the clock not moving on this long: stopped (a frame or two of the same clock: not)
 ROLL_LOOK_S = 0.5        # moving or not: looked at this often...
@@ -209,6 +210,7 @@ class LiveDriver:
         self._late = collections.deque(maxlen=LATE_KEEP)   # how late their newest sample was, as each batch came
         self.play_ms, self._play_at = None, None           # where their playback is on their clock, and when
         self.fin_ms = None           # their stage clock as it stopped at the finish (their samples' clock runs on after it)
+        self.pre = False             # driving before the start: their samples on a clock of their own (time shown 0)
 
     def add(self, samples, now):
         if self.trace.ms and self.start_wall is not None:
@@ -309,7 +311,11 @@ class LiveDriver:
 
     def shown_clock(self, ms):
         """A clock of theirs as shown (their time on screen): held at their finish once past it."""
-        return None if ms is None else (min(ms, self.fin_ms) if self.fin_ms is not None else ms)
+        if ms is None:
+            return None
+        if self.pre:
+            return 0
+        return min(ms, self.fin_ms) if self.fin_ms is not None else ms
 
     def delay_ms(self):
         """How far behind their stage clock they are played back: as late as their samples have come lately (further
@@ -564,7 +570,11 @@ class LiveLink:
             if not getattr(self, 'spectating', False):
                 if self._wait_id is None:
                     self._wait_id = int(time.time() * 1000)
-                self._stand(f, now, -self._wait_id)
+                    self._pre = None
+                if (getattr(f, 'speed', 0) or 0) >= PRE_MOVE_KMH:
+                    self._pre_move(f, now, -self._wait_id)
+                else:
+                    self._stand(f, now, -self._wait_id)
             return
         self._wait_id = None
         self._was_on_stage = True
@@ -614,6 +624,35 @@ class LiveLink:
             self._put(m)
             self._tee(m)
             self._batch = []
+
+    def _pre_move(self, f, now, run_id):
+        """Your car driving before the start (from the Service Park to the start line; the user, 26 Nov 2026: "between
+        the service park and start very very laggy"): its samples as on a run (every SAMPLE_MS, in batches every
+        SEND_S), on a clock of its own counting from when it first moved, still on the standing run (run_id below 0:
+        not started). An older app takes each batch's last pose as a standing car's (10 a second, not 2); a newer one
+        plays them back as a run (LiveDriver: pre). The dash carries the same clock (no finish to see in it)."""
+        pre = getattr(self, '_pre', None)
+        if pre is None:
+            pre = self._pre = {'t0': now, 'last': -SAMPLE_MS, 'batch': [], 'sent': 0.0}
+        clock = int((now - pre['t0']) * 1000) + 1
+        if clock >= pre['last'] + SAMPLE_MS:
+            pre['last'] = clock
+            pre['batch'].append([clock, round(f.x, 2), round(f.y, 2), round(f.z, 2), round(f.heading, 4),
+                                 round(f.pitch, 4), round(f.roll, 4)])
+        every = CREW_SEND_S if str(self.room or '').startswith('cp:') else SEND_S
+        if pre['batch'] and now - pre['sent'] >= every:
+            pre['sent'] = self._stand_sent = now
+            m = {'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id), 's': pre['batch']}
+            if self.room:
+                m['room'] = self.room
+            if self.root:
+                m['root'] = [round(self.root[0], 3), round(self.root[1], 3)]
+            g = lambda k: getattr(f, k, 0) or 0
+            m['d'] = [pre['batch'][-1][0], round(float(g('speed')), 1), int(g('gear')), int(g('rpm')),
+                      round(float(g('gas')), 2), round(float(g('brake')), 2), round(float(g('steer')), 2)]
+            self._put(m)
+            self._tee(m)
+            pre['batch'] = []
 
     def _stand(self, f, now, run_id):
         """Your car standing on the stage (at the start line before the clock runs, stopped after the finish or while
@@ -759,7 +798,19 @@ class LiveLink:
                         d = self.drivers[did] = LiveDriver(did, m.get('name') or _('Driver'), m.get('car') or '', run)
                         d.sid = m.get('sid') or ''
                     d.standing = True
-                    d.stand(m.get('s') or [], now)
+                    good = [x for x in (m.get('s') or []) if isinstance(x, (list, tuple)) and len(x) == 7]
+                    if good and good[-1][0] > 0:
+                        # (moving before the start, on a clock of its own: played back as a run, its time shown 0)
+                        if not d.pre:
+                            d.trace = gc.GhostTrace({'samples': []})
+                            d.start_wall, d.play_ms, d._play_at = None, None, None
+                            d._late.clear()
+                            d.pre = True
+                        d.add(good, now)
+                        d.add_dash(m.get('d'))
+                    else:
+                        d.pre = False
+                        d.stand(m.get('s') or [], now)
                     r = m.get('root')
                     if isinstance(r, list) and len(r) == 2 and all(isinstance(v, (int, float)) for v in r):
                         d.root = (float(r[0]), float(r[1]))

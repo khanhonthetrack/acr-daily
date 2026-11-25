@@ -611,6 +611,68 @@ class FinishTime(unittest.TestCase):
         e.add_dash([1000, 80, 3, 5000, 1, 0, 0])                                # (an ordinary dash: no finish)
         self.assertIsNone(e.fin_ms)
 
+class BeforeTheStart(unittest.TestCase):
+    """From the Service Park to the start line (the user, 26 Nov 2026: "very very laggy" there, better after the start):
+    a car moving before the start is sent as on a run, still marked as not started; one standing, its pose now and then."""
+
+    def link(self):
+        ll = livelink.LiveLink('ws://127.0.0.1:1/none', 'Me')
+        ll.on = False
+        out = []
+        ll._put = out.append
+        ll.state = 'live'
+        return ll, out
+
+    def test_moving_before_the_start_goes_as_a_run_standing_as_a_pose(self):
+        ll, out = self.link()
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 0.8:                       # (driving to the start line: the clock at 0)
+            f = frame(0, 0.0, (time.monotonic() - t0) * 15)
+            f.speed = 54.0
+            ll.feed(f)
+            time.sleep(0.01)
+        moving = [m for m in out if m.get('t') == 's']
+        self.assertGreaterEqual(len(moving), 5, 'batches ten a second, not a pose every half second')
+        self.assertTrue(all(m['run'] < 0 for m in moving), 'not started: the standing run')
+        clocks = [s[0] for m in moving for s in m['s']]
+        self.assertEqual(clocks, sorted(clocks))
+        self.assertGreater(len(clocks), 25, 'a sample every 20 ms')
+        self.assertTrue(all(m['d'][0] == m['s'][-1][0] for m in moving))
+        out.clear()
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < 1.2:                       # (stopped on the line)
+            f = frame(0, 0.0, 12.0)
+            f.speed = 0.0
+            ll.feed(f)
+            time.sleep(0.01)
+        standing = [m for m in out if m.get('t') == 's']
+        self.assertLessEqual(len(standing), 3, 'standing: a pose every half second')
+        self.assertTrue(all(len(m['s']) == 1 and m['s'][0][0] == 0 for m in standing))
+
+    def test_watchers_play_it_as_a_run_with_the_time_at_zero(self):
+        ll, _out = self.link()
+        ll.watch = True
+        now = time.monotonic()
+        ll._got({'t': 's', 'id': 5, 'name': 'A', 'run': -77, 's': [[0, 1, 2, 3, 0, 0, 0]]})          # (standing)
+        d = ll.drivers[5]
+        self.assertTrue(d.standing and not d.pre)
+        ll._got({'t': 's', 'id': 5, 'name': 'A', 'run': -77, 's': [[k * 20, k * 0.3, 2, 3, 0, 0, 0] for k in range(1, 11)],
+                 'd': [200, 54, 3, 4000, 1, 0, 0]})
+        self.assertTrue(d.pre and d.standing)
+        self.assertEqual(len(d.trace.ms), 10, 'a run of samples (the standing pose dropped)')
+        self.assertIsNone(d.fin_ms)
+        self.assertEqual(d.shown_clock(5000), 0, 'not started: no time')
+        ll._got({'t': 's', 'id': 5, 'name': 'A', 'run': -77, 's': [[k * 20, k * 0.3, 2, 3, 0, 0, 0] for k in range(11, 21)],
+                 'd': [400, 54, 3, 4000, 1, 0, 0]})
+        self.assertEqual(len(d.trace.ms), 20)
+        p0 = d.pose(now + 1.0)
+        self.assertIsNotNone(p0)
+        ll._got({'t': 's', 'id': 5, 'name': 'A', 'run': -77, 's': [[0, 6.0, 2, 3, 0, 0, 0]]})          # (stopped)
+        self.assertFalse(d.pre)
+        self.assertEqual(d.trace.ms, [0])
+        ll._got({'t': 's', 'id': 5, 'name': 'A', 'run': 1795, 's': [[20, 6.1, 2, 3, 0, 0, 0]]})       # (the start)
+        self.assertFalse(ll.drivers[5].standing)
+
 
 if __name__ == '__main__':
     unittest.main()
