@@ -78,6 +78,7 @@ import { developersPage } from './developerspage.js';
 import { broadcastPage, BROADCAST_HEADERS } from './broadcast.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
+import { twitchStatus } from './twitch.js';
 import { SERIES_IMAGES } from './seriesimages.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
@@ -1684,6 +1685,10 @@ async function route(req, env, ctx, L) {
       if (!me) return err('sign in with Steam first', 401);
       if (me.banned) return err('this account is banned', 403);
       return json(await liveTicket(env, me));
+    }
+    if (path === '/api/twitch' && req.method === 'GET') {   // ACR Daily live on Twitch now (src/twitch.js): the strip
+      return new Response(JSON.stringify(await twitchStatus(env)), { headers: { 'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' } });
     }
     if (path === '/api/live') {
       if (req.method === 'POST') return postLive(req, env);

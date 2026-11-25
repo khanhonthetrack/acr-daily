@@ -77,6 +77,9 @@ a{color:inherit}
 .cupstrip .go{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acct,#FF4655)}
 .cupstrip.sp{border-left-color:#78FAAE;padding:0 14px 0 0;overflow:hidden}.cupstrip.sp .tag{background:#78FAAE;color:#04140E}.cupstrip.sp .go{color:#78FAAE}
 .cupstrip.sp img{display:block;height:76px;width:auto;aspect-ratio:480/270;object-fit:cover}
+.cupstrip.tw{border-left-color:#9146FF;margin-top:10px}.cupstrip.tw .tag{background:#9146FF;color:#fff;display:inline-flex;align-items:center;gap:6px}
+.cupstrip.tw .tag i{width:7px;height:7px;border-radius:50%;background:#fff;animation:twb 1.4s infinite}.cupstrip.tw .go{color:#BF94FF}
+@keyframes twb{50%{opacity:.25}}
 
 
 /* stages */
@@ -191,6 +194,7 @@ ${siteHeader(env)}
 
 <main class="wrap">
   <a class="cupstrip" id="cupstrip" hidden></a>
+<a class="cupstrip tw" id="twstrip" hidden target="_blank" rel="noopener"></a>
   <a class="cupstrip" id="tcupstrip" hidden></a>
   <div class="dayline"><nav class="datenav"><button id="prev" aria-label="${t('Previous day')}" title="${t('The day before')}">‹</button><h1 id="dayname">${t("Today's stages")}</h1><button id="next" aria-label="${t('Next day')}" title="${t('The day after')}">›</button></nav><div id="ends"></div></div>
   <div class="stages" id="stages"></div>
@@ -234,6 +238,12 @@ ${PAGER_JS()}
   // claimed here if it still is to be (src/bonus.js)
   var MEP=fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null});
   MEP.then(function(me){headerMe(me);if(me&&me.signedIn&&me.credits)claimBonus($('crhost'),me.credits)}).catch(function(){});
+  // ACR Daily live on Twitch (src/twitch.js): a thin strip of its own while the channel streams, to it (asked again every minute)
+  function tw(){get('/api/twitch').then(function(t){var s=$('twstrip');if(!t||!t.live||String(t.url||'').indexOf('https://www.twitch.tv/')!==0){s.hidden=true;return}
+    s.href=t.url;s.innerHTML='';var g=el('span','tag');g.appendChild(el('i'));g.appendChild(document.createTextNode(${tq('LIVE ON TWITCH')}));s.appendChild(g);
+    s.appendChild(el('span','cn',${tq('ACR Daily is live')}));var bits=[t.title,t.viewers!=null?P(${tqp('{0} watching','{0} watching')},t.viewers):''].filter(Boolean);
+    if(bits.length)s.appendChild(el('span','cs',bits.join(' · ')));s.appendChild(el('span','go',${tq('Watch ›')}));s.hidden=false}).catch(function(){})}
+  tw();setInterval(tw,60000);
   // a special event (src/liverallies.js SPECIALS: the Skoda Saturday Challenge) in the official cup's place while it is listed (the user,
   // 25 Nov 2026: "Put the announcement of this special event in the place of mini challenge"); else ACR Daily's own cup, open for
   // entries or under way (src/cups.js): a strip over the stages, to its page

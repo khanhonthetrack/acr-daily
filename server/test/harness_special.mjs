@@ -74,6 +74,14 @@ if (phase !== 'signup') {
     put(order[2], 1, 0.62, 201000); put(order[3], 1, 0.35, 118000); put(order[10], 0, 0.81, 262000); put(order[11], 0, 0.55, 171000);
   }
 }
+// (HARNESS_TWITCH=1: a stand-in Twitch, the channel live: the home page's strip)
+if (process.env.HARNESS_TWITCH) {
+  Object.assign(f.env, { TWITCH_CHANNEL: 'acrdaily', TWITCH_CLIENT_ID: 'x', TWITCH_CLIENT_SECRET: 'y' });
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, o) => (String(u).startsWith('https://id.twitch.tv') ? new Response(JSON.stringify({ access_token: 't', expires_in: 9999 }))
+    : String(u).startsWith('https://api.twitch.tv') ? new Response(JSON.stringify({ data: [{ type: 'live', title: 'Skoda Saturday Challenge: SS2 under way', viewers: 1, viewer_count: 87 }] }))
+      : real(u, o));
+}
 // the worker's clock: the phase's moment, running on (the cars' updated with it)
 const start = Date.now(), realNow = Date.now.bind(Date);
 Date.now = () => now0 + (realNow() - start);
