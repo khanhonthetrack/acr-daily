@@ -95,11 +95,18 @@ test('other tools\' stages: Lousã to an app that installs it (0.1.6 on), WRC Ge
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);                      // (an app that doesn't say its version)
   assert.deepEqual(ids(catalog('', { app: '0.1.5' })), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
-  assert.deepEqual(testIds.slice(0, 3), ['acrdaily-london', 'hattori-lousa', 'wrcg-es-ss1']);
-  assert.equal(testIds.length, 24);
+  assert.deepEqual(testIds.slice(0, 5), ['acrdaily-london', 'hattori-lousa', 'oxmod-thierache-s1', 'oxmod-chemin-erables', 'wrcg-es-ss1']);
+  assert.equal(testIds.length, 26);
   for (const app of ['0.1.6', '0.1.7', '0.2.0']) {
     assert.deepEqual(ids(catalog('', { app })), ['acrdaily-london', 'hattori-lousa']);
   }
+  // Oxmod's (25 Nov 2026): from the app that takes a zip from its author's link and packs his stage list under its own name
+  assert.deepEqual(ids(catalog('', { app: '0.2.2' })), ['acrdaily-london', 'hattori-lousa', 'oxmod-thierache-s1', 'oxmod-chemin-erables']);
+  const ox = catalog('', { app: '0.2.2' }).categories[0].items.find((it) => it.id === 'oxmod-chemin-erables');
+  assert.ok(ox.package.zip.url.startsWith('https://www.patreon.com/file?'));
+  assert.ok(!ox.package.files.some((f) => /coureurs|terre/.test(f.name)), 'not the packs that change the game for every stage');
+  assert.ok(ox.credits.includes('Oxmod') && ox.support.url === 'https://www.patreon.com/cw/oxmod');
+  assert.equal(Object.keys(ox.package.registry.variants).length, 3);
   assert.equal(catalog('').categories[0].items[0].name, 'London');              // (the user, 19 Nov 2026)
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: with its stages only)
   assert.equal(catalog('', { app: '0.1.6' }).tools, undefined);

@@ -14,6 +14,9 @@ from test_app import tk_root  # noqa: E402
 PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community', 'london')     # (london: ACR DAILY London's card)
 # (WRC Generations' stages on the COMMUNITY page: their country's, 19 Nov 2026; Greece and Sweden use the rallies')
 PARTS += ('spain', 'corsica', 'italy', 'kenya', 'mexico', 'germany', 'portugal')
+# (Oxmod's Thierache stages: in-game screenshots of his stages, credited to him, 25 Nov 2026)
+SCREENSHOTS = ('thierache', 'chemin-erables')
+PARTS += SCREENSHOTS
 RALLIES = ('Monte Carlo', 'Greece', 'Alsace', 'Wales', 'Livigno')
 FREE = ('CC0 1.0', 'CC BY 2.0', 'CC BY 3.0', 'CC BY 4.0', 'Public domain')
 SHARE_ALIKE = {'community': 'CC BY-SA'}   # (the one photo under share-alike, chosen for COMMUNITY: CREDITS.md says its
@@ -28,6 +31,10 @@ class Photos(unittest.TestCase):
         for key, p in m.items():
             self.assertTrue(os.path.isfile(os.path.join(photos.DIR, p['file'])), key)
             # (nothing non-free, no share-alike but the one named: from Wikimedia Commons, or a render of ours)
+            if key in SCREENSHOTS:
+                self.assertEqual(p['licence'], 'In-game screenshot', key)
+                self.assertTrue('Oxmod' in p['author'] and p['url'] == 'https://www.patreon.com/cw/oxmod', key)
+                continue
             self.assertIn(p['licence'], FREE + ((SHARE_ALIKE[key],) if key in SHARE_ALIKE else ()), key)
             self.assertTrue(p['author'] and p['title'] and p['url'].startswith(
                 ('https://commons.wikimedia.org/', 'https://github.com/khanhonthetrack/')), key)

@@ -169,6 +169,105 @@ function wrcgItem([slug, stageId, name, surface]) {
 
 const WRCG_ITEMS = WRCG_STAGES.map(wrcgItem);
 
+// Oxmod's Thierache stages (patreon.com/cw/oxmod; the user, 25 Nov 2026: "Integrate the following stages to the
+// community tracks, make sure all stages can live together (give credit to Oxmod)"). All rights reserved, no
+// redistribution: the app downloads each zip from Oxmod's own Patreon post on the player's PC (its file link) and checks
+// it against the SHA-256 below (his SHA256SUMS.txt and the zip's own), and nothing of it is hosted here. From each zip
+// the app takes only the stage's own containers (not his installer, nor the program it starts with Windows, nor
+// Chemin des Erables' two packs that replace the game's own grass, kerb and sand surfaces and its crowds' reaction for
+// every stage: dailies and ranked rallies are driven on the game's own), and the set's stage list in the version for
+// what is installed (S1 alone, Chemin alone, both), packed again under a name of its own (its own is London's:
+// community.py place_registry).
+const OXMOD_ZIP_SUMS = {
+  'menu/S1_seule/zz_acrxs_registry_P.pak': '75e7144577253917f6da7312ef5e585b12fb728226a22b0938323751a6b555cd',
+  'menu/S1_seule/zz_acrxs_registry_P.ucas': '56c69427f5c9c8d9c54e989b15db4c090e7b64bda9e958e1c41425fcd0091e44',
+  'menu/S1_seule/zz_acrxs_registry_P.utoc': '66caf217946ad8453a111d397a1182e5e29280cc06b7bdcaf90930d191bbe225',
+  'menu/Chemin_seul/zz_acrxs_registry_P.pak': '75e7144577253917f6da7312ef5e585b12fb728226a22b0938323751a6b555cd',
+  'menu/Chemin_seul/zz_acrxs_registry_P.ucas': 'cd3805ec2b5676d7f1f8eadfda46ebba8076b21769d227179e5dadd26a89d664',
+  'menu/Chemin_seul/zz_acrxs_registry_P.utoc': 'b81622431798edde4f08e6132ee065a4978287662a7492a7ee4dac6282935605',
+  'menu/S1_et_Chemin/zz_acrxs_registry_P.pak': '75e7144577253917f6da7312ef5e585b12fb728226a22b0938323751a6b555cd',
+  'menu/S1_et_Chemin/zz_acrxs_registry_P.ucas': 'f6c7e1bbfa82119250b18f828befadce1dda5eac683a66ccf7748a9de435b0e1',
+  'menu/S1_et_Chemin/zz_acrxs_registry_P.utoc': '6d109498b0da92a383f03105e32ea6dc4a9a921621f076e1db4e450d356b0717',
+};
+const OXMOD_REGISTRY = {
+  name: 'zz_acrxs_oxmod_registry_P', group: 'oxmod',
+  variants: { 'oxmod-thierache-s1': 'menu/S1_seule/zz_acrxs_registry_P', 'oxmod-chemin-erables': 'menu/Chemin_seul/zz_acrxs_registry_P',
+    'oxmod-chemin-erables+oxmod-thierache-s1': 'menu/S1_et_Chemin/zz_acrxs_registry_P' },
+  sha256: OXMOD_ZIP_SUMS,
+  tools: STAGE_EXPORTER.base.download,           // (retoc packs it: Sando's tool, unless his tools are on the PC already)
+};
+const oxFile = (name, size, sha256) => ({ name, from: `~mods/${name}`, size, sha256 });
+const OXMOD_PAK = '75e7144577253917f6da7312ef5e585b12fb728226a22b0938323751a6b555cd';
+const OXMOD_CREDITS = 'By Oxmod (patreon.com/cw/oxmod), downloaded from his Patreon. Built with ACR Extra Stages '
+  + '(cherrymcgerry). Geographic data (c) IGN, Licence Ouverte 2.0. The host level, trees and the crowds are the game\'s '
+  + 'own, from your copy of it.';
+const OXMOD_TERMS = '(c) 2026 Oxmod, all rights reserved: downloaded only from his Patreon, never shared or repacked. '
+  + 'Unofficial mod, not affiliated with Kunos Simulazioni, Supernova Games Studios or 505 Games.';
+const OXMOD_ITEMS = [
+  {
+    id: 'oxmod-thierache-s1',
+    kind: 'track',
+    minApp: '0.2.2',                            // (the first app that takes a zip from its author's link and its list)
+    name: 'Thiérache · Le Bois du Mont',
+    subtitle: 'Oxmod · S1 Braye-en-Thiérache - Harcigny · 6.8 km · tarmac · France',
+    description: 'A tarmac stage in the Thiérache, in the Aisne: bocage, hedges, brick villages and crests one after '
+      + 'another, after a stage of the Rallye régional de Vervins. INSTALL downloads it from Oxmod\'s Patreon and puts '
+      + 'it in your game, beside the other stages.',
+    author: 'Oxmod',
+    location: 'Thiérache',
+    surface: 'Tarmac',
+    stages: [{ stageId: 'AcrXsThi04FullForward', name: 'Braye-en-Thiérache - Harcigny' }],      // (the game's menu: S1)
+    photo: 'thierache',
+    group: 'oxmod',
+    tool: 'ACR Daily',
+    terms: OXMOD_TERMS,
+    credits: OXMOD_CREDITS,
+    support: { name: 'Patreon', url: 'https://www.patreon.com/cw/oxmod' },
+    package: {
+      version: '3.4', acrBuild: '26756580',
+      zip: { name: 'Thierache_S1_v3.4.zip', size: 797312565, sha256: 'c050abd1e756bc0c8021467719f050399dd5bc8df7f0cc0fc95ce512dfdd21ac',
+        url: 'https://www.patreon.com/file?h=175683992&m=790343161', page: 'https://www.patreon.com/posts/175683992' },
+      files: [oxFile('zz_acrxs_s_acrxsthi04_P.pak', 347, OXMOD_PAK),
+        oxFile('zz_acrxs_s_acrxsthi04_P.ucas', 2038943664, '0639676305dbb3b6b7034e377624dc4c6d78fde6906443305c43bd8b86a3b000'),
+        oxFile('zz_acrxs_s_acrxsthi04_P.utoc', 484557, 'b39943e057214f8a608f2fcdb06cdcc2db3c7bb0e91907949a3047836d47d917')],
+      registry: OXMOD_REGISTRY,
+    },
+  },
+  {
+    id: 'oxmod-chemin-erables',
+    kind: 'track',
+    minApp: '0.2.2',
+    name: 'Thiérache · Chemin des Érables',
+    subtitle: 'Oxmod · 2.7 km · gravel · France · with and without ruts',
+    description: 'A short gravel test stage on a forest track under autumn maples: puddles, a ford, crowds and smoke. '
+      + 'Two versions in the game\'s menu, with ruts and without. INSTALL downloads it from Oxmod\'s Patreon and puts '
+      + 'it in your game, beside the other stages.',
+    author: 'Oxmod',
+    location: 'Thiérache',
+    surface: 'Gravel',
+    stages: [{ stageId: 'AcrXsThi05FullForward', name: 'Chemin des Érables (avec ornières)' },
+      { stageId: 'AcrXsThi06FullForward', name: 'Chemin des Érables (sans ornières)' }],
+    photo: 'chemin-erables',
+    group: 'oxmod',
+    tool: 'ACR Daily',
+    terms: OXMOD_TERMS,
+    credits: OXMOD_CREDITS,
+    support: { name: 'Patreon', url: 'https://www.patreon.com/cw/oxmod' },
+    package: {
+      version: '1.2', acrBuild: '26756580',
+      zip: { name: 'Chemin_des_Erables_v1.2.zip', size: 384850694, sha256: '8fb6b4542a6aa2aab0f2020ccc28b7d7e29e11a81f29554577ca4c922d2b0bbb',
+        url: 'https://www.patreon.com/file?h=176009113&m=788813231', page: 'https://www.patreon.com/posts/176009113' },
+      files: [oxFile('zz_acrxs_s_acrxsthi05_P.pak', 347, OXMOD_PAK),
+        oxFile('zz_acrxs_s_acrxsthi05_P.ucas', 441855576, 'cb86787f47acc11ee5328590378d70d7c2643f2a7f3d08bb222b3cca536366ed'),
+        oxFile('zz_acrxs_s_acrxsthi05_P.utoc', 107652, 'eea425e7bf070c5d447e2f16ebbbd76c87a6b3553e161bebdb92292c61422b86'),
+        oxFile('zz_acrxs_s_acrxsthi06_P.pak', 347, OXMOD_PAK),
+        oxFile('zz_acrxs_s_acrxsthi06_P.ucas', 441855576, 'b9ce54cd6a8db38172f9edc5de8791f26b5c3d8eb4ccacec4b37b5db69505345'),
+        oxFile('zz_acrxs_s_acrxsthi06_P.utoc', 107652, 'c13fa181f03970e579037d325fca7434de297ff2bf4c59a9286e896bac1809fa')],
+      registry: OXMOD_REGISTRY,
+    },
+  },
+];
+
 export const COMMUNITY = [
   {
     id: 'tracks',
@@ -238,6 +337,7 @@ export const COMMUNITY = [
         // (its zip comes from there too: the manifest's zip `page`, the post with his installer for the game's 0.7)
         support: { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-0-175817665' },
       },
+      ...OXMOD_ITEMS,
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,
     ],

@@ -23,3 +23,5 @@ community.jpg is CC BY-SA: this resized copy of it is shared under the same lice
 - `germany.jpg`: [2016 Rally Germany 002.jpg](https://commons.wikimedia.org/wiki/File:2016_Rally_Germany_002.jpg), by Hyundai Motorsport, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)
 - `portugal.jpg`: [Wrc Rally De Portugal 2016 (154880573).jpeg](https://commons.wikimedia.org/wiki/File:Wrc_Rally_De_Portugal_2016_(154880573).jpeg), by Quirínio Ribeiro, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)
 - `london.jpg` (ACR DAILY London on the COMMUNITY page): Trafalgar Square, a render of the stage made with [acr-stagegen](https://github.com/khanhonthetrack/acr-stagegen) (map data (c) OpenStreetMap contributors, ODbL; trees: "Trees & Bushes pack" by Painkiller5555, CC BY 3.0; people: "Geo Nodes crowd scene" by mbelinkie, CC0), CC BY 4.0
+
+- thierache.jpg, chemin-erables.jpg: in-game screenshots by ACR DAILY of Oxmod's Thiérache stages (S1 Braye-en-Thiérache - Harcigny; Chemin des Érables), https://www.patreon.com/cw/oxmod. The stages are Oxmod's (all rights reserved); the pictures are shown with his credit on their COMMUNITY cards.

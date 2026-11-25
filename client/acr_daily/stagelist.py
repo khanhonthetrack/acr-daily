@@ -43,8 +43,9 @@ SETTING = 'stageList'                            # settings: the containers the 
 # The sets whose rows come first in the list: ACR Extra Stages' (London, Lousã: AcrXs). After Stage Exporter's rows,
 # their Rally Weekends had no tyres to allocate and the game crashed on the tyre allocation's J (18 Nov 2026: London
 # and Lousã, with the very same rows; why is not known). First, they and every other set's after them work (London,
-# Lousã and Arena Panzerplatte checked in a Rally Weekend). The others keep the game's own load order.
-FIRST = ('acrdaily', 'lousa')
+# Lousã and Arena Panzerplatte checked in a Rally Weekend). The others keep the game's own load order. (Oxmod's Thierache:
+# ACR Extra Stages' too.)
+FIRST = ('acrdaily', 'lousa', 'oxmod')
 WORK = 'ACRDaily-build'
 _STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)$', re.I)
 
@@ -299,6 +300,14 @@ def tools(tool=None, game=None):
     try:
         community = os.path.join(settings.DIR, 'community')
         places += [os.path.join(community, n, 'files', 'bin') for n in sorted(os.listdir(community))]
+    except OSError:
+        pass
+    try:                     # (his Stage Export Tool unpacked in the app's folder: community.registry_tools, stageexport)
+        own = os.path.join(settings.DIR, 'tools')
+        for n in sorted(os.listdir(own)):
+            places.append(os.path.join(own, n, 'bin'))
+            if os.path.isdir(os.path.join(own, n)):          # (or the one folder its zip held)
+                places += [os.path.join(own, n, m, 'bin') for m in sorted(os.listdir(os.path.join(own, n)))]
     except OSError:
         pass
     for b in places:

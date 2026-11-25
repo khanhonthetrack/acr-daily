@@ -239,20 +239,24 @@ def manifest(item, timeout=30):
     if item.get('install') in ('link', 'export'):
         return None
     url = item.get('manifest')
-    if not url:
+    # (a package the catalogue describes itself, its zip from its author's own page: Oxmod's, from his Patreon)
+    if isinstance(item.get('package'), dict):
+        url, data = 'catalogue:%s' % item['id'], json.dumps(dict(item['package'], id=item['id'])).encode('utf-8')
+    elif not url:
         return None
-    try:
-        if url.startswith(('http://', 'https://')):
-            data = _get(url, timeout)
-        else:                                            # (a file: tests, or a copy at hand)
-            with open(url, 'rb') as f:
-                data = f.read()
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return None
-        raise CommunityError('download', str(e))
-    except (OSError, ValueError) as e:
-        raise CommunityError('download', str(e))
+    else:
+        try:
+            if url.startswith(('http://', 'https://')):
+                data = _get(url, timeout)
+            else:                                            # (a file: tests, or a copy at hand)
+                with open(url, 'rb') as f:
+                    data = f.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise CommunityError('download', str(e))
+        except (OSError, ValueError) as e:
+            raise CommunityError('download', str(e))
     try:
         m = json.loads(data.decode('utf-8'))
         assert m.get('id') == item['id'] and m.get('version') and m.get('zip', {}).get('sha256') and m.get('files')
@@ -263,12 +267,22 @@ def manifest(item, timeout=30):
             # author's kit builds on the PC (m['kit']): what it builds can't be known ahead, so no SHA-256)
             assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name'])
             assert m.get('kit') or len(f.get('sha256', '')) == 64
+            assert 'from' not in f or (isinstance(f['from'], str) and _path_parts(f['from']))
+        if m.get('registry'):
+            r = m['registry']
+            assert re.fullmatch(r'zz_[a-z0-9_]+_P', r['name']) and re.fullmatch(r'[a-z0-9-]{1,40}', r['group'])
+            for key, stem in r['variants'].items():
+                assert all(re.fullmatch(r'[a-z0-9-]{1,60}', k) for k in key.split('+')) and _path_parts(stem)
+            assert all(len(str(s)) == 64 for s in r['sha256'].values())
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
         raise CommunityError('manifest', 'not a package manifest: %s' % url)
     page = m['zip'].get('page')
     if page and not re.fullmatch(r'https://[^\s]+', str(page)):
         raise CommunityError('manifest', 'not a download page: %s' % page)
-    m['zipUrl'] = m['zip'].get('url') or page or _beside(url, m['zip']['name'])
+    zurl = m['zip'].get('url')
+    if zurl and not re.fullmatch(r'https://[^\s]+', str(zurl)):
+        raise CommunityError('manifest', 'not a download: %s' % zurl)
+    m['zipUrl'] = zurl or page or _beside(url, m['zip']['name'])
     return m
 
 
@@ -331,6 +345,10 @@ def download(man, progress=None, cancel=None, timeout=60):
         if found:
             return found
         raise CommunityError('page', man['zip']['page'])
+    if man['zip'].get('page'):                      # (its author's link, and their page: the zip the player has already)
+        found = find_page_download(man)
+        if found:
+            return found
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + '.part'
     h, done = hashlib.sha256(), 0
@@ -386,6 +404,10 @@ def download(man, progress=None, cancel=None, timeout=60):
         # (in one piece: kept, to go on from there next time; unless the server can't send its rest, 416)
         if len(parts) != 1 or (isinstance(e, urllib.error.HTTPError) and e.code == 416):
             _rm(tmp)
+        # (its author's link no longer gives it to anyone, and they have a page: the player downloads it there)
+        if isinstance(e, urllib.error.HTTPError) and e.code in (401, 403, 404, 410) and man['zip'].get('page'):
+            _rm(tmp)
+            raise CommunityError('page', man['zip']['page'])
         raise CommunityError('download', str(e))
     if h.hexdigest() != want:
         _rm(tmp)
@@ -416,6 +438,9 @@ def clashes(game, man):
     other acr-extrastages packages (zz_acrxs_*: only one menu registry works at a time)."""
     from .stageswitch import OFF
     ours = {n for it in installed(game).values() for n in it.get('files', [])}
+    # (a set's stage list we packed under its own name: ours too, place_registry)
+    ours |= {'%s.%s' % (it['registry']['name'], x) for it in installed(game).values() if (it.get('registry') or {}).get('name')
+             for x in ('pak', 'ucas', 'utoc')}
     names = {f['name'] for f in man['files']}
     try:
         present = os.listdir(mods_dir(game))
@@ -831,6 +856,10 @@ def install(game, man, zip_path, force=False, say=None, progress=None):
 
 
 def _install(game, man, zip_path, clash, say, tell):
+    reg = man.get('registry')
+    tools = registry_tools(game, reg, say) if reg else None       # (before anything changes: the tools to pack it)
+    if reg:
+        keep_registry(reg, zip_path)                            # (its stage lists, kept on this PC: checked first)
     if man.get('assemble'):
         built = assemble(game, man, zip_path, say, progress=lambda f: tell('build', f))
     elif man.get('kit'):
@@ -850,6 +879,7 @@ def _install(game, man, zip_path, clash, say, tell):
         z = None if built else zipfile.ZipFile(zip_path)
         try:
             members = {} if z is None else {os.path.basename(i.filename): i for i in z.infolist() if not i.is_dir()}
+            paths = {} if z is None else {i.filename.replace('\\', '/'): i for i in z.infolist() if not i.is_dir()}
             for f in man['files']:
                 if z is None:
                     p = os.path.join(built, f['name'])
@@ -857,7 +887,8 @@ def _install(game, man, zip_path, clash, say, tell):
                         raise CommunityError('files', '%s was not built' % f['name'])
                     opener = lambda p=p: open(p, 'rb')   # noqa: E731
                 else:
-                    info = members.get(f['name'])
+                    # (a file at its own place in the zip: Oxmod's ~mods\..., beside menus of the same names)
+                    info = paths.get(f['from']) if f.get('from') else members.get(f['name'])
                     if info is None:
                         raise CommunityError('files', '%s is not in the package' % f['name'])
                     opener = lambda info=info: z.open(info)   # noqa: E731
@@ -908,7 +939,13 @@ def _install(game, man, zip_path, clash, say, tell):
         raise CommunityError('files', str(e))
     d = installed(game)
     d[man['id']] = {'version': str(man['version']), 'acrBuild': made_for, 'files': written, 'at': int(time.time())}
+    if reg:
+        d[man['id']]['registry'] = reg
     _save_installed(game, d)
+    if reg:
+        if say:
+            say(_('Adding it to the stage list…'))
+        place_registry(game, reg, tools)
     if os.path.abspath(zip_path) == os.path.abspath(cache_path(man)):
         _rm(zip_path)                                    # (in the game now: the download goes, not one kept a version)
     return written
@@ -935,11 +972,131 @@ def uninstall(game, item_id):
     if left:
         d[item_id] = dict(it, files=left)
     _save_installed(game, d)
+    if it.get('registry') and not left:                    # (a set's stage list: now for the items of it left)
+        try:
+            place_registry(game, it['registry'], registry_tools(game, it['registry']))
+        except CommunityError:
+            if not _registry_members(game, it['registry']):
+                _drop_registry(game, it['registry'])
     from . import stageswitch
     stageswitch.forget(game, 'acrdaily', gone)            # (taken out while hidden: its parked copies go too)
     if left:
         raise CommunityError('files', "couldn't take out %s" % ', '.join(left))
     return gone
+
+
+# ---------------------------------------------------------------------- a set's stage list, under a name of ours
+# Oxmod's stages (Thierache S1, Chemin des Erables) each come with the set's stage list in three versions (menu\S1_seule,
+# menu\Chemin_seul, menu\S1_et_Chemin: the set's location lists the stages that are in the game), every one named
+# zz_acrxs_registry_P, as ACR DAILY London's is: a container's id is its name's, so put in as it is it would take
+# London's place (and London's would hide it). So the app keeps the three (checked against the catalogue's SHA-256: they
+# are the author's files, never shared) and puts in the one for the set's items installed, packed again under the set's
+# own name (manifest registry: {name, group, variants: {'<item>[+<item>]': '<path in the zip, no extension>'}, sha256:
+# {'<path>.<ext>': sha}, tools: Sando's tool's download}), with retoc (Sando's, as the stage list's: stagelist.tools).
+
+def registry_dir(reg):
+    return os.path.join(settings.DIR, 'community', 'registry-%s' % reg['group'])
+
+
+def keep_registry(reg, zip_path):
+    """The set's stage lists from the item's zip into the app's folder (each file checked). Raises CommunityError."""
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            names = {i.filename.replace('\\', '/'): i for i in z.infolist() if not i.is_dir()}
+            for stem in reg['variants'].values():
+                for x in ('pak', 'ucas', 'utoc'):
+                    rel = '%s.%s' % (stem, x)
+                    info = names.get(rel)
+                    if info is None:
+                        raise CommunityError('files', '%s is not in the package' % rel)
+                    data = z.read(info)
+                    want = str(reg['sha256'].get(rel) or '').lower()
+                    if hashlib.sha256(data).hexdigest() != want:
+                        raise CommunityError('files', '%s is damaged in the package' % rel)
+                    dst = os.path.join(registry_dir(reg), *_path_parts(rel))
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    with open(dst + '.tmp', 'wb') as f:
+                        f.write(data)
+                    os.replace(dst + '.tmp', dst)
+    except (zipfile.BadZipFile, OSError) as e:
+        raise CommunityError('files', str(e))
+
+
+def _registry_members(game, reg):
+    """The set's items installed: their ids, sorted."""
+    return sorted(k for k, v in installed(game).items() if (v.get('registry') or {}).get('name') == reg['name'])
+
+
+def _drop_registry(game, reg):
+    for x in ('pak', 'ucas', 'utoc'):
+        _rm(os.path.join(mods_dir(game), '%s.%s' % (reg['name'], x)))
+
+
+def registry_tools(game, reg, say=None):
+    """retoc (Sando's tools, as the stage list's: stagelist.tools): on this PC, else his tool downloaded and unpacked
+    in the app's folder (the registry's `tools`: the catalogue's copy of it, checked) -> stagelist.tools()'s dict.
+    Raises CommunityError('tools')."""
+    from . import stagelist
+    t = stagelist.tools(None, game)                 # (a stage download of his, or his tool unpacked in the app's folder)
+    if t:
+        return t
+    dl = (reg or {}).get('tools')
+    if not dl:
+        raise CommunityError('tools', "the tools to add it to the game's stage list aren't on this PC")
+    from . import stageexport
+    if say:
+        say(_('Getting the tools…'))
+    for attempt in range(3):                        # (the Internet Archive answers a 404 now and then: 25 Nov 2026)
+        try:
+            tool = stageexport.unpack_tool(stageexport.fetch_tool(dl))
+            break
+        except stageexport.ExportError as e:
+            if e.kind != 'download' or attempt == 2:
+                raise CommunityError('tools', str(e))
+            time.sleep(3)
+    t = stagelist.tools(tool, game)
+    if not t:
+        raise CommunityError('tools', "the tools to add it to the game's stage list aren't on this PC")
+    return t
+
+
+def place_registry(game, reg, tools):
+    """The set's stage list for its items installed now, packed again under its own name into ~mods (none installed:
+    taken out). Raises CommunityError ('tools', 'assemble')."""
+    have = _registry_members(game, reg)
+    stem = reg['variants'].get('+'.join(have)) if have else None
+    if not stem:
+        _drop_registry(game, reg)
+        return None
+    src = os.path.join(registry_dir(reg), *_path_parts(stem))
+    if not all(os.path.isfile('%s.%s' % (src, x)) for x in ('pak', 'ucas', 'utoc')):
+        raise CommunityError('files', "the set's stage list isn't kept on this PC: install it again")
+    from . import stagelist
+    work = os.path.join(build_dir(), 'registry')
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        # (all of it: its tables and the location's logo and tile, T_<location>_Logo / _Tile, beside them: the stage
+        # list's reader takes only the tables, and the menu then drew a white box for the logo, 25 Nov 2026)
+        legacy, paks = os.path.join(work, 'legacy'), os.path.join(work, 'paks')
+        os.makedirs(paks)
+        for n in os.listdir(stagelist._paks(game)):
+            if n.lower().startswith('global.'):
+                shutil.copy2(os.path.join(stagelist._paks(game), n), os.path.join(paks, n))
+        for x in ('pak', 'ucas', 'utoc'):
+            shutil.copy2('%s.%s' % (src, x), os.path.join(paks, '%s.%s' % (os.path.basename(src), x)))
+        _run([tools['retoc'], 'to-legacy', '--version', 'UE5_6', '--no-shaders', paks, legacy], 'reading its stage list')
+        out = os.path.join(work, 'out')
+        os.makedirs(out)
+        _run([tools['retoc'], 'to-zen', '--no-parallel', '--version', 'UE5_6', legacy, os.path.join(out, reg['name'] + '.utoc')],
+             'packing its stage list')
+        for x in ('pak', 'ucas', 'utoc'):
+            # (the app's folder and the game's drive may differ: moved, not renamed)
+            shutil.move(os.path.join(out, '%s.%s' % (reg['name'], x)), os.path.join(mods_dir(game), '%s.%s' % (reg['name'], x)))
+    except OSError as e:
+        raise CommunityError('assemble', str(e))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return stem
 
 
 def guard(game, build=None):

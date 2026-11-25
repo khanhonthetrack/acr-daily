@@ -25,7 +25,9 @@ _EXT = re.compile(r'\.(pak|utoc|ucas)$', re.I)
 # group's whose start fits it best (Lousã's zz_acrxs_lousa_* and its stage aren't London's zz_acrxs_*); Sando's by what
 # is in them (_sando). Stage Exporter puts its pack in ~mods from its 1.5 (and moves 1.0's there from Paks on its next
 # run). Lousã (Hattori Rally's kit, built on the PC: community.build_kit) has a stage list of its own under its own name.
+# Oxmod's Thierache stages (community.py place_registry: their stage list under its own name) are a set of their own too.
 GROUPS = {'acrdaily': (('~mods',), ('zz_acrxs_',)), 'lousa': (('~mods',), ('zz_acrxs_lousa_', 'zz_acrxs_s_acrxsptlousa_')),
+          'oxmod': (('~mods',), ('zz_acrxs_oxmod_', 'zz_acrxs_s_acrxsthi')),
           'wrcg': (('', '~mods'), ('pakchunk99-wrcg',)), 'sando': None}
 _PACENOTE = re.compile(rb'DT_Pacenote([A-Za-z0-9_]{3,60})')
 _STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.', re.I)
