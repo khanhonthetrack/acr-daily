@@ -380,7 +380,7 @@ ${STAGE_MAP_JS()}
   var tab='official',cpOn=false,cpShown=false,cpLive=0;
   function setTab(t){tab=t;$('tab-official').className=t==='official'?'on':'';$('tab-codriver').className=t==='codriver'?'on':'';
     $('stages').hidden=t!=='official';$('cpday').hidden=t!=='codriver';$('prev').hidden=$('next').hidden=t!=='official';
-    $('dayname').textContent=t==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):${tq("Today's CODRIVER")};
+    $('dayname').textContent=t==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):${tq("Today's CODRIVER DAILY")};
     try{history.replaceState(null,'',t==='codriver'?'#codriver':location.pathname)}catch(e){}
     if(t==='codriver')cpLoad()}
   $('tab-official').onclick=function(){setTab('official')};
