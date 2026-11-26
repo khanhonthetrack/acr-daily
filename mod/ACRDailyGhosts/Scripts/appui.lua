@@ -246,20 +246,43 @@ local function main_menu()
     -- is told by its root layout (WB_RootGameLayout, the menu's outer's outer): only the live one is in the viewport. The
     -- first one found was taken before, and after a level change that could be the old level's, still there until the
     -- engine cleared it: the tile went on it, unseen (the user, 25 Nov 2026: "go back - then there is no ACR Daily tile").
-    local any, n = nil, 0
+    -- Coming back from SEARCH LOBBIES (the same level, no new world): the old menu and a new one can both be in the
+    -- viewport through the one root layout, so "in the viewport" was true of both and the first found was taken: the
+    -- tile went on the old one, and the new one (on screen) had none (the user, 26 Nov 2026, the third time). The one on
+    -- screen is the one the game has ACTIVE (a CommonUI screen: only the top one is), then the one visible.
+    local cands, top = {}, -1
     for _, x in ipairs(FindAllOf("WB_MainMenu_C") or {}) do
         if x:IsValid() and x:GetFullName():find("/Engine/Transient", 1, true) then
-            local ok, on = pcall(function()
-                if x:IsInViewport() then return true end
-                local tree = x:GetOuter()
-                local root = tree and tree:IsValid() and tree:GetOuter()
-                return root ~= nil and root:IsValid() and root:IsInViewport()
+            local s = 0
+            pcall(function() if x:IsActivated() then s = s + 4 end end)
+            pcall(function()
+                local on = x:IsInViewport()
+                if not on then
+                    local tree = x:GetOuter()
+                    local root = tree and tree:IsValid() and tree:GetOuter()
+                    on = root ~= nil and root:IsValid() and root:IsInViewport()
+                end
+                if on then s = s + 2 end
             end)
-            if ok and on then return x end
-            any, n = any or x, n + 1
+            pcall(function() if x:IsVisible() then s = s + 1 end end)
+            cands[#cands + 1] = {x = x, s = s}
+            if s > top then top = s end
         end
     end
-    return n == 1 and any or nil                         -- (several, none on screen: none taken until it's clear)
+    menu.n_menus = #cands
+    local tops = {}
+    for _, c in ipairs(cands) do
+        if c.s == top then tops[#tops + 1] = c.x end
+    end
+    if #tops == 1 then return tops[1] end
+    -- (several as good as each other: the one the tile is on stays, else none taken until it's clear)
+    if menu.main and menu.main:IsValid() then
+        for _, x in ipairs(tops) do
+            local ok, same = pcall(function() return x:GetAddress() == menu.main:GetAddress() end)
+            if ok and same then return x end
+        end
+    end
+    return nil
 end
 
 local function multiplayer_layout()
@@ -365,11 +388,39 @@ local function tile_ok()
     return ok and inner ~= nil and inner:IsValid() and inner:GetAddress() == menu.tile:GetAddress()
 end
 
-local function menu_moved()
-    -- the game showing another main menu than the one the tile is on (a new one made: the tile made again on it).
-    -- (Looked at twice a second: FindAllOf goes through every object.)
-    local m = main_menu()
-    return m ~= nil and menu.main ~= nil and (not menu.main:IsValid() or m:GetAddress() ~= menu.main:GetAddress())
+local function tile_heal(t)
+    -- The tile is where the game's menu shows MULTIPLAYER NOW, not where it once was made (the user, 26 Nov 2026, the
+    -- third time: the tile, BACK, SEARCH LOBBIES, BACK, and the tile was gone: the game had a menu or a page of its own
+    -- again and the tile still sat on the old one, "in its place" by the old checks). Every half second, in the game's
+    -- main menu: the live menu's MULTIPLAYER page and its slot are looked up anew and the tile made there when it
+    -- isn't the very one in that very slot. (Looked at twice a second: FindAllOf goes through every object.)
+    local main, page, sel = multiplayer_layout()
+    if not main then
+        if menu.tile and t - (menu.lost_note or -1e9) > 10 then
+            menu.lost_note = t
+            log("tile: the MULTIPLAYER page not found (main menus: %s)", tostring(menu.n_menus))
+        end
+        return
+    end
+    local sb = find(page.WidgetTree.RootWidget, TILE_SLOT)
+    if not sb then return end
+    local why = nil
+    if not (menu.tile and menu.tile:IsValid() and menu.main and menu.main:IsValid() and menu.page and menu.page:IsValid()
+            and menu.sb and menu.sb:IsValid()) then
+        why = "none"
+    elseif menu.main:GetAddress() ~= main:GetAddress() then
+        why = "another menu"
+    elseif menu.page:GetAddress() ~= page:GetAddress() then
+        why = "another page"
+    elseif menu.sb:GetAddress() ~= sb:GetAddress() then
+        why = "another slot"
+    elseif not tile_ok() then
+        why = "slot refilled"
+    end
+    if not why then return end
+    menu.tile = nil
+    local ok = make_tile(t)
+    log("tile: made again (%s): %s", why, ok and "ok" or "failed")
 end
 
 -- the tile clicked (the mouse): the game's buttons all go through this
@@ -866,7 +917,8 @@ end
 
 local function game_menu(on)
     -- the game's own menu put away while ours is on screen (none of its buttons under ours), and back
-    local main = on and menu.hidden_main or main_menu()  -- (back on: the one put away, not another found meanwhile)
+    -- (back on: the one put away, not another found meanwhile; put away: the live one, else the one the tile is on)
+    local main = on and menu.hidden_main or main_menu() or (menu.main and menu.main:IsValid() and menu.main or nil)
     if main and main:IsValid() then
         if not on and not menu.main_vis then menu.main_vis = main:GetVisibility() end
         -- The game's menu is a CommonUI screen: while active, its own input (the wheel's / pad's Select, Back, tabs,
@@ -1298,9 +1350,8 @@ function M.tick(t)
 
     -- the tile: on MULTIPLAYER while the app runs (made again after the menu is: a stage and back)
     if frame % 30 == 0 then
-        if alive and (not tile_ok() or menu_moved()) then
-            menu.tile = nil
-            pcall(make_tile, t)
+        if alive and world_name and world_name:find("MainMenu", 1, true) then
+            pcall(tile_heal, t)
         end
         if tile_ok() then
             menu.sb:SetVisibility(alive and K.SELF_HIT or K.COLLAPSED)
