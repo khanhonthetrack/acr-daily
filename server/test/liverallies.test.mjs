@@ -389,7 +389,9 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
   const later = (await live(f, '/api/liverallies', ANN, H + 3 * 3600000)).body;
   assert.deepEqual(later.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.eventId]),
     [['rally2', H, 1, true, after.sessions.find((x) => x.starts === H).eventId]]);
-  assert.equal((await live(f, '/api/liverallies', BEN, H + 3 * 3600000)).body.recent[0].mine, false);
+  // ... only for the driver who registered and never started (a DNS): to everyone else it is "1 driver" and nobody in it,
+  // results that open on an empty page (the user, 26 Nov 2026), so the list leaves it out
+  assert.deepEqual((await live(f, '/api/liverallies', BEN, H + 3 * 3600000)).body.recent, []);
   assert.equal((await live(f, '/api/liverallies', ANN, H + 6 * 24 * 3600000)).body.recent.length, 1);
   assert.deepEqual((await live(f, '/api/liverallies', ANN, H + 8 * 24 * 3600000)).body.recent, []);
   const off = fakeD1();
@@ -511,4 +513,16 @@ test('a special event: registration open for days, its one car, four stages of i
   // in RESULTS, by its own name
   const rec = (await live(f, '/api/liverallies', ANN, after)).body.recent.find((x) => x.series === 'skoda');
   assert.deepEqual([rec.special, rec.name, rec.mine], [true, 'Skoda Saturday Challenge', true]);
+});
+
+test('the latest results list: a session somebody drove, with how many drove; one nobody started is left out', async () => {
+  const f = world();
+  const id = await published(f, [CAT, BEN]);
+  const t0 = H + LIVE.firstStartMs;
+  const over = H + 3 * 3600000;
+  assert.deepEqual((await live(f, '/api/liverallies', DAN, over)).body.recent, [], 'two registered, nobody started');
+  await start(f, id, CAT, t0, t0);                                   // (Cat drives; Ben does not show up)
+  const r = (await live(f, '/api/liverallies', DAN, over)).body.recent;
+  assert.deepEqual(r.map((x) => [x.eventId, x.drivers, x.started, x.mine]), [[id, 2, 1, false]]);
+  assert.equal((await live(f, '/api/liverallies', BEN, over)).body.recent[0].mine, true, 'the one who did not start still has it as theirs');
 });

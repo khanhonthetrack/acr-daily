@@ -118,7 +118,7 @@ export function rankedPage(env) {
       var a=el('a',null,W.res+' ›');a.href='/e/'+x.eventId;
       add(tr,add(el('td'),img('/series/'+x.series+'-logo.webp','lg')),
         el('td','t',new Date(x.starts).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'})+' · '+(x.rally||'')),
-        el('td','w',w?w.name:''),el('td','t',w?ms(w.totalMs):''),el('td','t',T(W.drivers,x.drivers||0)),add(el('td'),a));add(r,tr)});
+        el('td','w',w?w.name:''),el('td','t',T(W.drivers,x.started!=null?x.started:x.drivers||0)),add(el('td'),a));add(r,tr)});
     tick()}
   function tick(){var now=Date.now();cds.forEach(function(p){var s=p[1];p[0].textContent=s.phase==='running'?T(W.closes,span(s.closes-now)):T(W.starts,span(s.starts-now))})}
   function load(){fetch('/api/liverallies',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j)draw(j)},function(){})}

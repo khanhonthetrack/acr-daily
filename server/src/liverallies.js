@@ -585,8 +585,11 @@ async function overview(env, me, now, rand) {
   const since = Math.max(now - LIVE.recentMs, liveFrom(env));
   const PAST = `SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s JOIN league_events e ON e.id = s.event_id
     WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ?`;
+  // (the list for everyone: sessions somebody drove; one whose registered driver never started has no results to open,
+  // "1 driver" and nobody in it, the user, 26 Nov 2026. Their own no-show stays in a driver's own results: minePast)
   const [{ results: last }, { results: minePast }] = await Promise.all([
-    env.DB.prepare(`${PAST} ORDER BY s.starts DESC LIMIT ${RECENT_N}`).bind(since, from).all(),
+    env.DB.prepare(`${PAST} AND EXISTS (SELECT 1 FROM league_entries le WHERE le.event_id = s.event_id)
+      ORDER BY s.starts DESC LIMIT ${RECENT_N}`).bind(since, from).all(),
     sid ? env.DB.prepare(`${PAST} AND EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?) ORDER BY s.starts DESC LIMIT ${RECENT_N}`)
       .bind(since, from, sid).all() : { results: [] },
   ]);
@@ -600,8 +603,9 @@ async function overview(env, me, now, rand) {
     const s = seriesOf(r.series), only = JSON.parse(r.only_ids || '[]');
     const rows = table.get(r.event_id) || [];
     const won = rows.find((x) => x.rank === 1), me = sid ? rows.find((x) => x.steamId === sid) : null;
+    if (!rows.length && !(sid && only.includes(sid))) return null;                   // (nobody drove it: nothing to show)
     return s ? { series: s.key, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id, drivers: only.length,
-      mine: !!sid && only.includes(sid),
+      started: rows.length, mine: !!sid && only.includes(sid),
       winner: won ? { steamId: won.steamId, name: won.name, country: won.country || null, totalMs: won.totalMs } : null,
       me: me ? { rank: me.rank || null, status: me.status, totalMs: me.totalMs ?? null } : null,
       ...(isSpecial(s) ? { special: true, name: s.name } : {}) } : null;
