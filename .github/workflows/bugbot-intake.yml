@@ -1,12 +1,12 @@
 # The bug bot, step 1: Discord #bug-reports -> GitHub issues (tools/bugbot/README.md).
-# Every 4 hours: new forum posts are read by Claude (read-only), logged as issues or asked for missing details
+# Every 12 hours: new forum posts are read by Claude (read-only), logged as issues or asked for missing details
 # (fixes start from the ai-fix label; with the variable BUGBOT_AUTOFIX > 0, new clear bugs start bugbot-fix.yml too);
 # later messages in a logged thread are copied to its issue. By hand: "setup-forum" writes the forum's guidelines.
 name: bugbot-intake
 
 on:
   schedule:
-    - cron: '17 */4 * * *'      # 00:17, 04:17, 08:17 ... UTC
+    - cron: '17 6,18 * * *'     # 06:17 and 18:17 UTC
   workflow_dispatch:
     inputs:
       mode:
