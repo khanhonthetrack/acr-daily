@@ -2,7 +2,7 @@
 
 Run by the GitHub workflows .github/workflows/bugbot-*.yml (see tools/bugbot/README.md). Python standard library only.
 
-  intake        every 15 min: new forum posts in #bug-reports are read by Claude (read-only tools). A clear report
+  intake        every 4 hours: new forum posts in #bug-reports are read by Claude (read-only tools). A clear report
                 becomes an issue (labels from-discord, bug/enhancement, area:*) and the thread gets "Logged as #N";
                 a known one is added to that issue; one missing details gets up to two rounds of questions. Later
                 messages in a logged thread are copied to its issue.
