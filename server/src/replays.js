@@ -8,7 +8,7 @@
 //
 // What it is for (the user, 26 Nov 2026): a DNF whose result the game lost (the loading hang, the game closed) taken
 // back on its own: a daily's (as the admin's reinstate, src/apptime.js) or an online rally's stage (as a steward's
-// "time": the entry goes on to its next stage). Clean replays only, three a week a driver; anything else goes to the
+// "time": the entry goes on to its next stage). Clean replays only, five a week a driver; anything else goes to the
 // admin / the stewards with the replay to watch. And: stewards ask a driver for a stage's replay (the app sends it by
 // itself), drivers share theirs (/r/<code>, on the stage's map; a replay of a stage still open can't be public until
 // it closes: no line to copy while it counts).

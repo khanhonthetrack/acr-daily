@@ -138,7 +138,7 @@ function loadDnfs(){return Promise.all([api('/api/admin/dnfs?days='+DAYS),api('/
   .then(function(x){D=x[0];D.replays=x[1].replays||[];dnfs();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
 // ---- REPLAYS (src/replays.js): the ones sent as a DNF's proof or whose checks want a look. Opened in this tab: the
 // replay's page uses this tab's admin key to show a private one (sessionStorage, never in its address)
-function replaysPart(p){add(p,el('h2',null,'Replays sent (last 30 days)'),el('p','lead','A DNF\\'s proof (taken back by itself when its checks are clean, three a week a driver) '+
+function replaysPart(p){add(p,el('h2',null,'Replays sent (last 30 days)'),el('p','lead','A DNF\\'s proof (taken back by itself when its checks are clean and its finish reached the server in time, five a week a driver) '+
     'and replays whose checks want a look. Open one to watch it on the map: its checks are on its page.'));
   if(!D.replays.length){p.appendChild(el('div','empty','None.'));return}
   D.replays.forEach(function(r){var it=el('div','item');var a=el('a',null,'watch ›');a.href='/r/'+r.code;

@@ -56,13 +56,36 @@ What this proves: the replay was recorded while the stage ran, by this driver's 
 
 What it can't prove: that the PC itself is honest. A determined cheater can modify the open-source app to feed it a fake run in real time. That is the same bar the official result already has (the save file is on their PC too). The replay is checked more strictly than the normal result, and every DNF taken back stays on the admin's and stewards' lists with the replay to watch.
 
-## DNFs taken back on their own
+## DNFs taken back on their own (see also "Every way a finish gets lost" below)
 
 `GET /api/replays/wanted` tells the app which replays the server wants. The app asks at start, 40 s / 2.5 min / 6.5 min after a counted run, and every 10 min.
 
 - **A daily.** The run is a DNF whose result the game lost ("the game closed…", "no official result…", "restarted from the results screen…"), with the same stage clock as the replay's finish (±1.5 s). If the replay is clean, the admin's reinstate is done by itself: the clock plus the game's penalty, or 10 s a respawn if the penalty is unknown. The run gets the flag `reinstated by replay <code>` and stays on /admin's DNF list.
 - **An online rally** (championship, rally, cup, 1V1). The entry is a DNF on that very stage, and this is the driver's first start of it. If the replay is clean, the stewards' "time" is done by itself, by "replay check": the finish plus the penalty. The entry goes on to the next stage, and the app refreshes so CONTINUE works. Everyone sees the decision on the event page. An unknown penalty with resets goes to the stewards instead.
-- At most 3 DNFs taken back a week a driver. More, or a replay that isn't clean, goes to review: /admin (Replays sent), and the rally's owner gets an inbox notice with the link.
+- At most 5 DNFs taken back a week a driver. More, or a replay that isn't clean, goes to review: /admin (Replays sent), and the rally's owner gets an inbox notice with the link.
+
+## Every way a finish gets lost, and what happens
+
+| What went wrong | What the replay does |
+|---|---|
+| **The game hangs on its loading screen, or closes, after the finish.** DNF "no official result", "the game closed…", "left from the results screen…" | The finish was sent at the line. The server asks for the replay and the DNF is taken back on its own. |
+| **The game freezes at the finish line** before the app saw the finish. DNF "lost the game" / "stopped (clock frozen…)" | The app keeps a last row at the exact clock where it stopped. The server checks the committed rows reach the road's end with every checkpoint passed, then takes the DNF back. |
+| **The connection drops mid-stage** | The begin and the hashes go out in order from their own thread and are retried until they get through. If a reply is lost, the server says how far it has got (`409 {have}` or `GET /api/replays/run/<rid>`) and the app carries on from there. Hashes that arrive late still count. |
+| **The connection is down at the start** | The begin is made late and the server follows the run from that clock. Within a minute of the start the DNF is still taken back on its own; later than that, it goes to review. |
+| **The app is closed or crashes**, with hashes unsent | At the next start (and on every poll), `catch_up` sends them from the replay file. A run saved before its begin got through gets the server's part afterwards, and its file is signed again. A counted run never begun is begun from its file; it is followed only from its end, so it goes to review. |
+| **The finish reaches the server more than 3 min late** (connection down through the finish) | The checks can be clean, but it goes to review, never back on its own: its rows could have been made in the meantime. The stewards or admin are told. |
+| **No result ever comes from the app** (crash past the line, result lost on its way) | 30 min after the start, if the finish is on the server and nothing for that run is queued on the PC (results queue, rally queue, waiting for the game's time), the replay stands in. For a daily, a run is made and reinstated. For an online rally, the stage time is set and the rally goes on. |
+| **The result fails to send** (server error) | Unchanged: the app's queues retry. Once they get through, the app asks the server about replays at once. |
+| **A DNF the driver earned**: restart after the finish, settings changed, disqualified, retired by the stewards, missed | Never taken back (whitelist of reasons). |
+| **A second attempt** | Only the first start of a stage or daily can be proven; a later attempt's replay never stands in. |
+
+The car as it crossed the line (the mod's finish-line damage) is in the replay as `head.damage`, stored as life points × `damageScale`. When an online rally's stage is taken back, that damage is kept on the entry. CONTINUE then goes on from the next stage with that car (`leagues.recover`, `drive.lua`).
+
+Tested:
+- Server unit tests: 15.
+- App unit tests: 22. These use a fake server whose connection can go down and whose replies can be lost.
+- End to end (`client/tests/e2e_replays.py` with `server/test/harness_replays_e2e.mjs`): the app's real code against the Worker's real code, fed a real recorded run (Wales Afon Bidno, Mini) at 10×. Five scenarios, 22 checks.
+- In the game, on 26 Nov 2026: after a replay took back SS1, CONTINUE set up SS2 in the running game. On the start line the car read Engine 72.5 / GearBox 80 / Radiator 60, exactly as recorded.
 
 ## Stewards and admins
 
