@@ -186,6 +186,7 @@ tr.me td.drv{color:var(--acct,#FF4655)}tr.me td{background:rgba(227,6,19,.12)}  
 .imp td small{display:block;color:var(--fg3);margin-top:3px}
 .imp .imphead{font:700 16px/1.3 Barlow,sans-serif;margin:18px 0 4px}.imp .imphead.bad{color:var(--bad)}.imp .imphead.good{color:var(--good)}
 .imp .warns{margin:10px 0 0;padding-left:18px;color:var(--slow);font-size:13px}
+.sheetdl{display:inline-flex;gap:8px;flex-wrap:wrap;vertical-align:middle}
 .imp .acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 .sum{margin-top:14px;color:var(--fg2)}
@@ -269,6 +270,10 @@ function when(t){return FDATETIME(t)}
 function left(t){var d=t-Date.now();if(d<=0)return '';var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000);
   return h>=48?P(${tqp('{0} day', '{0} days')},Math.floor(h/24)):h>=1?F(${tq('{0} h {1} min')},h,m):F(${tq('{0} min')},m)}
 function km(m){return m==null?${tq('hidden')}:(m/1000).toFixed(1)+' km'}
+// links to download events as a sheet (src/eventsheet.js): base = '/api/events/<id>/sheet' or '/api/leagues/<id>/sheet'; the dates in the visitor's time zone
+function sheetLinks(base,cls){var tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''}catch(e){}var q=tz?'tz='+encodeURIComponent(tz):'',w=el('span','sheetdl');
+  [[${tq('Excel')},'.xlsx?'+q,''],[${tq('CSV')},'.csv?'+q,' ghost'],[${tq('CSV with semicolons')},'.csv?sep=;&'+q,' ghost']].forEach(function(x){
+    var a=el('a','btn small'+x[2]+(cls||''),x[0]);a.href=base+x[1];a.setAttribute('download','');w.appendChild(a);w.appendChild(document.createTextNode(' '))});return w}
 // a hidden event (src/hidden.js): what it keeps until it ends -> "Stage names, weather and times are hidden until it ends." or ''
 var HIDDEN_NOTE=${JSON.stringify({ s: t('Stage names are hidden until it ends.'), w: t('The weather is hidden until it ends.'),
     t: t('The times are hidden until it ends.'), sw: t('Stage names and weather are hidden until it ends.'),
@@ -516,6 +521,7 @@ export function leaguePage(id, env, meta = {}) {
     else if(!l.me.owner){var lv=el('button','btn ghost small',${tq('Leave')});lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},l.name)))return;
       api('/api/leagues/'+id+'/leave',{}).then(function(){location.href='/rallies'},function(e){msg('am',e.message)})};a.appendChild(lv)}
     if(l.me.staff){var ne=el('a','btn',${tq('New event')});ne.href='/l/'+id+'/new';a.appendChild(ne)}
+    if(l.me.staff&&l.events&&l.events.length){var dd=el('span','muted',${tq('Download its events as a spreadsheet:')}+' ');a.appendChild(dd);a.appendChild(sheetLinks('/api/leagues/'+id+'/sheet'))}
     if(l.me.role==='admin')add(a,el('span','badge admin',${tq('you are an admin')}));
     requests(l);manage(l);events(l);liveMaps(l);seasons(l);teamsSec(l);members(l)}
   // a private one (0043): asked to join, with a word to its admins; asked: waiting (or taken back); declined: when again
@@ -952,7 +958,7 @@ export function eventPage(id, env, meta = {}) {
   <div id="evteams"></div><div id="evmatch"></div>
   <div id="stewards"></div>
   <div id="comments"></div>
-  <h2>${t('Itinerary')}</h2><p class="note" id="itnote" hidden></p><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
+  <h2>${t('Itinerary')}</h2><p class="note" id="itnote" hidden></p><p class="note" id="itdl" hidden></p><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
   var id=${JSON.stringify(id)},E=null,GSEL='',LM=null;
   if(NARROW.addEventListener)NARROW.addEventListener('change',function(){if(E)standings(E)});
   ${EVENT_LIVE_JS()}
@@ -1136,6 +1142,9 @@ export function eventPage(id, env, meta = {}) {
   function itin(e){var t=$('itin');t.innerHTML='';var S=e.stages,none=function(k){return S.length&&S.every(function(s){return s[k]==null})};
     var noName=none('name'),noLen=none('lengthM'),noTime=none('time'),noWx=none('weatherLabel'),gone=[];
     if(noName)gone.push(${tq('stage names')});if(noLen)gone.push(${tq('lengths')});if(noTime)gone.push(${tq('start times')});if(noWx)gone.push(${tq('weather')});
+    // (a copy to change: the itinerary and settings in the importer's template; not while it hides them)
+    var dlp=$('itdl');dlp.innerHTML='';dlp.hidden=!(e.revealed!==false&&!e.locked&&!gone.length&&S.length);
+    if(!dlp.hidden)add(dlp,${tq('Copy this event: download it as a spreadsheet, change what you like, and import it as a new event.')}+' ',sheetLinks('/api/events/'+id+'/sheet'));
     $('itnote').hidden=!gone.length;$('itnote').textContent=gone.length?F(${tq('Hidden for now: {0}.')},gone.join(', '))+' '+revealWhen(e):'';
     var cols=1+(noName?0:1)+(noLen?0:1)+(noTime?0:1)+(noWx?0:1);
     var h=el('tr');h.appendChild(el('th',null,''));if(!noName)h.appendChild(el('th',null,${tq('Stage')}));if(!noLen)h.appendChild(el('th','r',${tq('Length')}));

@@ -10,6 +10,9 @@
 //   GET  /api/catalog                         what an event can be made of
 //   GET  /api/events/template.xlsx | .csv    the event sheet to start from (?for=league|rally|cup, ?sep=; for a CSV
 //                                             a European Excel opens): src/eventsheet.js
+//   GET  /api/events/:id/sheet.xlsx | .csv   an event as a sheet in the same template (to copy and change); the
+//   GET  /api/leagues/:id/sheet.xlsx | .csv  championship's events (up to 50, the latest); ?for=, ?tz= (the dates in it).
+//                                             Not an event whose set-up is hidden from the asker (src/hidden.js)
 //   POST /api/events/import?for=&tz=&league=  an uploaded .xlsx or .csv (the body is the file) checked, not saved:
 //                                             {events, errors: [{row, column, message}], warnings}
 //   GET  /api/me                              who is signed in on the website
@@ -52,7 +55,7 @@ import { BANNER, bannerUrl, catalog, checkBanner, checkDivisions, checkEvent, ch
   DEFAULT_SEASON, describeSeason, entryState, eventClasses, eventStandings, eventStatus, groupStandings, LIMITS, newCode,
   newLeagueId, normCode, OFFICIAL_OWNER, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
-import { capErrors, goodZone, importEvents, MODES, readUpload, SHEET, templateCsv, templateXlsx } from './eventsheet.js';
+import { capErrors, exportEvents, goodZone, importEvents, MODES, readUpload, SHEET, templateCsv, templateXlsx } from './eventsheet.js';
 import { menuName } from './stages.js';
 import { impossiblyFast } from './validate.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
@@ -437,6 +440,47 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     return new Response(xlsx ? templateXlsx(cat, mode, { now }) : templateCsv(cat, mode, { now, sep: url.searchParams.get('sep') === ';' ? ';' : ',' }), {
       headers: { 'Content-Type': xlsx ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="acr-daily-${mode === 'cup' ? 'cup-match' : mode}-events.${xlsx ? 'xlsx' : 'csv'}"`, 'Cache-Control': 'no-store' } });
+  }
+  // an event, or a championship's events, as a sheet in the template's form (src/eventsheet.js exportEvents): to copy and
+  // slightly change. Never what the event hides from the asker: the page shows no more than the file does
+  const sheetOf = async (evs, l, label) => {
+    const want = url.searchParams.get('for');
+    const mode = MODES.includes(want) ? want : 'league';
+    const tz = goodZone(url.searchParams.get('tz')) ? url.searchParams.get('tz') : null;
+    const cat = catalog(await routesRows(env));
+    const rows = exportEvents(evs, cat, { tz });
+    const xlsx = url.pathname.endsWith('.xlsx');
+    const slug = text(label, 40).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'events';
+    return new Response(xlsx ? templateXlsx(cat, mode, { now, events: rows }) : templateCsv(cat, mode, { now, events: rows, sep: url.searchParams.get('sep') === ';' ? ';' : ',' }), {
+      headers: { 'Content-Type': xlsx ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="acr-daily-${slug}.${xlsx ? 'xlsx' : 'csv'}"`, 'Cache-Control': 'no-store',
+        'X-Events': String(evs.length) } });
+  };
+  const shown = async (evs, l) => {                      // the events whose set-up this asker sees whole
+    const hid = evs.filter((ev) => activeHide(ev, l.kind, now));
+    const who = hid.length && me ? await viewerOf(env, me.steam_id, hid.map((ev) => ev.id)) : { knows: new Set(), staff: new Set() };
+    return evs.filter((ev) => {
+      const v = viewHide(activeHide(ev, l.kind, now), { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) });
+      return !v || !(v.stages || v.weather || v.time);
+    });
+  };
+  let sm = path.match(/^\/api\/events\/(\d+)\/sheet\.(?:xlsx|csv)$/);
+  if (sm && !post) {
+    const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(+sm[1]).first();
+    if (!ev) return err('no such event', 404);
+    const l = await leagueRow(env, ev.league_id);
+    if (!canSee(l, await roleIn(env, l, me))) return err('no such event', 404);
+    if (!(await shown([ev], l)).length) return err("this event's set-up is hidden until it ends: it can't be downloaded yet", 403);
+    return sheetOf([ev], l, ev.name);
+  }
+  sm = path.match(/^\/api\/leagues\/([a-z0-9]{8})\/sheet\.(?:xlsx|csv)$/);
+  if (sm && !post) {
+    const l = await leagueRow(env, sm[1]);
+    if (!l || l.kind !== 'league') return err('no such league', 404);
+    const { results } = await env.DB.prepare('SELECT * FROM league_events WHERE league_id = ? ORDER BY opens DESC, id DESC LIMIT 300').bind(l.id).all();
+    const evs = (await shown(results, l)).slice(0, SHEET.maxEvents).reverse();
+    if (!evs.length) return err(results.length ? "this championship's events hide their set-up until they end: none can be downloaded yet" : 'this championship has no events yet', 404);
+    return sheetOf(evs, l, l.name);
   }
   if (path === '/api/events/import' && post) {
     const no = need(); if (no) return no;

@@ -581,17 +581,17 @@ function exampleEvents(cat, now) {
 }
 
 /** The template's table for a mode: {cols, head: [..], rows: [[..]]}. A league's has two events, a rally's and a cup's one. */
-export function templateTable(cat, mode = 'league', now = Date.now()) {
+export function templateTable(cat, mode = 'league', now = Date.now(), given = null) {
   if (!MODES.includes(mode)) mode = 'league';
   const cols = colsOf(mode);
-  const events = exampleEvents(cat, now).slice(0, mode === 'league' ? 2 : 1);
+  const events = given || exampleEvents(cat, now).slice(0, mode === 'league' ? 2 : 1);
   return { cols, head: cols.map((c) => c.head), rows: events.flat().map((r) => cols.map((c) => r[c.key] || '')) };
 }
 
 const csvLine = (cells, d) => cells.map((c) => { const s = String(c == null ? '' : c); return s.includes(d) || /["\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(d);
 /** The CSV template: UTF-8 with the BOM Excel wants, CRLF lines. sep: ',' or ';' (a European Excel's list separator). */
-export function templateCsv(cat, mode = 'league', { sep = ',', now = Date.now() } = {}) {
-  const t = templateTable(cat, mode, now);
+export function templateCsv(cat, mode = 'league', { sep = ',', now = Date.now(), events = null } = {}) {
+  const t = templateTable(cat, mode, now, events);
   const d = sep === ';' ? ';' : ',';
   return '﻿' + [t.head, ...t.rows].map((r) => csvLine(r, d)).join('\r\n') + '\r\n';
 }
@@ -602,9 +602,9 @@ const lines = (s, width) => Math.max(1, Math.ceil(String(s).length / width));
 
 /** The Excel template: the Events sheet (header, an example, a drop-down and a tip on every cell that takes a set of
  *  values), a Guide and the Lists (stages with their lengths, cars, classes, weathers). */
-export function templateXlsx(cat, mode = 'league', { now = Date.now() } = {}) {
+export function templateXlsx(cat, mode = 'league', { now = Date.now(), events: given = null } = {}) {
   if (!MODES.includes(mode)) mode = 'league';
-  const t = templateTable(cat, mode, now);
+  const t = templateTable(cat, mode, now, given);
   const L = lookups(cat);
   const stageList = L.stages, cars = cat.cars, classes = cat.classes, weathers = cat.weathers;
   const last = SHEET.validatedRows + 1;
@@ -642,7 +642,8 @@ export function templateXlsx(cat, mode = 'league', { now = Date.now() } = {}) {
   para(`1. On the Events sheet every ROW IS ONE STAGE. ${mode === 'cup' ? 'The first row carries the settings of the match (car or class, rules); leave them empty on the rows below.'
     : 'The first row of an event carries its settings (its name, dates, car or class, rules); leave them empty on the rows below. A new name in the Event column starts the next event, so a whole season fits in one file.'}`);
   para('2. Pick the stage, car, class, weather and each setting from the drop-down of its cell; select a cell to read what it takes. Red headers must be filled, grey ones are optional and have a default.');
-  para('3. Replace the example (or delete its rows) with your own. The example works as it is: import it to see what it makes.');
+  para(given ? '3. This file is a copy of an existing event, made with the same template. Change what you like (the dates first: an event must still be open for an hour or more) and import it as a new event; add more events below if you want.'
+    : '3. Replace the example (or delete its rows) with your own. The example works as it is: import it to see what it makes.');
   para(`4. Save it and import it on ${WHERE[mode]}. The .xlsx works as it is; a CSV works too (File > Save As > "CSV UTF-8", with the Events sheet open). Every problem is listed with its row and column, and nothing is saved until you press the button.`);
   g.push([]);
   g.push([{ v: 'The columns', s: STYLE.bold }]);
@@ -681,4 +682,38 @@ export function templateXlsx(cat, mode = 'league', { now = Date.now() } = {}) {
   const lists = { name: 'Lists', freeze: { rows: 1 }, rows: lrows,
     cols: [42, 14, 11, 10, 3, 34, 11, 12, 3, 11, 12, 60, 3, 16].map((width) => ({ width })) };
   return xlsxWrite([events, guide, lists]);
+}
+
+// ------------------------------------------------------------------ an event as a sheet
+
+const fmtZoned = (ms, tz) => {
+  const f = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const g = Object.fromEntries(f.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return `${g.year}-${g.month}-${g.day} ${g.hour}:${g.minute}`;
+};
+const yn = (b) => (b ? 'yes' : 'no');
+const json = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
+
+/** Events as stored (rows of league_events) -> what templateXlsx / templateCsv take as `events`: one array of rows by
+ *  column key for each event, in the form the importer reads back (the same event, said in the template's words).
+ *  tz: the dates in this time zone (as the importer will read them); none: UTC, marked Z. The season is left empty
+ *  (the league the copy goes to has its own); a stage the catalog doesn't know is written as its track name. */
+export function exportEvents(evs, cat, { tz = null } = {}) {
+  const label = new Map(lookups(cat).stages.map((x) => [x.st.track, x.label]));
+  const weather = new Map(cat.weathers.map((w) => [w.id, w.label]));
+  const when = (ms) => (tz && goodZone(tz) ? fmtZoned(ms, tz) : `${fmtUtc(ms)}Z`);
+  return evs.map((ev) => {
+    const rules = ev.rules ? json(ev.rules) : {};
+    const classes = ev.car_classes ? json(ev.car_classes) : ev.car_class ? [ev.car_class] : [];
+    const hide = ev.hide ? json(ev.hide) : null;
+    const head = { event: ev.name, opens: when(ev.opens), closes: when(ev.closes), car: ev.car || '', class: classes.join(', '),
+      respawn: rules.respawn === false ? 'off' : 'on', assists: rules.assists || 'any', hardcore: yn(rules.hardcore),
+      retire: rules.retire ? String(rules.retire) : '', hide_stages: yn(hide && hide.stages), hide_weather: yn(hide && hide.weather), hide_times: yn(hide && hide.times) };
+    if (!rules.hardcore) {                                  // (Hardcore Mode locks these: leaving them empty says so)
+      Object.assign(head, { damage: rules.damage === false ? 'off' : rules.damageIntensity || 'light', wear: rules.wear || 'light',
+        failures: rules.failures || 'off', penalty: rules.penalty || 'light' });
+    }
+    return json(ev.stages).map((s, i, all) => ({ ...(i === 0 ? head : {}), day: String(s.day), stage: label.get(s.track) || s.track,
+      time: s.time, weather: weather.get(s.weather) || s.weather, service: s.service && i > 0 && all[i - 1].day === s.day ? 'yes' : '' }));
+  });
 }

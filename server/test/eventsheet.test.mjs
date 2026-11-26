@@ -457,3 +457,83 @@ test('POST /api/rallies takes a sheet\'s event as it comes; a cup\'s `event` too
   const r = await call(f, '/api/rallies', BEN, { ...imported.events[0].body, public: true });
   assert.equal(r.status, 200, JSON.stringify(r.body));
 });
+
+// ------------------------------------------------------------------ an event downloaded as a sheet
+
+const RICH = `${HEAD}
+Rich Rally,2026-12-05 18:00,2026-12-09 20:15,,,"Rally2/R5, Rally4",1,Wales: Afon Bidno - Severn,09:00,Storm,,severe,realistic,light,realistic,off,off,no,15,no,yes,no
+,,,,,,1,Greece: Elatia,11:30,Light rain,yes,,,,,,,,,,,
+,,,,,,2,Wales: Severn - Afon Bidno,08:15,Clear,,,,,,,,,,,,
+Hard One,2026-12-10 18:00,2026-12-11 18:00,,Skoda Fabia RS Rally2,,1,Alsace: Col du petit Ballon,10:00,Heavy fog,,,,,,,any,yes,,yes,yes,yes`;
+const strip = (e) => ({ ...e.body });
+
+test('an event downloaded as a sheet imports back as the same event: rules, classes, service parks, hidden flags, dates in the zone', async () => {
+  const f = world();
+  const league = await mkLeague(f);
+  const made = imp(RICH, { tz: 'Europe/Warsaw' });
+  assert.deepEqual(made.errors, []);
+  const ids = (await call(f, `/api/leagues/${league}/importevents`, ANN, { events: made.events.map((e) => ({ ...e.body, seasonId: null })) })).body.ids;
+  for (const [k, id] of ids.entries()) {
+    for (const ext of ['csv', 'xlsx']) {
+      const dl = await call(f, `/api/events/${id}/sheet.${ext}?tz=Europe/Warsaw`, ANN);
+      assert.equal(dl.status, 200, ext);
+      assert.equal(dl.res.headers.get('X-Events'), '1');
+      const u = await readUpload(dl.body);
+      const back = importEvents(u.rows, CAT, { mode: 'league', tz: 'Europe/Warsaw', now: NOW });
+      assert.deepEqual([back.errors, back.warnings], [[], []], `${ext}: ${JSON.stringify(back.errors)}`);
+      assert.deepEqual(strip(back.events[0]), strip(made.events[k]), `${ext} event ${k}`);
+    }
+  }
+  const csvText = new TextDecoder('utf-8', { ignoreBOM: true }).decode((await call(f, `/api/events/${ids[0]}/sheet.csv?tz=Europe/Warsaw`, ANN)).body);
+  assert.match(csvText, /^﻿Event,Opens,Closes,Season,Car,Class,Day,Stage,Time,Weather,Service park,/);
+  assert.match(csvText, /Rich Rally,2026-12-05 18:00,2026-12-09 20:15,,,"Rally2\/R5, Rally4",1,Wales: Afon Bidno - Severn,09:00,Storm,/);
+  assert.match(csvText, /Greece: Elatia,11:30,Light rain,yes,/);
+  const hard = new TextDecoder().decode((await call(f, `/api/events/${ids[1]}/sheet.csv`, ANN)).body);
+  assert.match(hard, /Hard One,2026-12-10 17:00Z,2026-12-11 17:00Z,/, 'no zone: UTC, marked Z');
+  assert.doesNotMatch(hard, /realistic/, "Hardcore Mode's locked settings are left empty");
+  const utc = importEvents(parseCsv(hard), CAT, { mode: 'league', tz: 'Asia/Tokyo', now: NOW });
+  assert.equal(utc.events[0].body.opens, Date.UTC(2026, 11, 10, 17), 'a Z date means the same moment wherever it is read');
+  // a cup's match copy: no dates, no season
+  const cup = await call(f, `/api/events/${ids[0]}/sheet.csv?for=cup`, ANN);
+  assert.doesNotMatch(new TextDecoder().decode(cup.body), /Opens|Season/);
+});
+
+test('a championship\'s events as one sheet: all of them, in order; its settings import back', async () => {
+  const f = world();
+  const league = await mkLeague(f);
+  const made = imp(RICH.replace(',15,no,yes,no', ',15,no,no,no').replace(',yes,yes,yes', ',no,no,no'));          // (nothing hidden)
+  await call(f, `/api/leagues/${league}/importevents`, ANN, { events: made.events.map((e) => ({ ...e.body, seasonId: null })) });
+  const dl = await call(f, `/api/leagues/${league}/sheet.xlsx`, BEN);          // (anyone: a championship's events are open to see)
+  assert.equal(dl.status, 200);
+  assert.equal(dl.res.headers.get('X-Events'), '2');
+  assert.match(dl.res.headers.get('Content-Disposition'), /acr-daily-ann-league\.xlsx/);
+  const back = importEvents((await readUpload(dl.body)).rows, CAT, { mode: 'league', tz: 'UTC', now: NOW });
+  assert.deepEqual(back.errors, []);
+  assert.deepEqual(back.events.map((e) => e.name), ['Rich Rally', 'Hard One']);
+  assert.equal((await call(f, '/api/leagues/zzzzzzzz/sheet.csv', ANN)).status, 404);
+  assert.equal((await call(f, `/api/events/999/sheet.csv`, ANN)).status, 404);
+  const empty = await mkLeague(f);
+  assert.equal((await call(f, `/api/leagues/${empty}/sheet.csv`, ANN)).status, 404);
+});
+
+test('a hidden event\'s set-up is not downloadable by who may not see it, until it ends; its staff and who has seen it can', async () => {
+  const f = world();
+  const league = await mkLeague(f);
+  const only = imp(`${HEAD}\nSecret Stage,2026-11-26 10:00,2026-11-30 10:00,,,Rally2/R5,1,Wales: Afon Bidno - Severn,09:00,Clear,,,,,,,,,,yes,yes,yes`, { now: NOW - 3 * 3600000 });
+  assert.deepEqual(only.errors, []);
+  const [id] = (await call(f, `/api/leagues/${league}/importevents`, ANN, { events: [{ ...only.events[0].body, seasonId: null }] })).body.ids;
+  const get = (who, ext = 'csv') => call(f, `/api/events/${id}/sheet.${ext}`, who);
+  assert.equal((await get(ANN)).status, 200, 'its owner');
+  const no = await get(BEN);
+  assert.equal(no.status, 403);
+  assert.match(no.body.error, /set-up is hidden until it ends/);
+  assert.equal((await get(null)).status, 403, 'nobody signed in');
+  assert.equal((await call(f, `/api/leagues/${league}/sheet.csv`, BEN)).status, 404, 'a championship whose events are all hidden');
+  assert.equal((await call(f, `/api/leagues/${league}/sheet.csv`, ANN)).status, 200);
+  f.db.prepare('INSERT INTO event_reveals (event_id, steam_id, at) VALUES (?, ?, 0)').run(id, BEN);                // (Ben pressed DRIVE)
+  assert.equal((await get(BEN)).status, 200, 'who has seen it');
+  // over: shown to everyone (the clock of the API calls is NOW; the event closed before it)
+  f.db.prepare('UPDATE league_events SET closes = ?, opens = ? WHERE id = ?').run(NOW - 3 * 3600000, NOW - 5 * 86400000, id);
+  f.db.prepare('DELETE FROM event_reveals').run();
+  assert.equal((await get(CAS)).status, 200, 'it has ended');
+});
