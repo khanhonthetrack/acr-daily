@@ -1,0 +1,59 @@
+# The bug bot, step 1: Discord #bug-reports -> GitHub issues (tools/bugbot/README.md).
+# Every 15 minutes: new forum posts are read by Claude (read-only), logged as issues or asked for missing details;
+# later messages in a logged thread are copied to its issue. By hand: "setup-forum" writes the forum's guidelines.
+name: bugbot-intake
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'intake, dry (read and decide, write nothing) or setup-forum'
+        default: intake
+        type: choice
+        options: [intake, dry, setup-forum]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: bugbot-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID }}
+      BUGBOT_FORUM_ID: ${{ vars.BUGBOT_FORUM_ID }}
+      BUGBOT_TRIAGE_MODEL: ${{ vars.BUGBOT_TRIAGE_MODEL || 'claude-sonnet-5-5' }}
+      GITHUB_TOKEN: ${{ github.token }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false   # (Claude reads this checkout: no token in .git/config)
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Claude Code
+        run: npm install -g @anthropic-ai/claude-code@^2.1
+
+      - name: Labels
+        if: inputs.mode != 'setup-forum'
+        run: python3 tools/bugbot/bugbot.py labels > /dev/null
+
+      - name: Run
+        run: |
+          mode="${{ inputs.mode || 'intake' }}"
+          case "$mode" in
+            dry) python3 tools/bugbot/bugbot.py intake --dry ;;
+            setup-forum) python3 tools/bugbot/bugbot.py setup-forum ;;
+            *) python3 tools/bugbot/bugbot.py intake ;;
+          esac | tee -a "$GITHUB_STEP_SUMMARY"

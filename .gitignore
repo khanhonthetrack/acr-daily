@@ -16,6 +16,7 @@ __pycache__/
 # tools and local state
 server/node_modules/
 server/.wrangler/
+.bugbot/
 
 # personal folders that are not part of ACR Daily
 liveries/

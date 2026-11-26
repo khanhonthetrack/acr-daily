@@ -1,0 +1,53 @@
+# The bug bot, step 4: tell the Discord threads when their fix is out (tools/bugbot/README.md).
+#   - after a successful `release` run: every closed (done) Discord issue not told yet, closed before the release's
+#     commit, gets "Fixed ... in ACR Daily vX: click UPDATE" in each of its threads, then the label `notified`;
+#   - the label `live` on an issue (a server-only fix, deployed): "Fixed ... live now, no update needed".
+name: bugbot-notify
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Version to announce, e.g. v0.2.3 (announces issues closed up to now)'
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: bugbot-notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'issues' && github.event.label.name == 'live') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Tell the threads
+        run: |
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            python3 tools/bugbot/bugbot.py notify --issue ${{ github.event.issue.number }}
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python3 tools/bugbot/bugbot.py notify --release "${{ inputs.release }}" --release-time "$(date +%s)"
+          else
+            v=$(grep -oP "__version__ = '\K[\d.]+" client/acr_daily/__init__.py)
+            python3 tools/bugbot/bugbot.py notify --release "v$v" --release-time "$(( $(git log -1 --format=%ct) + 300 ))"   # (+5 min: a merge closes its issue a moment after the commit)
+          fi | tee -a "$GITHUB_STEP_SUMMARY"
