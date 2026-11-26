@@ -225,6 +225,10 @@ class Api:
         return self._req('POST', '/api/replays/upload' + ('?public=1' if public else ''), auth=True, timeout=40,
                          raw=(data, 'application/octet-stream'))
 
+    def replay_run(self, rid):
+        """Where the server is with a followed run: {have (commits), fin, uploaded, open}."""
+        return self._req('GET', '/api/replays/run/%s' % rid, auth=True, timeout=10)
+
     def replays_wanted(self):
         return self._req('GET', '/api/replays/wanted', auth=True, timeout=10).get('wanted') or []
 

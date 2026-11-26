@@ -32,7 +32,11 @@ export const REPLAY = {
   maxRows: 100000,
   maxCommits: 2000,
   slackMs: 5000,              // a commit's stage clock at most this far past the server's clock since the begin
-  beginClockMax: 15000,       // the begin made at most this far into the stage
+  lateBeginMs: 60000,         // followed from at most this far into the stage (the connection down at the start) for a DNF
+                              // to be taken back without a human
+  lateFinMs: 180000,          // ... and the finish on the server at most this late (pauses, a connection lost a while)
+  missingAfterMs: 30 * 60000, // a finish with no result from the app this long after the begin: the replay stands in
+  endM: 15,                   // the road's end this near: the finish line reached (the game frozen at the line)
   runHours: 4,                // commits taken this long after the begin
   followM: 30,                // off the road past this (as the routes' own check, src/index.js followsRoute)
   cutM: 30,                   // the road covered faster than the car moved, by this much in CUT_WINDOW
@@ -41,15 +45,21 @@ export const REPLAY = {
   startM: 60,
   finishM: 120,
   topKmh: 330,
-  autoPerWeek: 3,             // DNFs taken back by a replay, a driver, in 7 days (more: the admin decides)
+  autoPerWeek: 5,             // DNFs taken back by a replay, a driver, in 7 days (more: the admin decides)
   wantedDays: 3,
   keepShareDays: 90,
   keepProofDays: 365,
   perDriver: 40,              // files kept a driver (the oldest shared ones go first)
 };
 const DAY = 86400000;
-// (the DNFs whose result the game lost, as src/index.js reinstateRun takes them back)
-const LOST = /^(the game closed|no official result|restarted from the game's results screen)/;
+// The DNFs a replay may take back: a finish the game or the app lost, nothing the driver did. (A DNF for a restart after
+// the finish, settings changed, disqualified by the game, missed, retired by the stewards: never.)
+//   LOST   the finish line crossed, the result lost after it: the game closed, hung on its loading, left its results
+//          unsaved; dailies and events alike (as src/index.js reinstateRun takes them back)
+//   FROZE  the game froze or crashed at the line, before the app saw its finish: the road tells it (verifyReplay)
+const LOST = /^(the game closed|no official result|restarted from the game's results screen|left from the results screen)/;
+const FROZE = /^(lost the game|stopped \(clock frozen away from the finish\))/;
+export const takesBack = (reason) => LOST.test(reason || '') || FROZE.test(reason || '');
 const KINDS = ['daily', 'event'];
 const utf8 = new TextEncoder();
 
@@ -122,21 +132,30 @@ async function verifySig(doc) {
 export async function checkChain(rows, run) {
   let commits;
   try { commits = JSON.parse(run.commits || '[]'); } catch { commits = []; }
-  if (!commits.length) return { chain: false, timing: false, committed: 0, note: 'no commits from the stage' };
+  if (!commits.length) return { chain: false, timing: false, committed: 0, note: 'no commits from the stage', lateAt: () => null };
   let h = await chainStart(run.rid, run.nonce), at = 0;
-  const base = Math.min(Math.max(0, run.begin_clock || 0), REPLAY.beginClockMax);
+  // (the stage clock when the server began following the run: a begin made late, the connection down at the start,
+  // follows from there; what came before it is the app's word alone)
+  const base = Math.max(0, run.begin_clock || 0);
   let timing = true, note = null;
+  const got = [];                                  // [rows committed, how late the server got them (ms)]
   for (const [count, hash, sms] of commits) {
-    if (!(count >= at && count <= rows.length)) return { chain: false, timing: false, committed: at, note: 'it has fewer rows than were sent while driving' };
+    if (!(count >= at && count <= rows.length)) return { chain: false, timing: false, committed: at, note: 'it has fewer rows than were sent while driving', lateAt: () => null };
     h = await chainNext(h, rows.slice(at, count));
     at = count;
-    if (h !== hash) return { chain: false, timing: false, committed: at, note: 'its rows are not the ones sent while driving' };
-    if (count > 0 && rows[count - 1][0] > (sms - run.begin_ms) + base + REPLAY.slackMs) {
-      timing = false;
-      note = `its clock ran ahead of the server's (${Math.round((rows[count - 1][0] - (sms - run.begin_ms) - base) / 1000)} s)`;
+    if (h !== hash) return { chain: false, timing: false, committed: at, note: 'its rows are not the ones sent while driving', lateAt: () => null };
+    if (count > 0) {
+      const late = (sms - run.begin_ms) + base - rows[count - 1][0];
+      if (late < -REPLAY.slackMs) {
+        timing = false;
+        note = `its clock ran ahead of the server's (${Math.round(-late / 1000)} s)`;
+      }
+      got.push([count, late]);
     }
   }
-  return { chain: true, timing, committed: at, note };
+  // how late the server got row i (the first commit with it): pauses in the game, a connection lost meanwhile
+  const lateAt = (i) => { const c = got.find(([n]) => n > i); return c ? c[1] : null; };
+  return { chain: true, timing, committed: at, note, lateAt };
 }
 
 /** The rows against the stage's road (points [[x, z]] m). -> {start, finishNear, checkpoints, offMs, maxOffM, cuts:
@@ -174,7 +193,8 @@ export function checkRoad(rows, points, finMs = null) {
     jump.push(j);
     if (j) { jumps++; continue; }
     km += step / 1000;
-    if (dt > 0 && step / dt * 3.6 > REPLAY.topKmh) fast++;
+    // (over 50 ms at least: two rows closer than that, the finish's own, make any wobble of the car look like speed)
+    if (dt >= 0.05 && step / dt * 3.6 > REPLAY.topKmh) fast++;
     if (d > REPLAY.followM) { offMs += rows[i][0] - rows[i - 1][0]; maxOff = Math.max(maxOff, d); }
   }
   // cuts: the road's distance covered in a few seconds more than the car moved (corners taken across the fields)
@@ -203,9 +223,13 @@ export function checkRoad(rows, points, finMs = null) {
     fi = rows.findIndex((r) => r[0] >= finMs - 250);
     if (fi < 0) fi = rows.length - 1;
   }
+  // the finish line reached, as the road says it (the game frozen at the line, before the app saw its finish): the
+  // first row at the road's end, its clock the stage's (the clock stops there: the app keeps that row, replays.py)
+  const atEnd = prog.findIndex((p, i) => info.length - p <= REPLAY.endM && Math.hypot(xz[i][0] - end[0], xz[i][1] - end[1]) <= REPLAY.finishM);
   return {
     start: Math.hypot(xz[0][0] - points[0][0], xz[0][1] - points[0][1]) <= REPLAY.startM,
     finishNear: Math.hypot(xz[fi][0] - end[0], xz[fi][1] - end[1]) <= REPLAY.finishM || info.length - prog[fi] <= REPLAY.finishM,
+    endRow: atEnd < 0 ? null : atEnd,
     checkpoints: info.checkpoints.length ? passed / info.checkpoints.length : 1,
     offMs, maxOffM: Math.round(maxOff), cuts, jumps, topKmh: Math.round(top), fast, km: Math.round(km * 100) / 100,
     lengthKm: Math.round(info.length / 10) / 100,
@@ -213,11 +237,17 @@ export function checkRoad(rows, points, finMs = null) {
 }
 
 /** Everything told about one replay. ctx: {run (replay_runs row or null), points (the road or null), keys (the
- *  uploader's known keys), uploader (steam id)}. -> {verdict: clean | review | refused, report, digest, finMs} */
-export async function verifyReplay(doc, { run = null, points = null, keys = [], uploader = null } = {}) {
+ *  uploader's known keys), uploader (steam id), lost (the DNF's reason, when it is one: a finish the game froze on is
+ *  then told by the road)}. -> {verdict: clean | review | refused, auto (a DNF may be taken back without a human),
+ *  report, digest, finMs, byRoad}
+ *
+ *  clean: the drive itself (followed, the whole road, no cut, nothing a car can't do). auto, on top: the finish reached
+ *  the server in time (LATE_FIN_MS: a pause, a connection lost for a while; later, its rows could have been made up
+ *  meanwhile) and the server followed it from the start (LATE_BEGIN_MS: the connection down at the start). */
+export async function verifyReplay(doc, { run = null, points = null, keys = [], uploader = null, lost = '' } = {}) {
   const h = doc.head;
   const report = { notes: [] };
-  const no = (why) => { report.notes.push(why); return { verdict: 'refused', report, digest: null, finMs: null }; };
+  const no = (why) => { report.notes.push(why); return { verdict: 'refused', auto: false, report, digest: null, finMs: null }; };
   const sig = await verifySig(doc);
   report.signed = sig.ok;
   if (!sig.ok) return no('its signature does not match: changed after it was made, or not made by ACR DAILY');
@@ -226,18 +256,21 @@ export async function verifyReplay(doc, { run = null, points = null, keys = [], 
   if (uploader && driver && driver !== uploader) return no('someone else\'s replay: only its driver sends it');
   report.live = !!run;
   let finMs = Number.isInteger(h.finMs) ? h.finMs : null;
+  let c = null;
   if (run) {
     if (run.steam_id !== uploader) return no('not your run');
     if (sig.key !== run.key) return no('signed with another key than the one the run began with');
     if (run.track !== h.track || run.car !== h.car || run.kind !== h.kind || run.ref !== h.ref) return no('it is not the run the server followed');
-    const c = await checkChain(doc.rows, run);
+    c = await checkChain(doc.rows, run);
     report.chain = c.chain;
     report.timing = c.timing;
     report.committed = c.committed;
     if (c.note) report.notes.push(c.note);
     if (!c.chain) return no(c.note || 'its rows are not the ones sent while driving');
     if (!c.timing) return no(c.note);
-    // the finish: as the final commit said, inside the rows committed then
+    report.beganAt = run.begin_clock || 0;
+    if (report.beganAt > REPLAY.lateBeginMs) report.notes.push(`followed by the server only from ${Math.round(report.beganAt / 1000)} s into the stage`);
+    // the finish: as the final commit said, inside the rows committed
     if (finMs != null && run.fin_ms !== finMs) { report.notes.push('its finish is not the one sent at the line'); finMs = null; }
     if (finMs != null && !(c.committed > 0 && doc.rows[c.committed - 1][0] >= finMs - 250)) {
       report.notes.push('its finish came after the last commit'); finMs = null;
@@ -246,25 +279,42 @@ export async function verifyReplay(doc, { run = null, points = null, keys = [], 
     report.notes.push('not followed by the server while driven (practice, offline, or not signed in)');
   }
   report.finished = h.status === 'finished' && finMs != null;
+  let byRoad = false;
   if (points && points.length > 2) {
-    const r = checkRoad(doc.rows, points, finMs);
+    const r = checkRoad(c ? doc.rows.slice(0, c.committed) : doc.rows, points, finMs);
     report.road = r;
+    // the game frozen at the finish line, before the app saw its finish (its DNF: the game lost): the line reached,
+    // the whole road driven, as the rows the server got say
+    if (!report.finished && run && FROZE.test(lost || '') && r.endRow != null && r.checkpoints >= 0.98) {
+      finMs = doc.rows[r.endRow][0];
+      report.finished = byRoad = true;
+      report.notes.push('the finish line reached as the road says (the game froze before the app saw its finish)');
+    }
     if (!r.start) report.notes.push('it does not start at the stage\'s start');
-    if (report.finished && !r.finishNear) { report.notes.push('its finish is not at the stage\'s end'); report.finished = false; }
+    if (report.finished && !r.finishNear && !byRoad) { report.notes.push('its finish is not at the stage\'s end'); report.finished = false; }
     if (r.checkpoints < 0.98) report.notes.push(`${Math.round((1 - r.checkpoints) * 100)} % of the road's checkpoints missed`);
     if (r.offMs > 3000) report.notes.push(`off the road ${Math.round(r.offMs / 1000)} s (up to ${r.maxOffM} m)`);
-    for (const c of r.cuts) report.notes.push(`a cut at km ${c.km}: ${c.m} m of road skipped`);
+    for (const x of r.cuts) report.notes.push(`a cut at km ${x.km}: ${x.m} m of road skipped`);
     if (r.fast) report.notes.push(`moved faster than ${REPLAY.topKmh} km/h (${r.fast} times)`);
     if (r.topKmh > REPLAY.topKmh) report.notes.push(`top speed ${r.topKmh} km/h`);
     if (Number.isInteger(h.resets) && r.jumps > h.resets + 1) report.notes.push(`${r.jumps} jumps of the car, ${h.resets} resets counted`);
   } else {
     report.notes.push('no road known for this stage: not checked against it');
   }
-  const clean = run && report.chain && report.timing && report.finished && points && report.road
+  if (report.finished && c) {                  // how late the server got the finish
+    const i = doc.rows.findIndex((x) => x[0] >= finMs - 250);
+    report.finLateMs = i < 0 ? null : c.lateAt(i);
+    if (report.finLateMs == null || report.finLateMs > REPLAY.lateFinMs) {
+      report.notes.push(report.finLateMs == null ? 'its finish never reached the server'
+        : `its finish reached the server ${Math.round(report.finLateMs / 60000)} min late (the connection down, or the app closed)`);
+    }
+  }
+  const clean = !!(run && report.chain && report.timing && report.finished && points && report.road
     && report.road.start && report.road.checkpoints >= 0.98 && report.road.offMs <= 3000 && !report.road.cuts.length
     && !report.road.fast && report.road.topKmh <= REPLAY.topKmh
-    && !(Number.isInteger(h.resets) && report.road.jumps > h.resets + 1);
-  return { verdict: clean ? 'clean' : 'review', report, digest: sig.digest, finMs };
+    && !(Number.isInteger(h.resets) && report.road.jumps > h.resets + 1));
+  const auto = clean && report.finLateMs != null && report.finLateMs <= REPLAY.lateFinMs && report.beganAt <= REPLAY.lateBeginMs;
+  return { verdict: clean ? 'clean' : 'review', auto, report, digest: sig.digest, finMs, byRoad };
 }
 
 // ------------------------------------------------------------------ the API
@@ -347,8 +397,9 @@ export async function replaysApi(req, env, path, url, me, now, deps) {
     if (!/^[0-9a-f]{64}$/.test(key)) return err('no replay key');
     const track = String(b.track || '').slice(0, 120), car = String(b.car || '').slice(0, 120);
     if (!track || !car) return err('which stage and car?');
+    // (a begin made late, the connection down at the start: followed from there; verifyReplay says how late)
     const clock = Math.max(0, Math.round(+b.clockMs || 0));
-    if (clock > REPLAY.beginClockMax) return err('too late into the stage', 409);
+    if (clock > REPLAY.runHours * 3600000) return err('too late into the stage', 409);
     const keys = await env.DB.prepare('SELECT COUNT(*) AS n FROM replay_keys WHERE steam_id = ?').bind(me.steam_id).first();
     const rid = rand(16), nonce = rand(24);
     await env.DB.batch([
@@ -375,7 +426,22 @@ export async function replaysApi(req, env, path, url, me, now, deps) {
     const r = await env.DB.prepare(`UPDATE replay_runs SET commits = json_insert(commits, '$[#]', json(?)), fin_ms = COALESCE(fin_ms, ?)
         WHERE rid = ? AND steam_id = ? AND json_array_length(commits) = ? AND begin_ms > ? AND uploaded IS NULL`)
       .bind(JSON.stringify([count, hash, now, clock]), fin, rid, me.steam_id, n - 1, now - REPLAY.runHours * 3600000).run();
-    return r.meta.changes ? json({ ok: true }) : err('not this run\'s next commit', 409);
+    if (r.meta.changes) return json({ ok: true, n });
+    // (not the next one: where the server is with the run, so the app sends on from there: a commit that got through
+    // while its answer was lost, or a run the server no longer takes)
+    const at = await env.DB.prepare('SELECT json_array_length(commits) AS n, uploaded, begin_ms FROM replay_runs WHERE rid = ? AND steam_id = ?')
+      .bind(rid, me.steam_id).first();
+    return json({ error: 'not this run\'s next commit', have: at ? at.n : null,
+      closed: !at || !!at.uploaded || at.begin_ms <= now - REPLAY.runHours * 3600000 }, 409);
+  }
+
+  const mr = path.match(/^\/api\/replays\/run\/([a-z0-9]{16})$/);
+  if (mr && !post) {                                    // where the server is with a run: the app sends the commits it missed
+    const no = need(); if (no) return no;
+    const at = await env.DB.prepare('SELECT json_array_length(commits) AS n, fin_ms, uploaded, begin_ms FROM replay_runs WHERE rid = ? AND steam_id = ?')
+      .bind(mr[1], me.steam_id).first();
+    if (!at) return err('no such run', 404);
+    return json({ have: at.n, fin: at.fin_ms, uploaded: at.uploaded || null, open: !at.uploaded && at.begin_ms > now - REPLAY.runHours * 3600000 });
   }
 
   if (path === '/api/replays/wanted' && !post) {
@@ -451,29 +517,57 @@ export async function replaysApi(req, env, path, url, me, now, deps) {
   return null;
 }
 
-/** What the server wants from this driver's app: the replays of DNFs it may take back, and the stewards' requests. */
+/** What a followed run's replay can do now (run: its replay_runs row): -> {why: 'dnf' | 'missing', lost, target} or
+ *  null.
+ *    dnf      the run ended as a DNF the game or the app lost (takesBack: never one the driver earned); a daily's: that
+ *             run (its clock the replay's finish, the game frozen at the line: the DNF's), an event's: the entry's DNF
+ *             on that very stage
+ *    missing  the replay shows a finish and no result ever came from the app (a crash past the line, the result lost
+ *             on its way): MISSING_AFTER_MS after the start, the replay stands in for it
+ *  Only the driver's first start of that stage / daily (the one that counts): a later attempt's replay never stands
+ *  in for it. */
+async function situation(env, run, sid, now) {
+  const first = await env.DB.prepare('SELECT rid FROM replay_runs WHERE ref = ? AND steam_id = ? ORDER BY begin_ms LIMIT 1').bind(run.ref, sid).first();
+  if (!first || first.rid !== run.rid) return null;
+  const late = now - run.begin_ms >= REPLAY.missingAfterMs;
+  if (run.kind === 'daily') {
+    const d = parseDaily(run.ref);
+    if (!d) return null;
+    const { results: rows } = await env.DB.prepare(`SELECT id, status, reason, clock_ms, flags FROM runs WHERE steam_id = ? AND date = ? AND slot = ?
+        AND created >= ? ORDER BY created LIMIT 10`).bind(sid, d.date, d.slot, run.begin_ms).all();
+    const dnf = rows.find((r) => r.status === 'dnf' && takesBack(r.reason) && !String(r.flags || '').includes('reviewed: kept as a DNF')
+      && (run.fin_ms != null ? Math.abs((r.clock_ms || 0) - run.fin_ms) <= 1500 : FROZE.test(r.reason || '')));
+    if (dnf) return { why: 'dnf', lost: dnf.reason, target: dnf };
+    if (!rows.length && run.fin_ms != null && late) return { why: 'missing', lost: '', target: d };
+    return null;
+  }
+  if (run.kind === 'event') {
+    const e = parseEvent(run.ref);
+    const en = e && await env.DB.prepare(`SELECT e.status, e.reason, e.done, e.on_stage, e.dsq, v.closes FROM league_entries e
+        JOIN league_events v ON v.id = e.event_id WHERE e.event_id = ? AND e.steam_id = ?`).bind(e.id, sid).first();
+    if (!en || en.dsq || en.done !== e.no || run.begin_ms > en.closes) return null;
+    if (en.status === 'dnf' && takesBack(en.reason) && (run.fin_ms != null || FROZE.test(en.reason || ''))) {
+      return { why: 'dnf', lost: en.reason, target: e };
+    }
+    if (en.status === 'running' && (en.on_stage === e.no || en.on_stage == null) && run.fin_ms != null && late) {
+      return { why: 'missing', lost: '', target: e };
+    }
+  }
+  return null;
+}
+
+/** What the server wants from this driver's app: the replays that take a DNF back or stand in for a result that never
+ *  came (situation), and the stewards' requests. */
 export async function wanted(env, sid, now) {
   const since = now - REPLAY.wantedDays * DAY;
   const [runs, reqs] = await env.DB.batch([
-    env.DB.prepare(`SELECT rid, kind, ref, fin_ms, begin_ms FROM replay_runs WHERE steam_id = ? AND begin_ms > ? AND uploaded IS NULL
-      AND fin_ms IS NOT NULL ORDER BY begin_ms`).bind(sid, since),
+    env.DB.prepare(`SELECT * FROM replay_runs WHERE steam_id = ? AND begin_ms > ? AND uploaded IS NULL ORDER BY begin_ms LIMIT 20`).bind(sid, since),
     env.DB.prepare(`SELECT id, event_id, stage_no FROM replay_requests WHERE steam_id = ? AND state = 'open' ORDER BY id`).bind(sid),
   ]);
   const out = [];
   for (const r of runs.results) {
-    if (r.kind === 'daily') {
-      const d = parseDaily(r.ref);
-      const dnf = d && await env.DB.prepare(`SELECT id, reason, flags FROM runs WHERE steam_id = ? AND date = ? AND slot = ? AND status = 'dnf'
-          AND created >= ? AND ABS(clock_ms - ?) <= 1500 LIMIT 1`).bind(sid, d.date, d.slot, r.begin_ms, r.fin_ms).first();
-      if (dnf && LOST.test(dnf.reason || '') && !String(dnf.flags || '').includes('reviewed: kept as a DNF')) out.push({ rid: r.rid, ref: r.ref, why: 'dnf' });
-    } else if (r.kind === 'event') {
-      const e = parseEvent(r.ref);
-      const en = e && await env.DB.prepare('SELECT status, done, dsq FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(e.id, sid).first();
-      if (en && en.status === 'dnf' && en.done === e.no && !en.dsq) {
-        const first = await env.DB.prepare('SELECT rid FROM replay_runs WHERE ref = ? AND steam_id = ? ORDER BY begin_ms LIMIT 1').bind(r.ref, sid).first();
-        if (first && first.rid === r.rid) out.push({ rid: r.rid, ref: r.ref, why: 'dnf' });
-      }
-    }
+    const s = await situation(env, r, sid, now);
+    if (s) out.push({ rid: r.rid, ref: r.ref, why: s.why });
   }
   for (const q of reqs.results) out.push({ rid: null, ref: `event:${q.event_id}:${q.stage_no}`, why: 'steward', requestId: q.id });
   return out;
@@ -491,44 +585,55 @@ async function upload(env, me, doc, bytes, wantPublic, now, deps) {
   }
   const { results: keyRows } = await env.DB.prepare('SELECT key FROM replay_keys WHERE steam_id = ?').bind(me.steam_id).all();
   const points = await deps.route(String(h.track || ''));
-  const v = await verifyReplay(doc, { run, points, keys: keyRows.map((k) => k.key), uploader: me.steam_id });
+  const s = run ? await situation(env, run, me.steam_id, now) : null;
+  const v = await verifyReplay(doc, { run, points, keys: keyRows.map((k) => k.key), uploader: me.steam_id, lost: s ? s.lost : '' });
   if (v.verdict === 'refused') return json({ verdict: 'refused', report: v.report }, 422);
   const code = rand(10);
   let action = null, why = 'share';
   const notes = [];
-  // a DNF this replay can take back
-  if (run && run.kind === 'daily') {
-    const d = parseDaily(run.ref);
-    const dnf = await env.DB.prepare(`SELECT id, clock_ms, reason, flags FROM runs WHERE steam_id = ? AND date = ? AND slot = ? AND status = 'dnf'
-        AND created >= ? AND ABS(clock_ms - ?) <= 1500 ORDER BY created LIMIT 1`).bind(me.steam_id, d.date, d.slot, run.begin_ms, v.finMs || -1e9).first();
-    if (dnf && LOST.test(dnf.reason || '')) {
-      why = 'dnf';
-      action = await takeBack(env, me, v, now, async () => {
-        const res = await deps.reinstate(dnf.id, Number.isInteger(h.penaltyMs) ? h.penaltyMs : undefined);
-        const out = await res.json().catch(() => ({}));
-        if (!res.ok) return { error: out.error || 'not taken back' };
-        await env.DB.prepare(`UPDATE runs SET flags = json_insert(COALESCE(flags, '[]'), '$[#]', ?) WHERE id = ?`)
-          .bind(`reinstated by replay ${code}`, dnf.id).run();
-        return { ok: true, text: `DNF taken back: ${fmt(out.totalMs)}${out.rank ? `, P${out.rank}` : ''}` };
-      });
-    }
-  } else if (run && run.kind === 'event') {
-    const e = parseEvent(run.ref);
-    const en = await env.DB.prepare('SELECT status, done, dsq FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(e.id, me.steam_id).first();
-    const first = await env.DB.prepare('SELECT rid FROM replay_runs WHERE ref = ? AND steam_id = ? ORDER BY begin_ms LIMIT 1').bind(run.ref, me.steam_id).first();
-    if (en && en.status === 'dnf' && en.done === e.no && !en.dsq && first && first.rid === run.rid) {
-      why = 'dnf';
-      const pen = Number.isInteger(h.penaltyMs) ? h.penaltyMs : ((h.resets || 0) > 0 ? null : 0);
-      if (pen == null) notes.push('the game\'s penalty at the finish is not known: the stewards set the time');
-      action = pen == null ? 'sent to the stewards' : await takeBack(env, me, v, now, () => deps.stageTime(e.id, me.steam_id, e.no, v.finMs, pen,
-        `finish shown by the driver's replay /r/${code}`, now).then((r) => (r.error ? r : { ok: true, text: `SS${e.no + 1}: ${fmt(v.finMs + pen)}, the rally goes on` })));
-    }
+  // the game's penalty at the finish (the mod read it there, on the results screen too); unknown: a daily counts 10 s
+  // a respawn (src/apptime.js), an event's stewards set it if there were respawns
+  const pen = Number.isInteger(h.penaltyMs) ? h.penaltyMs : null;
+  // the car as it crossed the line (life points per part, x damageScale in the file: ints only in what is signed)
+  const damage = h.damage && typeof h.damage === 'object' && !Array.isArray(h.damage)
+    ? Object.fromEntries(Object.entries(h.damage).map(([k, x]) => [k, Number(x) / (Number(h.damageScale) || 1)])) : null;
+  if (s && run.kind === 'daily') {
+    why = s.why;
+    action = await takeBack(env, me, v, now, async () => {
+      let id = s.target.id;
+      if (s.why === 'missing') {                        // (no result from the app: a DNF row of its own, taken back at once)
+        const att = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
+          .bind(me.steam_id, s.target.date, s.target.slot).first();
+        const sch = await env.DB.prepare('SELECT car FROM schedule WHERE date = ? AND slot = ?').bind(s.target.date, s.target.slot).first();
+        const ins = await env.DB.prepare(`INSERT INTO runs (date, slot, steam_id, track, car, status, reason, clock_ms, resets, total_ms, flags,
+            app_version, created, started_at) VALUES (?, ?, ?, ?, ?, 'dnf', ?, ?, ?, NULL, '[]', ?, ?, ?)`)
+          .bind(s.target.date, s.target.slot, me.steam_id, run.track, sch ? sch.car : run.car,
+            'no official result from the game (no result came from the app: its replay stands in)', v.finMs, h.resets | 0,
+            String(h.appVersion || '').slice(0, 20), now, att ? att.started : run.begin_ms - (run.begin_clock || 0)).run();
+        id = ins.meta.last_row_id;
+      } else if (Math.abs((s.target.clock_ms || 0) - v.finMs) > 1500) {
+        return { error: 'its finish is not the DNF\'s clock' };
+      }
+      const res = await deps.reinstate(id, pen == null ? undefined : pen);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: out.error || 'not taken back' };
+      await env.DB.prepare(`UPDATE runs SET flags = json_insert(COALESCE(flags, '[]'), '$[#]', ?) WHERE id = ?`)
+        .bind(`reinstated by replay ${code}`, id).run();
+      return { ok: true, text: `${s.why === 'missing' ? 'Result put in from the replay' : 'DNF taken back'}: ${fmt(out.totalMs)}${out.rank ? `, P${out.rank}` : ''}` };
+    });
+  } else if (s && run.kind === 'event') {
+    why = s.why;
+    const p = pen != null ? pen : ((h.resets || 0) > 0 ? null : 0);
+    if (p == null) notes.push('the game\'s penalty at the finish is not known (respawns): the stewards set the time');
+    action = p == null ? 'sent to the stewards' : await takeBack(env, me, v, now, () => deps.stageTime(s.target.id, me.steam_id, s.target.no,
+      v.finMs, p, `finish shown by the driver's replay /r/${code}`, now, damage).then((r) => (r.error ? r
+      : { ok: true, text: `SS${s.target.no + 1}: ${fmt(v.finMs + p)}, the rally goes on` })));
   }
   // a steward asked for it
   const reqs = h.ref ? (await env.DB.prepare(`SELECT id, by, stage_no, event_id FROM replay_requests WHERE steam_id = ? AND state = 'open'
       AND 'event:' || event_id || ':' || stage_no = ?`).bind(me.steam_id, String(h.ref)).all()).results : [];
   if (reqs.length && why === 'share') why = 'steward';
-  if (action === null && v.verdict === 'review' && why === 'dnf') action = 'sent to review';
+  const took = /^(DNF taken back|Result put in|SS\d)/.test(action || '');
   const from = await publicFrom(env, String(h.kind || ''), h.ref);
   const pub = wantPublic && from <= now ? 1 : 0;
   if (wantPublic && !pub) notes.push('public once the stage no longer counts');
@@ -539,39 +644,40 @@ async function upload(env, me, doc, bytes, wantPublic, now, deps) {
         why, public, action, data, size, created, expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(code, rid, me.steam_id, String(h.kind || 'practice').slice(0, 20), h.ref ? String(h.ref).slice(0, 60) : null,
         String(h.track || '').slice(0, 120), String(h.car || '').slice(0, 120), String(h.status || 'ended').slice(0, 20),
-        v.finMs, Number.isInteger(h.penaltyMs) ? h.penaltyMs : null, v.verdict, JSON.stringify(report), v.digest, why, pub, action,
+        v.finMs, pen, v.verdict, JSON.stringify(report), v.digest, why === 'missing' ? 'dnf' : why, pub, action,
         bytes, bytes.length, now, now + keepDays * DAY),
     env.DB.prepare('DELETE FROM replay_files WHERE expires < ?').bind(now),
     // (a driver's oldest shared ones past perDriver)
     env.DB.prepare(`DELETE FROM replay_files WHERE steam_id = ? AND why = 'share' AND code NOT IN
         (SELECT code FROM replay_files WHERE steam_id = ? ORDER BY created DESC LIMIT ?)`).bind(me.steam_id, me.steam_id, REPLAY.perDriver),
   ];
-  if (run) stmts.push(env.DB.prepare('UPDATE replay_runs SET uploaded = ? WHERE rid = ?').bind(code, run.rid));
+  // (the run's replay in: a proof uploaded once; one only shared leaves the run open for a DNF still to come)
+  if (run && (s || reqs.length)) stmts.push(env.DB.prepare('UPDATE replay_runs SET uploaded = ? WHERE rid = ?').bind(code, run.rid));
   for (const q of reqs) {
     stmts.push(env.DB.prepare(`UPDATE replay_requests SET state = 'sent', code = ?, answered = ? WHERE id = ?`).bind(code, now, q.id));
     stmts.push(noticeStmt(env, q.by, 'replay', `${me.name || 'The driver'} sent the replay of SS${q.stage_no + 1} you asked for (${v.verdict === 'clean' ? 'its checks are clean' : 'its checks want a look'}): /r/${code}`,
       `event:${q.event_id}`, now));
   }
-  if (/^(DNF taken back|SS\d)/.test(action || '')) {    // (the driver's own note of it, in their inbox)
+  if (took) {                                          // (the driver's own note of it, in their inbox)
     stmts.push(noticeStmt(env, me.steam_id, 'replay', `Your replay proved the finish the game lost. ${action}. /r/${code}`, h.ref ? String(h.ref) : null, now));
   }
-  if (why === 'dnf' && run && run.kind === 'event' && !/^SS\d/.test(action || '')) {
+  if (s && run.kind === 'event' && !took) {
     // (not taken back on its own: the stewards told, with the replay to watch)
-    const e = parseEvent(run.ref);
-    const staff = await env.DB.prepare(`SELECT l.owner FROM league_events ev JOIN leagues l ON l.id = ev.league_id WHERE ev.id = ?`).bind(e.id).first();
-    if (staff) stmts.push(noticeStmt(env, staff.owner, 'replay', `${me.name || 'A driver'} sent a replay of their DNF on SS${e.no + 1} for you to look at: /r/${code}`,
-      `event:${e.id}`, now));
+    const staff = await env.DB.prepare(`SELECT l.owner FROM league_events ev JOIN leagues l ON l.id = ev.league_id WHERE ev.id = ?`).bind(s.target.id).first();
+    if (staff) stmts.push(noticeStmt(env, staff.owner, 'replay', `${me.name || 'A driver'} sent a replay of their ${s.why === 'missing' ? 'stage with no result' : 'DNF'} on SS${s.target.no + 1} for you to look at: /r/${code}`,
+      `event:${s.target.id}`, now));
   }
   await env.DB.batch(stmts);
   const stamp = { code, verdict: v.verdict, at: now, mac: await stampOf(env, code, v.digest, v.verdict) };
-  return json({ code, verdict: v.verdict, report, action, why, public: !!pub, stamp, url: `${deps.site || ''}/r/${code}` });
+  return json({ code, verdict: v.verdict, auto: v.auto, report, action, why, public: !!pub, stamp, url: `${deps.site || ''}/r/${code}` });
 }
 
-/** A DNF taken back by a clean replay (fn does it), three a week a driver; otherwise left to the admin / stewards. */
+/** A DNF taken back by a replay (fn does it): its checks clean and its finish on the server in time (verifyReplay's
+ *  auto), AUTO_PER_WEEK a driver; otherwise left to the admin / the stewards, with the replay to watch. */
 async function takeBack(env, me, v, now, fn) {
-  if (v.verdict !== 'clean') return 'sent to review';
-  const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM replay_files WHERE steam_id = ? AND created > ? AND (action LIKE 'DNF taken back%' OR action LIKE 'SS%')`)
-    .bind(me.steam_id, now - 7 * DAY).first();
+  if (!v.auto) return 'sent to review';
+  const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM replay_files WHERE steam_id = ? AND created > ?
+      AND (action LIKE 'DNF taken back%' OR action LIKE 'Result put in%' OR action LIKE 'SS%')`).bind(me.steam_id, now - 7 * DAY).first();
   if (n && n.n >= REPLAY.autoPerWeek) return `sent to review (more than ${REPLAY.autoPerWeek} this week)`;
   const r = await fn();
   return r && r.ok ? r.text : `sent to review (${(r && r.error) || 'not taken back'})`;

@@ -87,7 +87,8 @@ class Recording(Base):
         self.assertEqual(doc['head']['status'], 'finished')
         self.assertEqual(doc['head']['finMs'], 60000)
         self.assertEqual(doc['head']['penaltyMs'], 5000)
-        self.assertEqual(len(doc['rows']), 600)                # (every 100 ms of clock, from its first)
+        self.assertEqual(len(doc['rows']), 601)                # (every 100 ms of clock, from its first, and the finish's)
+        self.assertEqual(doc['rows'][-1][0], 60000)
         self.assertTrue(all(len(r) == 14 and all(isinstance(v, int) for v in r) for r in doc['rows']))
         chk = replays.check(doc)
         self.assertTrue(chk['signed'])
@@ -287,3 +288,226 @@ class Page(Base):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ---------------------------------------------------------------------- the ways a finish gets lost (26 Nov 2026)
+
+class FakeServer:
+    """The server's begin / commit / run as src/replays.js has them (in order, each once), with a connection that can
+    go down (down=True: every call fails as offline) and an answer that can be lost after the server took it."""
+
+    def __init__(self):
+        self.runs, self.down, self.lose_answer, self.calls = {}, False, set(), []
+
+    def _net(self):
+        if self.down:
+            raise OSError('offline')
+
+    def replay_begin(self, body):
+        self._net()
+        rid = '%016d' % (len(self.runs) + 1)
+        self.runs[rid] = {'begin': body, 'commits': []}
+        self.calls.append(('begin', body['clockMs']))
+        return {'rid': rid, 'nonce': 'n' * 24}
+
+    def replay_commit(self, body):
+        self._net()
+        run = self.runs[body['rid']]
+        if body['n'] != len(run['commits']) + 1:
+            e = OSError('not this run\'s next commit')
+            e.code = 409
+            raise e
+        run['commits'].append([body['count'], body['hash'], body.get('fin')])
+        self.calls.append(('commit', body['n']))
+        if body['n'] in self.lose_answer:          # (the server took it, its answer never came)
+            self.lose_answer.discard(body['n'])
+            raise OSError('timed out')
+        return {'ok': True}
+
+    def replay_run(self, rid):
+        self._net()
+        return {'have': len(self.runs[rid]['commits']), 'open': True}
+
+
+def wait_for(cond, s=5.0):
+    import time as _t
+    end = _t.time() + s
+    while _t.time() < end:
+        if cond():
+            return True
+        _t.sleep(0.01)
+    return False
+
+
+class LostFinishes(Base):
+    def setUp(self):
+        super().setUp()
+        self.fast = mock.patch.multiple(replays, RETRY_S=0.01, RETRY_MAX_S=0.02)
+        self.fast.start()
+
+    def tearDown(self):
+        self.fast.stop()
+        super().tearDown()
+
+    def rec(self, srv, **kw):
+        return replays.Recorder({'token': 't'}, api=srv, me=lambda: {'steamId': '7656', 'name': 'Ann'}, **kw)
+
+    def drive_counted(self, rec, ms, t0=0.0, during=None, kind='daily', ref='2026-11-26/1'):
+        """A counted run, its frames as fast as they go; the sender given its time where a stage's real seconds would
+        (each 10 s of clock, after the begin): during(c) may take the connection down / up."""
+        rec.feed(frame(50), t0 + 0.05)
+        rec.tag(kind, ref, 'SS1', True)
+        wait_for(lambda: rec.sender.idle(), 1.0)
+        for c in range(100, ms + 1, 50):
+            if during:
+                during(c)
+            rec.feed(frame(c), t0 + c / 1000.0)
+            if c % 10000 == 0:
+                wait_for(lambda: rec.sender.idle(), 0.3)
+
+    def chain_ok(self, srv, rid, doc):
+        """The server's commits are the file's chain, in order."""
+        h = replays.chain_start(rid, 'n' * 24)
+        at = 0
+        for count, hh, _fin in srv.runs[rid]['commits']:
+            h = replays.chain_next(h, doc['rows'][at:count])
+            at = count
+            if h != hh:
+                return False
+        return True
+
+    def test_the_connection_lost_for_a_while_every_commit_gets_there_in_order(self):
+        srv = FakeServer()
+        rec = self.rec(srv)
+        down = lambda c: setattr(srv, 'down', 30000 <= c < 70000)   # noqa: E731  (40 s with no connection)
+        self.drive_counted(rec, 100000, during=down)
+        rec.outcome('finished', {'clockMs': 100000, 'resets': 0, 'totalMs': 100000})
+        rec.feed(None, 300.0)
+        self.assertTrue(wait_for(lambda: rec.sender.idle()))
+        rid = next(iter(srv.runs))
+        commits = srv.runs[rid]['commits']
+        self.assertEqual(commits[-1][2], 100000)                       # (the finish, at the end)
+        self.assertGreaterEqual(len(commits), 9)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertTrue(self.chain_ok(srv, rid, doc))
+        self.assertGreater(rec.sender.failures, 0)
+
+    def test_the_connection_down_at_the_start_followed_from_when_it_came_back(self):
+        srv = FakeServer()
+        srv.down = True
+        rec = self.rec(srv)
+        self.drive_counted(rec, 60000, during=lambda c: setattr(srv, 'down', c < 20000))
+        rec.outcome('finished', {'clockMs': 60000, 'resets': 0, 'totalMs': 60000})
+        rec.feed(None, 300.0)
+        self.assertTrue(wait_for(lambda: rec.sender.idle()))
+        rid = next(iter(srv.runs))
+        self.assertGreaterEqual(srv.runs[rid]['begin']['clockMs'], 19900)   # (begun late: the server follows from there)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertEqual(doc['live']['rid'], rid)
+        self.assertTrue(self.chain_ok(srv, rid, doc))
+        self.assertEqual(srv.runs[rid]['commits'][0][0], [c for c, _h in doc['live']['commits']][0])
+        self.assertTrue(replays.check(doc)['chain'])
+
+    def test_a_run_kept_before_its_begin_got_there_gets_its_server_part_after(self):
+        srv = FakeServer()
+        srv.down = True
+        rec = self.rec(srv)
+        self.drive_counted(rec, 30000)
+        rec.outcome('finished', {'clockMs': 30000, 'resets': 0, 'totalMs': 30000})
+        rec.feed(None, 300.0)                                           # (kept: no run id yet)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertIsNone(doc['live'])
+        srv.down = False                                                # (the connection back)
+        self.assertTrue(wait_for(lambda: rec.sender.idle() and srv.runs))
+        self.assertTrue(wait_for(lambda: (replays.read(replays.path_of(rec.saved[0])).get('live') or {}).get('rid')))
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        rid = doc['live']['rid']
+        chk = replays.check(doc)
+        self.assertTrue(chk['signed'] and chk['chain'], chk)            # (signed again: the run id is in what is signed)
+        self.assertEqual(srv.runs[rid]['commits'][-1][2], 30000)        # (its finish told)
+        self.assertTrue(self.chain_ok(srv, rid, doc))
+
+    def test_an_answer_lost_after_the_server_took_the_commit(self):
+        srv = FakeServer()
+        srv.lose_answer = {2}
+        rec = self.rec(srv)
+        self.drive_counted(rec, 50000)
+        rec.outcome('finished', {'clockMs': 50000, 'resets': 0, 'totalMs': 50000})
+        rec.feed(None, 300.0)
+        self.assertTrue(wait_for(lambda: rec.sender.idle()))
+        rid = next(iter(srv.runs))
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertEqual(len(srv.runs[rid]['commits']), len(doc['live']['commits']))   # (2 once, the rest after it)
+        self.assertTrue(self.chain_ok(srv, rid, doc))
+
+    def test_the_finish_s_exact_clock_and_the_car_as_it_crossed_the_line(self):
+        rec = replays.Recorder({}, damage=lambda: {'Engine': 40.46, 'Radiator': 100.0}, penalty=lambda: (5000, False))
+        for c in range(50, 12001, 50):
+            rec.feed(frame(c), c / 1000.0)
+        for k in range(10):                                             # (the clock stopped at 12 040: the finish)
+            rec.feed(frame(12040), 12.1 + k * 0.1)
+        rec.outcome('finished', {'clockMs': 12040, 'resets': 0, 'totalMs': 12040})
+        rec.feed(None, 100.0)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertEqual(doc['rows'][-1][0], 12040)
+        self.assertEqual(doc['head']['damage'], {'Engine': 405, 'Radiator': 1000})
+        self.assertEqual(doc['head']['damageScale'], 10)
+        self.assertEqual(doc['head']['penaltyMs'], 5000)
+        self.assertTrue(replays.check(doc)['signed'])
+
+    def test_the_game_frozen_its_clock_kept_where_it_stopped(self):
+        rec = replays.Recorder({})
+        for c in range(50, 8001, 50):
+            rec.feed(frame(c), c / 1000.0)
+        for k in range(20):                                             # (frozen at 8 030: the same frame again and again)
+            rec.feed(frame(8030), 8.1 + k * 0.05)
+        rec.outcome('dnf', {'clockMs': 8030, 'resets': 0, 'reason': 'lost the game (closed or frozen)'})
+        rec.feed(None, 100.0)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertEqual(doc['rows'][-1][0], 8030)
+        self.assertEqual(doc['head']['reason'], 'lost the game (closed or frozen)')
+
+    def test_after_a_restart_the_commits_never_sent_go_from_the_file(self):
+        srv = FakeServer()
+        rec = self.rec(srv)
+        self.drive_counted(rec, 40000, during=lambda c: setattr(srv, 'down', c >= 15000))
+        rec.outcome('finished', {'clockMs': 40000, 'resets': 0, 'totalMs': 40000})
+        rec.feed(None, 300.0)
+        rid = next(iter(srv.runs))
+        have = len(srv.runs[rid]['commits'])
+        # the app closed now, its sender with it: a new one at the next start, the connection back
+        rec.sender.q.clear()
+        srv.down = False
+        self.assertEqual(replays.catch_up(srv), 1)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertGreater(len(srv.runs[rid]['commits']), have)
+        self.assertEqual(len(srv.runs[rid]['commits']), len(doc['live']['commits']))
+        self.assertEqual(srv.runs[rid]['commits'][-1][2], 40000)
+        self.assertTrue(self.chain_ok(srv, rid, doc))
+        self.assertEqual(replays.catch_up(srv), 0)                      # (synced: never again)
+
+    def test_a_counted_run_never_begun_is_begun_from_its_file(self):
+        srv = FakeServer()
+        srv.down = True
+        rec = self.rec(srv)
+        self.drive_counted(rec, 20000)
+        rec.outcome('finished', {'clockMs': 20000, 'resets': 0, 'totalMs': 20000})
+        rec.feed(None, 300.0)
+        rec.sender.q.clear()                                            # (the app closed before the connection came back)
+        srv.down = False
+        self.assertEqual(replays.catch_up(srv), 1)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        rid = doc['live']['rid']
+        self.assertEqual(srv.runs[rid]['begin']['clockMs'], 20000)     # (followed only from its end: the admin decides)
+        self.assertTrue(replays.check(doc)['chain'] and replays.check(doc)['signed'])
+        self.assertEqual(srv.runs[rid]['commits'][-1][2], 20000)
+
+    def test_a_result_still_queued_here_is_never_stood_in_for(self):
+        from acr_daily import replayui, leagues
+        ui = replayui.ReplayUI()
+        ui.api = N(_pending=lambda: [{'challengeId': '2026-11-26/1'}])
+        self.assertTrue(ui._result_on_its_way('2026-11-26/1'))
+        self.assertFalse(ui._result_on_its_way('2026-11-26/2'))
+        with mock.patch.object(leagues, 'pending', lambda: [{'kind': 'stage', 'eventId': 7, 'no': 1}]):
+            self.assertTrue(ui._result_on_its_way('event:7:1'))
+            self.assertFalse(ui._result_on_its_way('event:7:2'))

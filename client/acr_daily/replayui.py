@@ -16,10 +16,13 @@ class ReplayUI:
     replays = None                # the Recorder (replays.py)
     replay_asks = ()              # the stewards' requests waiting for the driver's yes ('send': 'ask'): [wanted dict]
     replay_note = ''              # the last word on a replay sent (the REPLAY page shows it)
+    _replay_polling = False       # (class defaults: the tests build bare apps, _replay_init never run)
 
     def _replay_init(self):
+        from . import ingamedrive
         self.replays = replays.Recorder(self.s, self.api, me=lambda: {'steamId': self.s.get('steamId'), 'name': self.s.get('name')},
-                                        app_version=__version__, penalty=self._live_penalty)
+                                        app_version=__version__, penalty=self._live_penalty,
+                                        damage=ingamedrive.read_damage)   # (the car at the finish line: the mod's)
         self.replays.on_saved = self._replay_saved
         self.replay_asks = []
         self._replay_polling = False
@@ -76,12 +79,22 @@ class ReplayUI:
 
     def _replay_poll_bg(self):
         try:
+            # (first what the server missed: commits of runs driven while the connection was down, sent from their files,
+            # then what it wants: a DNF's proof needs its finish on the server)
+            try:
+                n = replays.catch_up(self.api, skip=set(getattr(self.replays, 'saved', ()) or ()))
+                if n:
+                    waiting.note('replays: %d replays brought up to date on the server' % n)
+            except Exception:
+                pass
             try:
                 want = self.api.replays_wanted()
             except Exception:
                 return
             asks = []
             for w in want:
+                if w.get('why') == 'missing' and self._result_on_its_way(w.get('ref')):
+                    continue                     # (its own result still queued here: that one, not the replay)
                 name = find_local(w)
                 if w.get('why') == 'steward':
                     if not name:
@@ -147,6 +160,34 @@ class ReplayUI:
         if done:
             self.root.after(0, lambda: done(a))
         return a
+
+    def _result_on_its_way(self, ref):
+        """Is this run's own result still on this PC, to be sent (the runs' queue, the leagues' queue, a finish still
+        waiting for the game's official time)? Then a replay never stands in for it."""
+        ref = str(ref or '')
+        try:
+            for body in self.api._pending():
+                if str(body.get('challengeId') or '') == ref:
+                    return True
+        except Exception:
+            pass
+        m = ref.split(':')
+        if len(m) == 3 and m[0] == 'event':
+            try:
+                from . import leagues
+                for it in leagues.pending():
+                    if str(it.get('eventId')) == m[1] and str(it.get('no')) == m[2]:
+                        return True
+            except Exception:
+                pass
+        try:
+            for a in waiting.load():
+                if ref and (str(a.get('id') or '').startswith(ref) or str((a.get('result') or {}).get('challengeId') or '') == ref
+                            or (len(m) == 3 and str(a.get('eventId')) == m[1] and str(a.get('no')) == m[2])):
+                    return True
+        except Exception:
+            pass
+        return False
 
     def replay_answer(self, w, send):
         """A steward's request answered by the driver (REPLAY: SEND / NO)."""

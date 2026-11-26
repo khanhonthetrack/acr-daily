@@ -64,7 +64,7 @@ function world() {
 const deps = (env, extra = {}) => ({ json, err, admin: false, site: 'https://acrdaily.com',
   route: async (track) => { const r = await env.DB.prepare('SELECT points FROM routes WHERE track = ?').bind(track).first(); return r ? JSON.parse(r.points) : null; },
   reinstate: async () => json({ error: 'not here' }, 404),
-  stageTime: (eventId, s, no, timeMs, penaltyMs, reason, now) => replayStageTime(env, eventId, s, no, timeMs, penaltyMs, reason, now),
+  stageTime: (eventId, s, no, timeMs, penaltyMs, reason, now, damage) => replayStageTime(env, eventId, s, no, timeMs, penaltyMs, reason, now, damage),
   ...extra });
 
 async function call(env, path, me, body, now, d = deps(env), raw = null) {
@@ -76,22 +76,26 @@ async function call(env, path, me, body, now, d = deps(env), raw = null) {
 
 /** A run followed by the server: begin, a commit every 10 s of the server's clock (at the pace the clock ran), the final
  *  one at the finish. -> {rid, live} */
-async function followed(env, me, key, head, rows, { t0 = NOW, speed = 1 } = {}) {
-  const b = await call(env, '/api/replays/begin', me, { kind: head.kind, ref: head.ref, track: head.track, car: head.car, clockMs: 0, key: key.pub }, t0);
+async function followed(env, me, key, head, rows, { t0 = NOW, speed = 1, beginAt = 0, lateBy = () => 0, fin = true } = {}) {
+  // beginAt: the stage clock the begin got there at (the connection down at the start); lateBy(clock): how much later
+  // than the stage ran the server got the commit with that clock (a connection lost meanwhile); fin: the finish sent
+  const b = await call(env, '/api/replays/begin', me, { kind: head.kind, ref: head.ref, track: head.track, car: head.car, clockMs: beginAt, key: key.pub },
+    t0 + beginAt);
   assert.equal(b.status, 200, JSON.stringify(b.body));
   const { rid, nonce } = b.body;
   let h = await chainStart(rid, nonce), at = 0;
   const commits = [];
-  const fin = rows[rows.length - 1][0];
+  const finMs = rows[rows.length - 1][0];
   for (let i = 0; i < rows.length; i++) {
     const last = i === rows.length - 1;
-    if (!last && (rows[i][0] - (commits.length ? rows[commits[commits.length - 1][0] - 1][0] : 0)) < 10000) continue;
+    if (rows[i][0] < beginAt) continue;
+    if (!last && commits.length && (rows[i][0] - rows[commits[commits.length - 1][0] - 1][0]) < 10000) continue;
     const n = i + 1;
     h = await chainNext(h, rows.slice(at, n));
     at = n;
     commits.push([n, h]);
-    const r = await call(env, '/api/replays/commit', me, { rid, n: commits.length, count: n, hash: h, clockMs: rows[i][0], fin: last ? fin : null },
-      t0 + Math.round(rows[i][0] / speed) + 300);
+    const r = await call(env, '/api/replays/commit', me, { rid, n: commits.length, count: n, hash: h, clockMs: rows[i][0], fin: last && fin ? finMs : null },
+      t0 + Math.round(rows[i][0] / speed) + 300 + lateBy(rows[i][0]));
     assert.equal(r.status, 200, JSON.stringify(r.body));
   }
   return { rid, live: { rid, nonce, commits } };
@@ -184,7 +188,11 @@ test('refused: changed after it was made, someone else\'s, made faster than the 
   // commits out of order / twice: refused at once
   const b = await call(env, '/api/replays/begin', BEN, { kind: 'daily', ref: '2026-11-26/1', track: 'Test Road', car: 'Car', clockMs: 0, key: key.pub }, NOW);
   assert.equal((await call(env, '/api/replays/commit', BEN, { rid: b.body.rid, n: 2, count: 5, hash: 'a'.repeat(64), clockMs: 500 }, NOW + 600)).status, 409);
-  assert.equal((await call(env, '/api/replays/begin', BEN, { kind: 'daily', ref: '2026-11-26/1', track: 'Test Road', car: 'Car', clockMs: 60000, key: key.pub }, NOW)).status, 409);
+  // (a commit the server already has, its answer lost: the server says where it is, the app sends on from there)
+  const st = await call(env, `/api/replays/run/${b.body.rid}`, BEN, null, NOW + 700);
+  assert.deepEqual([st.body.have, st.body.open], [0, true]);
+  // a begin late (the connection down at the start): taken, followed from there
+  assert.equal((await call(env, '/api/replays/begin', BEN, { kind: 'daily', ref: '2026-11-26/1', track: 'Test Road', car: 'Car', clockMs: 60000, key: key.pub }, NOW)).status, 200);
 });
 
 test('the road checks: a corner cut across, off the road; a clean run is clean', () => {
@@ -265,4 +273,190 @@ test('not clean, not taken back: a cut goes to the stewards to look at', async (
   assert.equal(up.body.action, 'sent to review');
   assert.equal(db.prepare('SELECT status FROM league_entries WHERE event_id = ?').get(id).status, 'dnf');
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE to_id = ? AND kind = 'replay'").get(ANN).n, 1);
+});
+
+// ------------------------------------------------------------------ the ways a finish gets lost (26 Nov 2026: "mitigate
+// everything you can NOT to get the dnf": the game hanging on its loading, the result not sent, the connection lost)
+
+function rally(f, stages = 2) {
+  const { db } = f;
+  db.prepare("INSERT INTO leagues (id, name, owner, public, code, created, kind) VALUES ('club0001', 'Club', ?, 1, 'CODE0001', 0, 'league')").run(ANN);
+  db.prepare("INSERT INTO league_members (league_id, steam_id, joined, role) VALUES ('club0001', ?, 0, 'member')").run(BEN);
+  const st = Array.from({ length: stages }, (_x, i) => ({ track: 'Test Road', day: 1, service: i === 0, weather: 'Clear', time: '09:00' }));
+  return Number(db.prepare(`INSERT INTO league_events (league_id, name, rally, car, rules, stages, opens, closes, created, hide)
+    VALUES ('club0001', 'Round 1', 'Wales', 'Skoda Fabia RS Rally2', '{}', ?, ?, ?, 0, NULL)`).run(JSON.stringify(st), NOW - 3600000, NOW + 86400000).lastInsertRowid);
+}
+const entry = (db, id, status, reason = null, done = 0, onStage = 0) => db.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, reason, done,
+  on_stage, started, updated) VALUES (?, ?, 'Skoda Fabia RS Rally2', ?, ?, ?, ?, ?, ?)`).run(id, BEN, status, reason, done, onStage, NOW, NOW);
+const dailyDnf = (db, reason, clock, at) => Number(db.prepare(`INSERT INTO runs (date, slot, steam_id, track, car, status, reason, clock_ms, resets, created)
+  VALUES ('2026-11-26', 1, ?, 'Test Road', 'Car', 'dnf', ?, ?, 0, ?)`).run(BEN, reason, clock, at).lastInsertRowid);
+const send = async (env, key, head, rows, live, at, d = deps(env)) =>
+  call(env, '/api/replays/upload', BEN, null, at, d, gzipSync(JSON.stringify(await makeDoc(key, head, rows, live))));
+const okReinstate = (seen = []) => async (id, pen) => { seen.push([id, pen]); return json({ ok: true, totalMs: 123456, rank: 2 }); };
+
+test('the connection lost for a while: commits that reach the server late still prove the finish, taken back by itself', async () => {
+  const { env, db } = world();
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+  // 40 s with no connection in the middle: those commits (and the ones after, queued behind them) come 40 s late
+  const { live } = await followed(env, BEN, key, head, rows, { lateBy: (c) => (c > 30000 && c < 70000 ? 70000 - c : 0) });
+  dailyDnf(db, 'no official result from the game', fin, NOW + fin + 60000);
+  const seen = [];
+  const up = await send(env, key, head, rows, live, NOW + fin + 90000, deps(env, { reinstate: okReinstate(seen) }));
+  assert.equal(up.body.auto, true, JSON.stringify(up.body.report));
+  assert.match(up.body.action, /^DNF taken back/);
+});
+
+test('the connection down at the start: followed from a minute in, taken back; from later, the admin looks', async () => {
+  for (const [beginAt, auto] of [[45000, true], [100000, false]]) {
+    const { env, db } = world();
+    const key = await keyPair();
+    const rows = drive();
+    const fin = rows[rows.length - 1][0];
+    const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+    const { live } = await followed(env, BEN, key, head, rows, { beginAt });
+    dailyDnf(db, 'the game closed before saving its official result', fin, NOW + fin + 60000);
+    const up = await send(env, key, head, rows, live, NOW + fin + 90000, deps(env, { reinstate: okReinstate() }));
+    assert.equal(up.body.verdict, 'clean', JSON.stringify(up.body.report));
+    assert.equal(up.body.auto, auto, `begin at ${beginAt}: ${JSON.stringify(up.body.report.notes)}`);
+    assert.equal(/^DNF taken back/.test(up.body.action), auto, up.body.action);
+  }
+});
+
+test('the finish on the server very late (the app closed with the connection down): never by itself, the admin looks', async () => {
+  const { env, db } = world();
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+  // the last minute and the finish sent from the file at the next start, an hour later
+  const { live } = await followed(env, BEN, key, head, rows, { lateBy: (c) => (c > fin - 60000 ? 3600000 : 0) });
+  dailyDnf(db, 'the game closed before saving its official result', fin, NOW + fin + 60000);
+  const up = await send(env, key, head, rows, live, NOW + fin + 4000000, deps(env, { reinstate: okReinstate() }));
+  assert.equal(up.body.verdict, 'clean');
+  assert.equal(up.body.auto, false);
+  assert.equal(up.body.action, 'sent to review');
+  assert.match(up.body.report.notes.join(), /reached the server 60 min late/);
+});
+
+test('the game frozen at the finish line before the app saw its finish: the road says it, taken back', async () => {
+  const { env, db } = world();
+  const key = await keyPair();
+  const rows = drive();
+  const frozeAt = rows[rows.length - 1][0];
+  // the app's judge: no telemetry for 30 s -> "lost the game"; no finish sent, the run's rows all committed
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'dnf',
+    reason: 'lost the game (closed or frozen)', resets: 0 };
+  const { live } = await followed(env, BEN, key, head, rows, { fin: false });
+  dailyDnf(db, 'lost the game (closed or frozen)', frozeAt, NOW + frozeAt + 40000);
+  assert.deepEqual((await wanted(env, BEN, NOW + frozeAt + 50000)).map((w) => w.why), ['dnf']);
+  const seen = [];
+  const up = await send(env, key, head, rows, live, NOW + frozeAt + 60000, deps(env, { reinstate: okReinstate(seen) }));
+  assert.equal(up.body.auto, true, JSON.stringify(up.body.report));
+  assert.match(up.body.report.notes.join(), /finish line reached as the road says/);
+  assert.equal(seen.length, 1);
+  // a run that stopped short of the line, the same DNF: not finished, nothing taken back
+  const f2 = world();
+  const short = rows.slice(0, rows.length - 40);
+  const l2 = await followed(f2.env, BEN, key, head, short, { fin: false });
+  dailyDnf(f2.db, 'lost the game (closed or frozen)', short[short.length - 1][0], NOW + 400000);
+  const up2 = await send(f2.env, key, head, short, l2.live, NOW + 500000, deps(f2.env, { reinstate: okReinstate() }));
+  assert.notEqual(up2.body.auto, true);
+  assert.doesNotMatch(String(up2.body.action), /taken back/);
+});
+
+test('no result ever came from the app (a crash past the line): after 30 min the replay stands in for it', async () => {
+  const { env, db } = world();
+  db.prepare("INSERT INTO schedule (date, slot, track, car, weather, time) VALUES ('2026-11-26', 1, 'Test Road', 'Skoda Fabia RS Rally2', 'Clear', '12:00')").run();
+  db.prepare('INSERT INTO attempts (steam_id, date, slot, started) VALUES (?, ?, 1, ?)').run(BEN, '2026-11-26', NOW - 2000);
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'finished', finMs: fin, resets: 1, penaltyMs: 10000 };
+  const { live } = await followed(env, BEN, key, head, rows);
+  assert.deepEqual(await wanted(env, BEN, NOW + 20 * 60000), []);                 // (its own result may still come)
+  assert.deepEqual((await wanted(env, BEN, NOW + 31 * 60000)).map((w) => w.why), ['missing']);
+  const seen = [];
+  const up = await send(env, key, head, rows, live, NOW + 32 * 60000, deps(env, { reinstate: okReinstate(seen) }));
+  assert.match(up.body.action, /^Result put in from the replay/);
+  const r = db.prepare('SELECT id, status, reason, clock_ms, car, started_at FROM runs').get();
+  assert.deepEqual([r.status, r.clock_ms, r.car, r.started_at], ['dnf', fin, 'Skoda Fabia RS Rally2', NOW - 2000]);   // (reinstated: the stub)
+  assert.match(r.reason, /^no official result from the game/);
+  assert.deepEqual(seen, [[r.id, 10000]]);
+  // a result of the app's own in meanwhile: nothing stands in
+  const f2 = world();
+  const l2 = await followed(f2.env, BEN, key, head, rows);
+  f2.db.prepare(`INSERT INTO runs (date, slot, steam_id, track, car, status, clock_ms, total_ms, created) VALUES ('2026-11-26', 1, ?, 'Test Road', 'Car', 'finished', ?, ?, ?)`)
+    .run(BEN, fin, fin, NOW + fin + 600000);
+  assert.deepEqual(await wanted(f2.env, BEN, NOW + 31 * 60000), []);
+  void l2;
+});
+
+test('an online rally: no result from the app for a stage, the replay stands in, with the car as it crossed the line', async () => {
+  const f = world();
+  const { env, db } = f;
+  const id = rally(f);
+  entry(db, id, 'running', null, 0, 0);
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Skoda Fabia RS Rally2', kind: 'event', ref: `event:${id}:0`, status: 'finished',
+    finMs: fin, resets: 0, penaltyMs: 5000, damage: { Engine: 405, Radiator: 1000, Suspension: 873 }, damageScale: 10 };
+  const { live } = await followed(env, BEN, key, head, rows);
+  assert.deepEqual((await wanted(env, BEN, NOW + 31 * 60000)).map((w) => w.why), ['missing']);
+  const up = await send(env, key, head, rows, live, NOW + 32 * 60000);
+  assert.match(up.body.action, /^SS1: .*the rally goes on/, JSON.stringify(up.body));
+  const e = db.prepare('SELECT status, done, total_ms, damage FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, BEN);
+  assert.deepEqual([e.status, e.done, e.total_ms], ['running', 1, fin + 5000]);
+  // (only the parts below 100: the next stage starts with this car, leagues.recover)
+  assert.deepEqual(JSON.parse(e.damage), { no: 0, parts: { Engine: 40.5, Suspension: 87.3 } });
+});
+
+test('a DNF the driver earned is never taken back: a restart after the finish, settings changed, disqualified', async () => {
+  for (const reason of ["SS1 restarted after its finish: a restart doesn't count, the entry ends", 'the event\'s damage changed in the game',
+    'disqualified by the game', 'retired by the stewards: cut']) {
+    const f = world();
+    const id = rally(f);
+    entry(f.db, id, 'dnf', reason, 0, 0);
+    const key = await keyPair();
+    const rows = drive();
+    const fin = rows[rows.length - 1][0];
+    const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Skoda Fabia RS Rally2', kind: 'event', ref: `event:${id}:0`, status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+    const { live } = await followed(f.env, BEN, key, head, rows);
+    assert.deepEqual(await wanted(f.env, BEN, NOW + fin + 60000), [], reason);
+    const up = await send(f.env, key, head, rows, live, NOW + fin + 60000);
+    assert.equal(up.body.action, null, reason);
+    assert.equal(f.db.prepare('SELECT status FROM league_entries').get().status, 'dnf', reason);
+  }
+});
+
+test('only the first start of a stage: a second attempt\'s replay never stands in for it', async () => {
+  const f = world();
+  const id = rally(f);
+  entry(f.db, id, 'dnf', 'no official result from the game', 0, 0);
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Skoda Fabia RS Rally2', kind: 'event', ref: `event:${id}:0`, status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+  await followed(f.env, BEN, key, { ...head, status: 'dnf', finMs: undefined }, rows.slice(0, 300), { fin: false });   // (the first: a crash)
+  const second = await followed(f.env, BEN, key, head, rows, { t0: NOW + 600000 });
+  assert.deepEqual(await wanted(f.env, BEN, NOW + 900000), []);
+  const up = await send(f.env, key, head, rows, second.live, NOW + 900000);
+  assert.equal(up.body.action, null);
+});
+
+test('a replay only shared leaves its run open: the DNF that comes later is still taken back by it', async () => {
+  const { env, db } = world();
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+  const { live } = await followed(env, BEN, key, head, rows);
+  const shared = await send(env, key, head, rows, live, NOW + fin + 10000);
+  assert.equal(shared.body.why, 'share');
+  dailyDnf(db, 'no official result from the game', fin, NOW + fin + 600000);
+  const up = await send(env, key, head, rows, live, NOW + fin + 700000, deps(env, { reinstate: okReinstate() }));
+  assert.match(up.body.action, /^DNF taken back/);
 });

@@ -1886,6 +1886,8 @@ class LeaguesUI:
                 leagues.save_pending(q)
         if sent_any:
             _c().ui(self.root, self.refresh_leagues)
+            if hasattr(self, '_replay_poll'):        # (a DNF among them its replay may take back: replayui.py)
+                _c().ui(self.root, self._replay_poll)
 
     # -------------------------------------------------------------- what the window and the timer show
     def _league_rules_alert(self):

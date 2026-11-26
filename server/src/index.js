@@ -1287,9 +1287,11 @@ async function fixRun(env, id, body) {
  *  game's penalty when known (body.penaltyMs), else the respawn estimate, flagged (src/apptime.js); the free daily's
  *  finish bonus if it is the driver's counted run. */
 async function reinstateRun(env, id, body = {}) {
+  // (and since REPLAYS, src/replays.js takesBack: left from the results unsaved, the game frozen at the line)
   const lost = await env.DB.prepare(`SELECT clock_ms, resets FROM runs WHERE id = ? AND status = 'dnf' AND clock_ms > 0
       AND (reason LIKE 'the game closed%' OR reason LIKE 'no official result%'
-        OR reason LIKE 'restarted from the game''s results screen%')`).bind(id).first();
+        OR reason LIKE 'restarted from the game''s results screen%' OR reason LIKE 'left from the results screen%'
+        OR reason LIKE 'lost the game%' OR reason LIKE 'stopped (clock frozen away from the finish)%')`).bind(id).first();
   if (!lost) return err('no DNF with that id whose result the game lost', 404);
   const t = reinstatedTime(lost.clock_ms, lost.resets || 0, body.penaltyMs);    // (with the penalty off its pictures)
   if (t.error) return err(t.error);
@@ -1308,7 +1310,7 @@ async function reinstateRun(env, id, body = {}) {
 function replayDeps(req, env, url) {
   return { json, err, admin: isAdmin(req, env), site: url.origin,
     reinstate: (id, penaltyMs) => reinstateRun(env, id, penaltyMs === undefined ? {} : { penaltyMs }),
-    stageTime: (eventId, sid, no, timeMs, penaltyMs, reason, now) => replayStageTime(env, eventId, sid, no, timeMs, penaltyMs, reason, now),
+    stageTime: (eventId, sid, no, timeMs, penaltyMs, reason, now, damage) => replayStageTime(env, eventId, sid, no, timeMs, penaltyMs, reason, now, damage),
     route: async (track) => {
       const r = track && await env.DB.prepare('SELECT points FROM routes WHERE track = ?').bind(track).first();
       try { return r ? JSON.parse(r.points) : null; } catch { return null; }
@@ -1424,7 +1426,7 @@ async function adminCall(req, env, path) {
         WHERE e.status = 'dnf' AND e.updated >= ? ORDER BY e.updated DESC LIMIT 150`).bind(sinceMs),
     ]);
     const flags = (r) => { try { return JSON.parse(r.flags || '[]'); } catch { return []; } };
-    const LOST = /^(the game closed|no official result|restarted from the game's results screen)/;
+    const LOST = /^(the game closed|no official result|restarted from the game's results screen|left from the results screen|lost the game|stopped \(clock frozen away from the finish\))/;
     return json({ days,
       lost: lost.results.filter((r) => !flags(r).includes('reviewed: kept as a DNF'))
         .map((r) => ({ ...r, flags: undefined, canReinstate: LOST.test(r.reason || '') })),

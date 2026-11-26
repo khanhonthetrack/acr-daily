@@ -28,6 +28,7 @@ whose result the game lost, or an online rally's DNF on that stage, is taken bac
 finish, clean; anything else goes to the admin / the stewards with the replay to watch.
 
 Kept: the newest KEEP (settings 'replays': {'on', 'keep', 'send'}), a starred one never dropped."""
+import collections
 import gzip
 import hashlib
 import json
@@ -47,6 +48,9 @@ ROW_MS = 100                   # a row every 100 ms of stage clock (WATCH plays 
 COMMIT_S = 10.0                # the chain's hash to the server this often while the stage runs
 PART_S = 5.0                   # the rows so far on disk this often (an app closed mid-stage keeps them: recover())
 AFTER_S = 3.0                  # rows kept this long after the run's end (the car rolling past the finish line)
+HOLD_S = 0.3                   # the clock standing this long between two rows: its exact clock kept as a row
+RETRY_S, RETRY_MAX_S = 5.0, 60.0  # the server's part tried again this often (doubling up to the max)
+RUN_HOURS = 4                  # ... for at most this long after the run's start (the server takes commits as long)
 PENALTY_S = 45.0               # the replay kept open this long after the end, the game's penalties read in meanwhile
 NEW_RUN_BACK_MS = 500          # the clock gone back this far: a new run
 KEEP_DEFAULT = 100
@@ -351,22 +355,30 @@ def remove(name):
 
 class Recorder:
     """Fed every frame the app reads (app._tick). A run starts when the stage clock starts and ends when the clock goes
-    back (a restart), the stage or car changes, the game leaves the stage, or AFTER_S after the judge's word on it
+    back (a restart), the stage or car changes, the game leaves the stage, or PENALTY_S after the judge's word on it
     (outcome()). What it was (tag()) and how it ended (outcome()) come from the app's judges; a run nobody tagged is
     kept as practice.
 
-    api: the app's Api (begin / commit, in a thread of their own), s: the settings dict, me: () -> {steamId, name}."""
+    The server's part (a counted run) never holds the run up and survives the connection going (the user, 26 Nov
+    2026: "connection lost for a bit ... mitigate everything you can NOT to get the dnf"): the begin and the commits
+    go out in order from a thread of their own (Sender), each tried again until it gets there; a begin that gets
+    there late (the connection down at the start) follows the run from there; a run closed before its begin got
+    there is followed all the same once it does (its file made again with the server's part: _late_live); what is
+    still unsent when the app closes is sent from the file at the next start (catch_up).
 
-    def __init__(self, s, api=None, me=None, app_version='', penalty=None):
+    api: the app's Api, s: the settings dict, me: () -> {steamId, name}; penalty: () -> (ms, dq) or None (the game's
+    penalties, the mod); damage: () -> {part: life points} or None (the car as the mod read it at the finish line)."""
+
+    def __init__(self, s, api=None, me=None, app_version='', penalty=None, damage=None):
         self.s, self.api, self.me = s, api, me or (lambda: {})
         self.app_version = app_version
-        self.penalty_fn = penalty        # () -> (ms, dq) or None: the game's penalties as the mod reads them
+        self.penalty_fn = penalty
+        self.damage_fn = damage
         self.run = None
         self.saved = []                  # (file names saved this session, newest last: the app's notes)
         self.on_saved = None             # a function (name, doc) called on the main thread when one is kept
-        self._q = queue.Queue(maxsize=500)
-        self._worker = None
         self._chain_lock = threading.Lock()
+        self.sender = Sender(api) if api is not None else None
 
     # ---- the app's judges say what the run is
     def tag(self, kind, ref=None, title=None, counted=False, **extra):
@@ -375,11 +387,9 @@ class Recorder:
             return
         r['tagged'] = True
         r['head'].update(clean_head(dict(extra, kind=kind, ref=ref, title=title, counted=bool(counted))))
-        if counted and kind in KINDS_LIVE and ref and self.api is not None and self.s.get('token'):
+        if counted and kind in KINDS_LIVE and ref and self.sender is not None and self.s.get('token'):
             r['live'] = {'rid': None, 'nonce': None, 'commits': [], 'h': None, 'at': 0, 'pending': True}
-            self._send('begin', r, {'kind': kind, 'ref': ref, 'track': r['head'].get('track'),
-                                    'car': r['head'].get('car'), 'clockMs': r['rows'][-1][0] if r['rows'] else 0,
-                                    'key': device_key()[1].hex()})
+            self.sender.begin(self, r)
 
     def outcome(self, status, result=None, penalty_ms=None, reason=None):
         """The judge's word on the run: 'finished' / 'dnf' / 'invalid', its result (clockMs, resets, totalMs). The
@@ -390,11 +400,15 @@ class Recorder:
         res = result or {}
         r['ended'] = time.monotonic()
         clock = res.get('clockMs')
+        if penalty_ms is None:
+            penalty_ms = r['head'].get('penaltyMs')     # (as read while driving: the game frozen, nothing more to read)
         r['head'].update(clean_head({'status': status, 'reason': reason or res.get('reason') or '',
                                      'clockMs': clock, 'resets': res.get('resets'), 'penaltyMs': penalty_ms,
                                      'totalMs': res.get('totalMs')}))
         if status == 'finished' and clock:
             r['head']['finMs'] = int(clock)
+            self._exact_row(r, int(clock))
+        self._read_damage(r)
         self._commit(r, final=True)
 
     # ---- every frame
@@ -409,16 +423,11 @@ class Recorder:
             # (kept open on the results screen: the game's penalties given there are read in, PENALTY_S at most; a
             # game frozen on its loading screen leaves its last frame in the telemetry for good)
             late = r.get('ended') and now - r['ended'] >= PENALTY_S
-            if r.get('ended') and not gone and self.penalty_fn is not None and now - r.get('pen_at', 0) >= 1.0:
+            if not gone and now - r.get('pen_at', -1e9) >= 1.0:
                 r['pen_at'] = now
-                try:
-                    pen = self.penalty_fn()
-                except Exception:
-                    pen = None
-                if pen is not None and pen[0] is not None:
-                    r['head']['penaltyMs'] = int(pen[0])
-                    if pen[1]:
-                        r['head']['dq'] = True
+                self._read_penalty(r)                  # (while driving too: a game that freezes says nothing more)
+                if r.get('ended') and r['head'].get('damage') is None:
+                    self._read_damage(r)
             if gone or late or len(r['rows']) >= MAX_ROWS:
                 self._close(r, 'left' if gone and not r.get('ended') else None)
                 r = self.run = None
@@ -433,65 +442,117 @@ class Recorder:
                          'driver': clean_head({'steamId': me.get('steamId') or '', 'name': me.get('name') or ''}),
                          'track': track, 'car': getattr(f, 'car', '') or '', 'kind': 'practice', 'ref': None,
                          'status': 'ended', 'rowMs': ROW_MS},
-                'rows': [], 'last': -ROW_MS, 'part_at': now, 'live': None}
-        if f.clock_ms >= r['last'] + ROW_MS and not (r.get('ended') and now - r['ended'] >= AFTER_S):
-            r['rows'].append(row_of(f))
-            r['last'] = f.clock_ms
-        if r.get('live') and now - r.setdefault('commit_at', now) >= COMMIT_S and not r.get('ended'):
+                'rows': [], 'last': -ROW_MS, 'part_at': now, 'live': None, 'clock_seen': None}
+        if not (r.get('ended') and now - r['ended'] >= AFTER_S):
+            if f.clock_ms >= r['last'] + ROW_MS:
+                r['rows'].append(row_of(f))
+                r['last'] = f.clock_ms
+                r['clock_seen'] = (f.clock_ms, now)
+            elif f.clock_ms > r['last']:
+                # the clock stopped between two rows (the finish line, a pause, a game frozen at the line): its exact
+                # clock kept as a row of its own once it has stood HOLD_S, so the replay ends where the clock did. The
+                # car where it was as the clock stopped (it rolls on past the line: its pose then made a 13 m step in
+                # 18 ms of clock, a car "faster than 330 km/h" to the server's checks, the end-to-end test 26 Nov 2026)
+                seen = r.get('clock_seen')
+                if seen is None or seen[0] != f.clock_ms:
+                    r['clock_seen'] = (f.clock_ms, now, row_of(f))
+                elif now - seen[1] >= HOLD_S:
+                    r['rows'].append(seen[2] if len(seen) > 2 else row_of(f))
+                    r['last'] = f.clock_ms
+        live = r.get('live')
+        if live and now - r.setdefault('commit_at', now) >= COMMIT_S and not r.get('ended'):
             self._commit(r, now=now)
         if now - r['part_at'] >= PART_S:
             r['part_at'] = now
             self._part(r)
 
+    def _exact_row(self, r, clock):
+        """The finish's exact clock as the replay's last row (the pose of the last row: the car at the line)."""
+        if r['rows'] and clock > r['rows'][-1][0]:
+            r['rows'].append([clock] + list(r['rows'][-1][1:]))
+            r['last'] = clock
+
+    def _read_penalty(self, r):
+        if self.penalty_fn is None:
+            return
+        try:
+            pen = self.penalty_fn()
+        except Exception:
+            pen = None
+        if pen is not None and pen[0] is not None:
+            r['head']['penaltyMs'] = int(pen[0])
+            if pen[1]:
+                r['head']['dq'] = True
+
+    def _read_damage(self, r):
+        """The car as it crossed the line (the mod keeps it from there: drive.lua): with the replay, so an online
+        rally's stage it takes back goes on with that car (server leaguesapi replayStageTime, client leagues.recover)."""
+        if self.damage_fn is None:
+            return
+        try:
+            d = self.damage_fn()
+        except Exception:
+            d = None
+        if isinstance(d, dict):
+            r['head']['damage'] = {str(k): (round(float(v) * 10) if isinstance(v, (int, float)) else 0) for k, v in d.items()
+                                   if isinstance(k, str)}
+            r['head']['damageScale'] = 10        # (life points x 10: ints only in the head)
+
     # ---- the server's chain
     def _commit(self, r, final=False, now=None):
-        with self._chain_lock:            # (the main thread's ticks and the worker's late begin)
+        with self._chain_lock:            # (the main thread's ticks and the sender's late begin)
             live = r.get('live')
             if not live or live.get('h') is None:
                 if live and final:
                     live['final_wanted'] = True          # (the begin not answered yet: sent when it is)
                 return
-            r['commit_at'] = time.monotonic() if now is None else now
+            if now is not None:                          # (the frames' clock: a commit from the sender leaves it be)
+                r['commit_at'] = now
             n = len(r['rows'])
             if n <= live['at'] and not final:
                 return
+            if n <= live['at'] and live['commits'] and not r['head'].get('finMs'):
+                return                                   # (nothing new, nothing to say)
             live['h'] = chain_next(live['h'], r['rows'][live['at']:n])
             live['at'] = n
             live['commits'].append([n, live['h']])
             body = {'rid': live['rid'], 'n': len(live['commits']), 'count': n, 'hash': live['h'],
                     'clockMs': r['rows'][n - 1][0] if n else 0, 'fin': r['head'].get('finMs') if final else None}
-        self._send('commit', r, body)
+        if self.sender is not None:
+            self.sender.commit(r, body)
 
-    def _send(self, what, r, body):
-        if self._worker is None or not self._worker.is_alive():
-            self._worker = threading.Thread(target=self._work, daemon=True)
-            self._worker.start()
+    def began(self, r, rid, nonce):
+        """The server's answer to the begin (the sender's thread): the chain starts; its first commit carries every
+        row so far (a begin late, the connection down at the start: all of them at once). A run already closed: its
+        file made again with the server's part (_late_live)."""
+        live = r.get('live')
+        if live is None:
+            return
+        with self._chain_lock:
+            live['rid'], live['nonce'] = str(rid), str(nonce)
+            live['h'] = chain_start(live['rid'], live['nonce'])
+            live['pending'] = False
+        final = live.pop('final_wanted', False) or bool(r.get('ended'))
+        self._commit(r, final=final or bool(r.get('closed')))
+        if r.get('closed') and r.get('file'):
+            self._late_live(r)
+
+    def _late_live(self, r):
+        """A run kept before the server answered its begin: its file made again with the server's part, signed again
+        (its signature covers the run id)."""
+        p = path_of(r['file'])
+        if not p:
+            return
         try:
-            self._q.put_nowait((what, r, body))
-        except queue.Full:
+            doc = read(p)
+            doc['live'] = self._live_out(r)
+            sign_doc(doc)
+            with open(p + '.tmp', 'wb') as fh:
+                fh.write(dumps(doc))
+            os.replace(p + '.tmp', p)
+            update(r['file'], rid=doc['live']['rid'], live=True)
+        except (OSError, ValueError, KeyError):
             pass
-
-    def _work(self):
-        while True:
-            what, r, body = self._q.get()
-            try:
-                if what == 'begin':
-                    a = self.api.replay_begin(body)
-                    live = r.get('live')
-                    if live is not None and a and a.get('rid') and a.get('nonce'):
-                        # (on the main thread's data: one assignment each, the hash first set last)
-                        live['rid'], live['nonce'] = str(a['rid']), str(a['nonce'])
-                        live['h'] = chain_start(live['rid'], live['nonce'])
-                        live['pending'] = False
-                        if live.pop('final_wanted', False) or r.get('closed'):
-                            self._commit(r, final=True)
-                    elif live is not None:
-                        r['live'] = None
-                elif what == 'commit':
-                    self.api.replay_commit(body)
-            except Exception:
-                if what == 'begin':
-                    r['live'] = None              # (not followed by the server: kept on this PC all the same)
 
     # ---- kept
     def _part(self, r):
@@ -522,6 +583,7 @@ class Recorder:
             name = save(doc, opts(self.s)['keep'])
         except OSError:
             return
+        r['file'] = name
         self._drop_part()
         self.saved.append(name)
         fn = self.on_saved
@@ -532,8 +594,9 @@ class Recorder:
                 pass
 
     def build(self, r):
-        doc = {'format': FORMAT, 'v': VERSION, 'head': clean_head(r['head']), 'cols': list(COLS), 'rows': r['rows'],
-               'live': self._live_out(r)}
+        with self._chain_lock:
+            doc = {'format': FORMAT, 'v': VERSION, 'head': clean_head(r['head']), 'cols': list(COLS),
+                   'rows': list(r['rows']), 'live': self._live_out(r)}
         return sign_doc(doc)
 
     def finish(self):
@@ -548,6 +611,150 @@ class Recorder:
             os.remove(os.path.join(folder(), 'recording.part'))
         except OSError:
             pass
+
+
+class Sender:
+    """The server's part of the runs, in order, from a thread of its own: each begin and commit tried until it gets
+    there (RETRY_S apart, at most RUN_HOURS after the run's start), never dropped for a network error. A commit the
+    server says is not its next: where the server is asked (its answer says), the ones it has skipped, the rest sent
+    on. A begin the server refuses for good: the run is kept on this PC only."""
+
+    def __init__(self, api):
+        self.api = api
+        self.q = collections.deque()
+        self.cv = threading.Condition()
+        self.thread = None
+        self.sent = 0                    # (commits that got there: the tests')
+        self.failures = 0
+
+    def begin(self, rec, r):
+        self._put(('begin', rec, r, None))
+
+    def commit(self, r, body):
+        self._put(('commit', None, r, body))
+
+    def idle(self):
+        with self.cv:
+            return not self.q
+
+    def _put(self, item):
+        with self.cv:
+            self.q.append(item)
+            self.cv.notify()
+        if self.thread is None or not self.thread.is_alive():
+            self.thread = threading.Thread(target=self._work, daemon=True)
+            self.thread.start()
+
+    def _work(self):
+        wait = 0
+        while True:
+            with self.cv:
+                while not self.q:
+                    self.cv.wait(5.0)
+                item = self.q[0]
+            what, rec, r, body = item
+            if time.monotonic() - r.get('t0', time.monotonic()) > RUN_HOURS * 3600:
+                self._pop(item)
+                continue
+            r.setdefault('t0', time.monotonic())
+            try:
+                if what == 'begin':
+                    a = self.api.replay_begin({'kind': r['head'].get('kind'), 'ref': r['head'].get('ref'),
+                                               'track': r['head'].get('track'), 'car': r['head'].get('car'),
+                                               'clockMs': r['rows'][-1][0] if r['rows'] else 0,
+                                               'key': device_key()[1].hex()})
+                    if not (a and a.get('rid') and a.get('nonce')):
+                        raise ValueError('no run id')
+                    self._pop(item)
+                    rec.began(r, a['rid'], a['nonce'])
+                else:
+                    self.api.replay_commit(body)
+                    self._pop(item)
+                    self.sent += 1
+                wait = 0
+            except Exception as e:
+                code = getattr(e, 'code', None)
+                if what == 'begin' and code is not None and 400 <= code < 500 and code not in (401, 408, 429):
+                    self._pop(item)              # (refused for good: kept on this PC only)
+                    r['live'] = None
+                    continue
+                if what == 'commit' and code == 409:
+                    self._resync(r, body)
+                    continue
+                self.failures += 1
+                wait = min(RETRY_MAX_S, max(RETRY_S, wait * 2))
+                time.sleep(wait)
+
+    def _pop(self, item):
+        with self.cv:
+            if self.q and self.q[0] is item:
+                self.q.popleft()
+
+    def _resync(self, r, body):
+        """The server has another count of this run's commits: the ones it has dropped from the queue; a run it no
+        longer takes: all of its commits dropped."""
+        try:
+            st = self.api.replay_run(body['rid'])
+        except Exception:
+            time.sleep(RETRY_S)
+            return
+        with self.cv:
+            if not st.get('open'):
+                self.q = collections.deque(x for x in self.q if not (x[0] == 'commit' and x[3]['rid'] == body['rid']))
+                return
+            have = int(st.get('have') or 0)
+            self.q = collections.deque(x for x in self.q if not (x[0] == 'commit' and x[3]['rid'] == body['rid']
+                                                                and x[3]['n'] <= have))
+
+
+def catch_up(api, max_age_s=RUN_HOURS * 3600, skip=()):
+    """At the app's start (and now and then): the replays of the last few hours whose commits did not all reach the
+    server (the app closed with the connection down) sent from their files; a counted run whose begin never got there
+    begun now (followed from its end: never a DNF taken back without a human, its replay there to watch). -> how many
+    replays were brought up to date."""
+    done = 0
+    now = time.time() * 1000
+    for row in index():
+        if row.get('synced') or not row.get('mine', True) or now - (row.get('created') or 0) > max_age_s * 1000 \
+                or row['file'] in skip:          # (this session's: its own sender has them)
+            continue
+        p = path_of(row['file'])
+        if not p:
+            continue
+        try:
+            doc = read(p)
+        except (OSError, ValueError):
+            continue
+        h, live = doc['head'], doc.get('live') or {}
+        try:
+            if not live.get('rid'):
+                if not (h.get('counted') and h.get('kind') in KINDS_LIVE and h.get('ref')):
+                    update(row['file'], synced=True)
+                    continue
+                a = api.replay_begin({'kind': h['kind'], 'ref': h['ref'], 'track': h.get('track'), 'car': h.get('car'),
+                                      'clockMs': doc['rows'][-1][0], 'key': device_key()[1].hex()})
+                hh = chain_next(chain_start(a['rid'], a['nonce']), doc['rows'])
+                doc['live'] = live = {'rid': a['rid'], 'nonce': a['nonce'], 'commits': [[len(doc['rows']), hh]]}
+                sign_doc(doc)
+                with open(p + '.tmp', 'wb') as fh:
+                    fh.write(dumps(doc))
+                os.replace(p + '.tmp', p)
+                update(row['file'], rid=a['rid'], live=True)
+            st = api.replay_run(live['rid'])
+            if st.get('open'):
+                have = int(st.get('have') or 0)
+                commits = live.get('commits') or []
+                for i in range(have, len(commits)):
+                    count, hh = commits[i]
+                    last = i == len(commits) - 1
+                    api.replay_commit({'rid': live['rid'], 'n': i + 1, 'count': count, 'hash': hh,
+                                       'clockMs': doc['rows'][count - 1][0] if count else 0,
+                                       'fin': h.get('finMs') if last and h.get('status') == 'finished' else None})
+            update(row['file'], synced=True)
+            done += 1
+        except Exception:
+            continue                         # (the connection still down: next time)
+    return done
 
 
 def recover(keep=KEEP_DEFAULT):

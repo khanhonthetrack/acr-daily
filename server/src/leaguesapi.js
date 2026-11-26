@@ -1121,13 +1121,18 @@ async function stewardEntry(env, ev, b, me, nStages, now) {
 
 /** A stage's time from the driver's replay (src/replays.js: a clean one, the DNF on that stage taken back): as the
  *  stewards' "time", logged as the replay check's. -> {ok, done, status} or {error}. */
-export async function replayStageTime(env, eventId, steamId, no, timeMs, penaltyMs, reason, now = Date.now()) {
+export async function replayStageTime(env, eventId, steamId, no, timeMs, penaltyMs, reason, now = Date.now(), damage = null) {
   const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(eventId).first();
   if (!ev) return { error: 'no such event' };
   const res = await stewardEntry(env, ev, { steamId, op: 'time', stage: no + 1, timeMs, penaltyMs, reason },
     { steam_id: 'replay' }, JSON.parse(ev.stages).length, now);
   const out = await res.json().catch(() => ({}));
-  return res.ok ? { ok: true, ...out } : { error: out.error || 'not set' };
+  if (!res.ok) return { error: out.error || 'not set' };
+  // the car as it crossed that finish line (the replay's, read there by the app), else the one the DNF carried: the
+  // rally goes on from the next stage with it (client leagues.recover; a leg in a new place: drive.lua)
+  const dmg = carDamage(damage, no);
+  if (dmg) await env.DB.prepare('UPDATE league_entries SET damage = ? WHERE event_id = ? AND steam_id = ?').bind(dmg, eventId, steamId).run();
+  return { ok: true, ...out };
 }
 
 async function eventAction(env, ev, l, role, me, action, req, now) {

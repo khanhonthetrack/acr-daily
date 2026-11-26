@@ -2821,8 +2821,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.root.after(60000, self.periodic)
 
     def _runs_sent(self):
-        """(thread) Runs that waited reached the server: the credits again (a first finished run starts them)."""
+        """(thread) Runs that waited reached the server: the credits again (a first finished run starts them); a DNF
+        among them its replay may take back: asked about at once (replayui.py)."""
         ui(self.root, self.refresh_credits)
+        ui(self.root, self._replay_poll)
 
     def timing(self, key):
         """How often (s) the server wants something done (TIMING), as today's dailies say once they are in."""
