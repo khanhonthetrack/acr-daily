@@ -240,6 +240,25 @@ class Intake(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(did, [{'error': 'Claude could not run: Invalid API key'}])
 
+    def test_old_quiet_posts_left_alone(self):
+        th = {'id': sid(NOW - 9 * 86400000), 'name': 'old'}
+        m = msg(ALICE, 9 * 24 * 60, 'old bug')
+        m['id'] = th['id']
+        th['last_message_id'] = m['id']
+        dc, gh = FakeDiscord({th['id']: (th, [m])}), FakeGitHub()
+        self.assertEqual(self.run_intake(dc, gh, triage()), [])
+        dc.threads_[th['id']][1].append(msg(ALICE, 60, 'still broken'))   # someone writes again: read it
+        th['last_message_id'] = dc.threads_[th['id']][1][-1]['id']
+        self.assertEqual(self.run_intake(dc, gh, triage())[0]['did'], 'logged #10')
+
+    def test_questions_shown_with_the_post(self):
+        th = {'id': sid(NOW - 3600000), 'name': 'Timer broken'}
+        m = msg(ALICE, 60, 'timer')
+        m['id'] = th['id']
+        dc, gh = FakeDiscord({th['id']: (th, [m])}), FakeGitHub()
+        did = self.run_intake(dc, gh, triage(complete=False, questions=['Which version?']))
+        self.assertEqual((did[0]['post'], did[0]['questions']), ('Timer broken', ['Which version?']))
+
     def test_not_a_bug(self):
         th = {'id': sid(NOW - 3600000), 'name': 'hi'}
         m = msg(BOB, 60, 'how do I drive?')

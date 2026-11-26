@@ -33,7 +33,8 @@ DISCORD_EPOCH = 1420070400000
 UA = 'DiscordBot (https://github.com/khanhonthetrack/acr-daily, 1.0) acr-daily-bugbot'
 
 FORUM_NAME = 'bug-reports'
-SETTLE_MS = 10 * 60000          # a post is read once nobody has written in it for 10 minutes (screenshots come later)
+MAX_QUIET_MS = 7 * 86400000    # a post nobody wrote in for 7 days is left alone (old reports: handled by people already)
+SETTLE_MS = 10 * 60000         # a post is read once nobody has written in it for 10 minutes (screenshots come later)
 MAX_ROUNDS = 2                  # rounds of questions before the report is logged anyway (label needs-info)
 MAX_THREAD_CHARS = 20000
 MAX_CHAT_PER_CHANNEL = 400      # messages read per channel per run
@@ -546,12 +547,15 @@ def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, m
             if tid in tracked:
                 did += forward_new(dc, gh, tracked[tid], th, bot_id, dry)
                 continue
+            if now_ms - snowflake_ms(th.get('last_message_id') or tid) > MAX_QUIET_MS:
+                continue
             msgs = dc.messages(tid)
             if msgs and not msgs[0].get('content') and not msgs[0].get('attachments') and msgs[0]['author']['id'] != bot_id:
                 log('thread %s: the starter message has no text: is the bot\'s Message Content intent on?' % tid)
             if not needs_reading(msgs, bot_id, now_ms):
                 continue
-            did.append(handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry))
+            d = handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry)
+            did.append({'post': th.get('name', ''), **d})        # (the post's title first: easy to read in a dry run)
         except ClaudeError as e:    # (the same for every thread: say it once and stop)
             log(str(e))
             return did + [{'error': str(e)[:1000]}]
@@ -610,7 +614,7 @@ def handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry):
     if not t['complete'] and t.get('questions') and rounds < MAX_ROUNDS:
         if not dry:
             dc.post(tid, reply_questions(t['questions']))
-        return {'thread': tid, 'did': 'asked %d questions' % len(t['questions'])}
+        return {'thread': tid, 'did': 'asked %d questions' % len(t['questions']), 'questions': t['questions'][:5]}
     needs_info = not t['complete']
     labels = ['from-discord', 'enhancement' if t['kind'] == 'feature' else 'bug', 'area:' + t.get('area', 'other')]
     if needs_info:
