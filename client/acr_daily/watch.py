@@ -15,6 +15,7 @@ game's pause menu, MAIN MENU) ends it.
 """
 import time
 
+from . import eventroom
 from .i18n import _
 
 # the cameras (mod main.lua): auto = the director cutting between them, as a rally's TV broadcast (the user, 21 Nov
@@ -85,13 +86,20 @@ class Watch:
         return self.held().get('judge')
 
     def room(self):
-        """The relay's room for the watched stage: a ranked session's own (only its drivers), else None (the stage's)."""
+        """The relay's room for the watched stage: a ranked session's or a COPILOT crew's own, else the watched event's
+        (eventroom.py: only those driving that daily / time trial / event), or None."""
         ev = getattr(self, 'event', None) if self.on else None
         if ev and ev.get('kind') == 'live' and ev.get('eventId'):
             return 'live:%d' % int(ev['eventId'])
         if ev and ev.get('kind') == 'copilot' and ev.get('eventId'):   # (a COPILOT crew's: its driver only, copilot.py)
             return 'cp:%d' % int(ev['eventId'])
-        return None
+        # (the event's own room, as its drivers are in: only those doing the daily / the time trial / the event, not
+        # free practice on the same stage, the user, 26 Nov 2026: eventroom.py)
+        if not self.on:
+            return None
+        if self.kind in ('daily', 'tt'):
+            return eventroom.for_challenge(self.kind, self.ch())
+        return eventroom.for_event(ev) if ev else None
 
     def copilot(self):
         """Watching as a COPILOT crew's co-driver (copilot.py): the driver's car from inside, the notes over it."""

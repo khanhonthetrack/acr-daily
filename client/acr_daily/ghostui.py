@@ -416,6 +416,13 @@ class GhostOverlay:
                 self.live.close()
             self.live = livelink.LiveLink(want[0], want[1], ticket=self._ticket, watch=want[2]) if want else None
             self._live_want = want
+            room_now = getattr(self.app, 'room_now', None)       # (in its room from the first word, not 0.5 s later)
+            if self.live is not None and callable(room_now):
+                try:
+                    r = room_now()
+                    self.live.room = r if isinstance(r, str) else None
+                except Exception:
+                    pass
         return self.live
 
     def _share(self):

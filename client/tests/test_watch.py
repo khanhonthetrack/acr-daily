@@ -317,7 +317,7 @@ class FromTheList(unittest.TestCase):
         node = ig_watch.overlay(ig)
         self.assertEqual(check(node), [])
         self.assertIn('WINTER CUP', str(node))
-        self.assertIsNone(ig.app.watch.room())
+        self.assertEqual(ig.app.watch.room(), 'ev:42')      # (its drivers' own room: not free practice on the stage)
         held['kind'] = 'live'
         self.assertEqual(ig.app.watch.room(), 'live:42')
         self.assertEqual(ig_watch.team_text(self.LINE['look']['tag']), 'ABC')

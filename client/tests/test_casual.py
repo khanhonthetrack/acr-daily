@@ -474,6 +474,7 @@ class Reviewed(unittest.TestCase):
         holder.watch = None
         holder._lr_following = lambda: False
         cs.lobby = lobby('1', 'started', n=2)
+        holder.room_now = lambda: liverallyui.LiveRallyUI.room_now(holder)
         liverallyui.LiveRallyUI._lr_room(holder)
         self.assertEqual(holder.ghostcars.live.room, 'cp:%d' % (casual.ROOM_BASE + 4))
 

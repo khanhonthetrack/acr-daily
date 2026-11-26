@@ -24,7 +24,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, liverally, names, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting, widgets
+from . import avatars, eventroom, liverally, names, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting, widgets
 from .api import ApiError
 from . import i18n
 from .i18n import N_, _, local, n_, said
@@ -681,11 +681,18 @@ class LiveRallyUI:
                     self._lr_poll(key)
 
     def _lr_room(self):
-        """The ghost cars: a session's own room on the live relay while one of its stages is followed (only its
-        drivers), else the stage's own."""
+        """The ghost cars: the room on the live relay of what you are doing (room_now), set on the connection."""
         link = getattr(getattr(self, 'ghostcars', None), 'live', None)
         if link is None:
             return
+        room = self.room_now()
+        if getattr(link, 'room', None) != room:
+            link.room = room
+
+    def room_now(self):
+        """The live relay's room for you now: a ranked session's own while one of its stages is followed (only its
+        drivers), a COPILOT crew's, else your event's (a daily's, a time trial's, a league's...) or free practice's and
+        the like (eventroom.py): the others in it are the ones doing the same."""
         run = getattr(self, 'league_run', None)
         w = getattr(self, 'watch', None)
         room = w.room() if w is not None and w.on else None   # (WATCH on a ranked session's stage: its own room)
@@ -694,8 +701,9 @@ class LiveRallyUI:
         cp = self.crew_owner() if hasattr(self, 'crew_owner') else getattr(self, 'copilot', None)   # (CODRIVER DAILY's or CASUAL's)
         if room is None and cp is not None:       # (a COPILOT crew's stage: its own room, copilot.py)
             room = cp.room()
-        if getattr(link, 'room', None) != room:
-            link.room = room
+        if room is None:                          # (else the event's own: a daily's, a time trial's, a league's...; free
+            room = eventroom.of(self)             # practice and the like apart in theirs: eventroom.py)
+        return room
 
     # -------------------------------------------------------------- HOME's tile
     def _lr_home_spec(self):

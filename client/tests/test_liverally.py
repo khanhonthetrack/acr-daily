@@ -726,7 +726,7 @@ class Following(unittest.TestCase):
         self.assertEqual(link.room, 'live:42')
         a.league_run['over'] = True
         a._lr_room()
-        self.assertIsNone(link.room)
+        self.assertEqual(link.room, 'free')           # (not in an event: free practice's room, eventroom.py)
 
 
 if __name__ == '__main__':
