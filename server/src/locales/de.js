@@ -2481,5 +2481,13 @@ export default {
  "not from this site": "nicht von dieser Seite",
  "twitch token {0}": "Twitch-Token {0}",
  "Your daily competitive portal": "Dein tägliches Wettbewerbsportal",
- "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Dein tägliches Wettbewerbsportal für Assetto Corsa Rally: Tagesprüfungen, Zeitfahren, Ranglisten-Rallyes, Meisterschaften und Cups."
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Dein tägliches Wettbewerbsportal für Assetto Corsa Rally: Tagesprüfungen, Zeitfahren, Ranglisten-Rallyes, Meisterschaften und Cups.",
+ "Time trial finished": "Zeitfahren beendet",
+ "CODRIVER daily finished": "CODRIVER-Tagesprüfung beendet",
+ "{0} for each time trial stage you finish in a week (TT1 to TT4).": "{0} für jede Zeitfahr-Prüfung, die du in einer Woche beendest (TT1 bis TT4).",
+ "{0} each for the driver and the co-driver of a finished CODRIVER daily.": "{0} jeweils für Fahrer und Beifahrer einer beendeten CODRIVER-Tagesprüfung.",
+ "Finish a time trial": "Ein Zeitfahren beenden",
+ "Finish the CODRIVER daily": "Die CODRIVER-Tagesprüfung beenden",
+ "{0} for each stage, once a week (TT1 to TT4).": "{0} pro Prüfung, einmal pro Woche (TT1 bis TT4).",
+ "{0} each for the driver and the co-driver.": "{0} jeweils für Fahrer und Beifahrer."
 };

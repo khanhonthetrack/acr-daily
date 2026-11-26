@@ -26,7 +26,9 @@ export function creditsPage(env) {
     <div class="card"><h3>${t('Earn')}</h3><ol class="steps">
       <li>${t('{0} on your first day.', `<b>${coin(CREDITS.welcome)}</b>`)}</li>
       <li>${t('{0} a day for coming back (the app claims it when it starts).', `<b>${coin(CREDITS.daily)}</b>`)}</li>
-      <li>${t('{0} for finishing the free daily (SS{1}): your first run of it, as soon as its time is in.', `<b>${coin(CREDITS.finish)}</b>`, free)}</li></ol></div>
+      <li>${t('{0} for finishing the free daily (SS{1}): your first run of it, as soon as its time is in.', `<b>${coin(CREDITS.finish)}</b>`, free)}</li>
+      <li>${t('{0} for each time trial stage you finish in a week (TT1 to TT4).', `<b>${coin(CREDITS.ttFinish)}</b>`)}</li>
+      <li>${t('{0} each for the driver and the co-driver of a finished CODRIVER daily.', `<b>${coin(CREDITS.copilotFinish)}</b>`)}</li></ol></div>
     <div class="card"><h3>${t('Spend')}</h3><ol class="steps">
       <li>${t('<b>The wager daily (SS{0})</b> is driven with a stake of {1}: no stake, no run on it. Stake before your first run (DRIVE in the app asks); your first run after it is your result. The house stakes too, so you can win on your own: the top half of the drivers (rounded up) get {2} back, the rest lose their stake, and anything left over goes to the fastest. Nobody finishing: stakes back, and so is a stake you never drive.', WAGER.slot, coin(WAGER.stake), coin(2 * WAGER.stake))}</li>
       <li>${t("<b>{0}</b>: TT{1} is free. The other stage is {2} to enter for the week: the top half of its drivers with a time get their fee back plus a share of the others' fees, more the higher they place; no time set: the fee back.", `<a href="/tt">${t('The time trial')}</a>`, TT.freeSlot, coin(TT.fee))}</li>

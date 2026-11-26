@@ -2481,5 +2481,13 @@ export default {
  "not from this site": "pas depuis ce site",
  "twitch token {0}": "jeton twitch {0}",
  "Your daily competitive portal": "Ton portail de compétition quotidien",
- "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Ton portail de compétition quotidien pour Assetto Corsa Rally : spéciales du jour, contre-la-montre, rallyes classés, championnats et coupes."
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Ton portail de compétition quotidien pour Assetto Corsa Rally : spéciales du jour, contre-la-montre, rallyes classés, championnats et coupes.",
+ "Time trial finished": "Contre-la-montre terminé",
+ "CODRIVER daily finished": "Spéciale du jour CODRIVER terminée",
+ "{0} for each time trial stage you finish in a week (TT1 to TT4).": "{0} pour chaque spéciale de contre-la-montre terminée dans la semaine (TT1 à TT4).",
+ "{0} each for the driver and the co-driver of a finished CODRIVER daily.": "{0} chacun pour le pilote et le copilote d'une spéciale du jour CODRIVER terminée.",
+ "Finish a time trial": "Terminer un contre-la-montre",
+ "Finish the CODRIVER daily": "Terminer la spéciale du jour CODRIVER",
+ "{0} for each stage, once a week (TT1 to TT4).": "{0} par spéciale, une fois par semaine (TT1 à TT4).",
+ "{0} each for the driver and the co-driver.": "{0} chacun pour le pilote et le copilote."
 };

@@ -2451,5 +2451,13 @@ export default {
  "not from this site": "nem erről az oldalról",
  "twitch token {0}": "twitch token {0}",
  "Your daily competitive portal": "A napi versenyportálod",
- "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "A napi versenyportálod az Assetto Corsa Rallyhoz: napi szakaszok, időfutamok, rangsorolt ralik, bajnokságok és kupák."
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "A napi versenyportálod az Assetto Corsa Rallyhoz: napi szakaszok, időfutamok, rangsorolt ralik, bajnokságok és kupák.",
+ "Time trial finished": "Időfutam teljesítve",
+ "CODRIVER daily finished": "CODRIVER napi szakasz teljesítve",
+ "{0} for each time trial stage you finish in a week (TT1 to TT4).": "{0} minden időfutam-szakaszért, amit egy héten teljesítesz (TT1-től TT4-ig).",
+ "{0} each for the driver and the co-driver of a finished CODRIVER daily.": "{0} a pilótának és a navigátornak is egy teljesített CODRIVER napi szakaszért.",
+ "Finish a time trial": "Időfutam teljesítése",
+ "Finish the CODRIVER daily": "A CODRIVER napi szakasz teljesítése",
+ "{0} for each stage, once a week (TT1 to TT4).": "{0} szakaszonként, hetente egyszer (TT1-től TT4-ig).",
+ "{0} each for the driver and the co-driver.": "{0} a pilótának és a navigátornak is."
 };

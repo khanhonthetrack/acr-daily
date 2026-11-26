@@ -100,7 +100,7 @@ test('the day\'s pick: a stage with notes, never one of the day\'s dailies\' whe
 const ROUTE = Array.from({ length: 301 }, (_, i) => [i * 10, 0]);
 
 function world() {
-  const f = fakeD1({ COPILOT_FROM: DAY });
+  const f = fakeD1({ COPILOT_FROM: DAY, CREDITS_FROM: '2026-10-12' });
   const { db } = f;
   TRACKS.forEach((t, i) => {
     db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, 3000, 0, ?)')
@@ -185,6 +185,10 @@ test('a day: a lobby, its partner, READY, the stage for both (the notes for the 
   assert.equal(r.data.totalMs, 200000);
   r = await w.call('POST', '/api/copilot/runs', { who: 1, body: finished(ch, 150000) });
   assert.equal(r.data.already, true, 'a lobby has one run');
+  // a finished CODRIVER daily: 100 credits to each of the crew, once
+  const paid = w.db.prepare("SELECT steam_id, delta, ref FROM credit_ledger WHERE kind = 'cp-finish' ORDER BY steam_id").all();
+  assert.deepEqual(paid.map((x) => [x.steam_id, x.delta, x.ref]), [[sid(1), 100, `cp:${DAY}/${id}`], [sid(2), 100, `cp:${DAY}/${id}`]]);
+  assert.equal(w.db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(2)).balance, 100);
   const board = (await w.call('GET', '/api/copilot/board', { who: 2 })).data;
   assert.equal(board.entries.length, 1);
   assert.equal(board.entries[0].driver.name, 'Driver 1');

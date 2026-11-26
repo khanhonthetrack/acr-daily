@@ -2451,5 +2451,13 @@ export default {
  "not from this site": "このサイトからではありません",
  "twitch token {0}": "twitch トークン {0}",
  "Your daily competitive portal": "毎日の競技ポータル",
- "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Assetto Corsa Rally の毎日の競技ポータル：デイリー、タイムトライアル、ランク戦ラリー、選手権、カップ。"
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Assetto Corsa Rally の毎日の競技ポータル：デイリー、タイムトライアル、ランク戦ラリー、選手権、カップ。",
+ "Time trial finished": "タイムトライアル完走",
+ "CODRIVER daily finished": "CODRIVER デイリー完走",
+ "{0} for each time trial stage you finish in a week (TT1 to TT4).": "1週間に完走したタイムトライアルのステージごとに {0}（TT1〜TT4）。",
+ "{0} each for the driver and the co-driver of a finished CODRIVER daily.": "完走した CODRIVER デイリーのドライバーとコ・ドライバーにそれぞれ {0}。",
+ "Finish a time trial": "タイムトライアルを完走",
+ "Finish the CODRIVER daily": "CODRIVER デイリーを完走",
+ "{0} for each stage, once a week (TT1 to TT4).": "ステージごとに週1回 {0}（TT1〜TT4）。",
+ "{0} each for the driver and the co-driver.": "ドライバーとコ・ドライバーにそれぞれ {0}。"
 };

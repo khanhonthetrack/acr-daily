@@ -208,10 +208,13 @@ test('a week of time trial on TT2: enter, drive as often as you like (the best c
   now += H;
   r = await call('POST', '/api/tt/runs', { who: 1, now, body: run(s2, 200000, { startedAt: now - 5 * 60000 }) });
   assert.equal(r.status, 200, JSON.stringify(r.data));
-  assert.deepEqual([r.data.best, r.data.rank, r.data.bestMs, r.data.runs], [true, 1, 200000, 1]);
+  assert.deepEqual([r.data.best, r.data.rank, r.data.bestMs, r.data.runs, r.data.credits], [true, 1, 200000, 1, 50],
+    'the stage finished: 50 credits');
   const first = r.data.id;
   r = await call('POST', '/api/tt/runs', { who: 1, now: now + 60000, body: run(s2, 210000, { startedAt: now - 60000 }) });
-  assert.deepEqual([r.data.best, r.data.bestMs, r.data.runs], [false, 200000, 2], 'a slower run changes nothing on the board');
+  assert.deepEqual([r.data.best, r.data.bestMs, r.data.runs, r.data.credits], [false, 200000, 2, 0], 'a slower run changes nothing on the board');
+  assert.deepEqual(db.prepare("SELECT delta, ref FROM credit_ledger WHERE kind = 'tt-finish' AND steam_id = ?").all(sid(1))
+    .map((x) => [x.delta, x.ref]), [[50, `tt:${s2.id.slice(3)}`]], 'once per stage and week');
   r = await call('POST', '/api/tt/runs', { who: 1, now: now + 120000, body: run(s2, 196000, { startedAt: now, penaltyMs: 1000 }) });
   assert.deepEqual([r.data.best, r.data.improvedMs, r.data.bestMs], [true, 4000, 196000]);
   const best1 = r.data.id;
@@ -290,9 +293,10 @@ test('a week of time trial on TT2: enter, drive as often as you like (the best c
   assert.deepEqual(done.settled.map((x) => [x.week, x.slot, x.drivers]), [[WEEK, 1, 0], [WEEK, 2, 5]]);
   assert.deepEqual(done.settled[1].paid, { [sid(2)]: 401, [sid(1)]: 333, [sid(4)]: 266, [sid(6)]: 200 });
   const bal = (i) => db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(i)).balance;
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(bal), [1133, 1201, 800, 1066, 800, 1000, 10]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(bal), [1183, 1251, 850, 1116, 850, 1000, 10],
+    'the prizes, and 50 for each driver who finished the stage');
   assert.deepEqual(db.prepare("SELECT kind, COUNT(*) AS n, SUM(delta) AS s FROM credit_ledger GROUP BY kind ORDER BY kind").all().map((x) => ({ ...x })),
-    [{ kind: 'tt-fee', n: 6, s: -1200 }, { kind: 'tt-prize', n: 3, s: 1000 }, { kind: 'tt-refund', n: 1, s: 200 }]);
+    [{ kind: 'tt-fee', n: 6, s: -1200 }, { kind: 'tt-finish', n: 5, s: 250 }, { kind: 'tt-prize', n: 3, s: 1000 }, { kind: 'tt-refund', n: 1, s: 200 }]);
   assert.deepEqual(db.prepare('SELECT steam_id, paid FROM tt_entries WHERE settled IS NOT NULL ORDER BY steam_id').all().map((x) => [x.steam_id, x.paid]),
     [[sid(1), 333], [sid(2), 401], [sid(3), 0], [sid(4), 266], [sid(5), 0], [sid(6), 200]]);
   const notes = db.prepare("SELECT to_id, body, ref FROM messages WHERE kind = 'tt' ORDER BY to_id").all();
@@ -394,7 +398,8 @@ test('TT1 is free with credits on: no entry, no prizes, on the map; a fee paid o
   assert.deepEqual(db.prepare("SELECT steam_id, delta, note FROM credit_ledger WHERE kind = 'tt-refund'").all().map((x) => ({ ...x })),
     [{ steam_id: sid(3), delta: 200, note: 'the stage went free' }]);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE kind = 'tt-prize'").get().n, 0);
-  assert.deepEqual([1, 2, 3, 4].map((i) => db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(i)).balance), [1000, 1000, 1000, 1000]);
+  assert.deepEqual([1, 2, 3, 4].map((i) => db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(i)).balance), [1050, 1050, 1050, 1050],
+    'what they had, + 50 for finishing the stage');
   const notes = db.prepare("SELECT to_id, body FROM messages WHERE kind = 'tt' ORDER BY to_id").all();
   assert.equal(notes.length, 4, 'one notice each');
   assert.match(notes.find((n) => n.to_id === sid(2)).body, /you placed P1 of 4 \(3:10\.000, 1 run\)\.$/);
@@ -497,7 +502,7 @@ test('a private time trial: made by the admin, a week long, seen by the newest a
   assert.match(r.data.error, /started before the time trial opened/);
   r = await call('POST', '/api/tt/runs', { who: 1, now: now + H, body: runOn(lon, 300000, { startedAt: now + 10 * 60000 }) });
   assert.equal(r.status, 200, JSON.stringify(r.data));
-  assert.deepEqual([r.data.best, r.data.rank, r.data.prize], [true, 1, null]);
+  assert.deepEqual([r.data.best, r.data.rank, r.data.prize, r.data.credits], [true, 1, null, 50], 'a community stage finished: 50 credits too');
   r = await call('POST', '/api/tt/runs', { who: 2, now: now + H, body: runOn(lon, 290000, { startedAt: now + 20 * 60000 }) });
   assert.equal(r.data.rank, 1);
   r = await call('POST', '/api/tt/runs', { who: 2, now: now + H, body: runOn(ger, 290000, { startedAt: now + 20 * 60000, car: lon.car }) });
@@ -534,7 +539,8 @@ test('a private time trial: made by the admin, a week long, seen by the newest a
   const done = await ttTick(env, T0 + 14 * D + 2 * H, w.deps);
   assert.ok(done.settled.every((x) => !isPrivateWeek(x.week)));
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE ref LIKE 'tt:p-%'").get().n, 0);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE ref LIKE 'tt:p-%'").get().n, 0);
+  assert.deepEqual(db.prepare("SELECT kind, COUNT(*) AS n FROM credit_ledger WHERE ref LIKE 'tt:p-%' GROUP BY kind").all().map((x) => ({ ...x })),
+    [{ kind: 'tt-finish', n: 3 }], 'only the finish prizes');
 });
 
 test('a private time trial changed: its apps, its close, its title', async () => {

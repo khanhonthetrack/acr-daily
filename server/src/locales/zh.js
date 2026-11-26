@@ -2451,5 +2451,13 @@ export default {
  "not from this site": "不是来自本网站",
  "twitch token {0}": "twitch token {0}",
  "Your daily competitive portal": "你的每日竞技平台",
- "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "你的 Assetto Corsa Rally 每日竞技平台：每日赛段、计时赛、排位拉力、锦标赛和杯赛。"
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "你的 Assetto Corsa Rally 每日竞技平台：每日赛段、计时赛、排位拉力、锦标赛和杯赛。",
+ "Time trial finished": "计时赛完成",
+ "CODRIVER daily finished": "CODRIVER 每日赛段完成",
+ "{0} for each time trial stage you finish in a week (TT1 to TT4).": "每周完成的每个计时赛赛段获得 {0}（TT1 至 TT4）。",
+ "{0} each for the driver and the co-driver of a finished CODRIVER daily.": "完成 CODRIVER 每日赛段，车手和领航员各得 {0}。",
+ "Finish a time trial": "完成计时赛",
+ "Finish the CODRIVER daily": "完成 CODRIVER 每日赛段",
+ "{0} for each stage, once a week (TT1 to TT4).": "每个赛段每周一次 {0}（TT1 至 TT4）。",
+ "{0} each for the driver and the co-driver.": "车手和领航员各得 {0}。"
 };

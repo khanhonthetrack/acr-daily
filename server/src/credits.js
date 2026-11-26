@@ -20,7 +20,9 @@
 // finished run needed first, existing drivers too).
 
 import { N_ } from './i18n.js';
-export const CREDITS = { welcome: 50, daily: 50, finish: 50 };
+// ttFinish: each time trial stage (TT1-TT4, community ones too) finished, once per driver, stage and week (user,
+// 2026-11-26: "more incentives in participation vs money"); copilotFinish: a finished CODRIVER daily, to each crew member
+export const CREDITS = { welcome: 50, daily: 50, finish: 50, ttFinish: 50, copilotFinish: 100 };
 export const WAGER = { slot: 2, stake: 100 };
 export const POT_SHARES = [50, 30, 20];         // potPayouts' default split
 export const SETTLE_AFTER_MS = 25 * 3600000;    // a day's dailies settle at 01:00 UTC the next day (late runs, abandoned starts)
@@ -170,7 +172,16 @@ export const LABELS = { welcome: N_('Welcome bonus'), daily: N_('Daily bonus'), 
   'h2h-stake': N_('1V1 stake'), 'h2h-win': N_('1V1 won'), 'h2h-refund': N_('1V1 stake back'),
   'cup-fee': N_('Cup entry'), 'cup-refund': N_('Cup entry back'), 'cup-prize': N_('Cup prize'), 'daily-set': N_('A daily of your own'),
   'tt-fee': N_('Time trial entry'), 'tt-prize': N_('Time trial prize'), 'tt-refund': N_('Time trial entry back'),
-  'special-prize': N_('Special event finished') };
+  'special-prize': N_('Special event finished'), 'tt-finish': N_('Time trial finished'), 'cp-finish': N_('CODRIVER daily finished') };
+
+/** A participation prize, once per driver and ref (kind 'tt-finish' / 'cp-finish'): `amount` when nothing of that kind
+ *  and ref was paid to the driver yet. Credits off: nothing. -> what was paid (0: paid before, or off). */
+export async function payOnce(env, steamId, amount, kind, ref, now) {
+  if (!env.CREDITS_FROM || !steamId || !amount) return 0;
+  const cond = 'NOT EXISTS (SELECT 1 FROM credit_ledger WHERE steam_id = ? AND kind = ? AND ref = ?)';
+  const r = await env.DB.batch(giveWhenStmts(env, steamId, amount, kind, ref, null, now, cond, [steamId, kind, ref]));
+  return r[1].meta.changes ? amount : 0;
+}
 
 /** The free daily finished: its counted run is in, CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

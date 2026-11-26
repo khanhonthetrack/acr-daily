@@ -158,6 +158,8 @@ ${siteHeader(env, { me: true })}
     <tr><td><b>${t('Welcome')}</b></td><td>${t('{0} on your first day.', cr(CREDITS.welcome))}</td></tr>
     <tr><td><b>${t('Daily bonus')}</b></td><td>${t('{0} each day you open the app or the website.', cr(CREDITS.daily))}</td></tr>
     <tr><td><b>${t('Finish SS1')}</b></td><td>${cr(CREDITS.finish)}.</td></tr>
+    <tr><td><b>${t('Finish a time trial')}</b></td><td>${t('{0} for each stage, once a week (TT1 to TT4).', cr(CREDITS.ttFinish))}</td></tr>
+    <tr><td><b>${t('Finish the CODRIVER daily')}</b></td><td>${t('{0} each for the driver and the co-driver.', cr(CREDITS.copilotFinish))}</td></tr>
     <tr><td><b>${t('Spend them on')}</b></td><td>${t("The SS2 stake, the {0}'s TT2 entry, 1V1 stakes, cup entry fees and {1}.", `<a href="#tt">${t('time trial')}</a>`, `<a href="#shop">${t('the shop')}</a>`)}</td></tr>
   </table>
   <p class="note">${t("You can't buy credits, sell them or give them away.")}</p>

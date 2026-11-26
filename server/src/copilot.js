@@ -35,6 +35,7 @@ import { cached, dropCached } from './cache.js';
 import { PACENOTES } from './pacenotes.js';
 import { NOTE_WORDS } from './pacenotewords.js';
 import { lang, registerData } from './i18n.js';
+import { CREDITS, payOnce } from './credits.js';
 
 export const CP = {
   openMs: 30 * 60000,           // a lobby not started this long after it was made: closed
@@ -569,7 +570,11 @@ async function endRun(env, l, v, splits, now, appVersion = '', startedAt = null)
       .bind(v.status === 'finished' ? 'finished' : 'dnf', now, l.id),
   ]);
   await dropCached(env, [boardKey(l.date), rankingKey(l.date.slice(0, 7))]);
-  return res[0].meta.changes > 0;
+  const added = res[0].meta.changes > 0;
+  if (added && v.status === 'finished') {               // a participation prize for each member of the crew
+    for (const sid of [driver, codriver]) await payOnce(env, sid, CREDITS.copilotFinish, 'cp-finish', `cp:${l.date}/${l.id}`, now);
+  }
+  return added;
 }
 
 /** The driver's run ('cp:<date>/<lobby>'): finished with the game's result, or a DNF. Only the lobby's driver's, on its

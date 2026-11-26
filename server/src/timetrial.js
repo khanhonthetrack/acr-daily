@@ -48,7 +48,7 @@ import { timesAt } from './realism.js';
 import { cached, dropCached } from './cache.js';
 import { getTrace, packTrace } from './traces.js';
 import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
-import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
+import { balanceOf, clash, CREDITS, creditsOn, giveManyWhenStmts, payOnce, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
 import { APP_FLAG } from './apptime.js';
 import { boardComments, commentsAt } from './commentboard.js';
@@ -635,9 +635,11 @@ async function submit(req, env, me, now, deps) {
       .bind(week, slot, me.steam_id, rid).run();
   }
   await dropCached(env, [boardKey(week, slot)]);
+  // a participation prize: the stage finished this week (once per driver and stage), any time trial, community ones too
+  const credits = await payOnce(env, me.steam_id, CREDITS.ttFinish, 'tt-finish', `tt:${week}/${slot}`, now);
   const board = await ttBoard(env, week, slot, now);
   const me2 = board.entries.find((e) => e.steamId === me.steam_id);
-  return json({ ok: true, id: rid, status: 'finished', counted: true, totalMs: v.totalMs, best,
+  return json({ ok: true, id: rid, status: 'finished', counted: true, totalMs: v.totalMs, best, credits,
     improvedMs: best && mine.best != null ? mine.best - v.totalMs : null, bestMs: me2 ? me2.totalMs : null,
     rank: me2 ? me2.rank : null, drivers: board.entries.length, prize: me2 ? me2.prize : null, runs: mine.n + 1,
     ...(appTime ? { appTime } : {}) });
