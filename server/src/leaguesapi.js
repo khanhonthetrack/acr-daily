@@ -8,6 +8,10 @@
 // a championship any more: a code is a private rally's password (every rally is listed, a private one with a lock).
 //
 //   GET  /api/catalog                         what an event can be made of
+//   GET  /api/events/template.xlsx | .csv    the event sheet to start from (?for=league|rally|cup, ?sep=; for a CSV
+//                                             a European Excel opens): src/eventsheet.js
+//   POST /api/events/import?for=&tz=&league=  an uploaded .xlsx or .csv (the body is the file) checked, not saved:
+//                                             {events, errors: [{row, column, message}], warnings}
 //   GET  /api/me                              who is signed in on the website
 //   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry and
 //                                             their league's banner (leagueBanner); every public rally; an app that
@@ -25,6 +29,7 @@
 //   POST /api/leagues/:id/<action>            join (a public one), apply {message} (a private one), withdraw, leave,
 //                                             accept / decline {steamId} (an application), add {steamId}, edit,
 //                                             banner, discord, remove, unban, role, delete, events (a new event),
+//                                             importevents {events} (several at once, all or none),
 //                                             seasons (a new season), divisions {divisions: [names]},
 //                                             division {steamId, division: a name | null}; teams, teamadd, teamedit,
 //                                             teamdelete, teamset (its teams: src/leagueteams.js)
@@ -47,6 +52,7 @@ import { BANNER, bannerUrl, catalog, checkBanner, checkDivisions, checkEvent, ch
   DEFAULT_SEASON, describeSeason, entryState, eventClasses, eventStandings, eventStatus, groupStandings, LIMITS, newCode,
   newLeagueId, normCode, OFFICIAL_OWNER, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
+import { capErrors, goodZone, importEvents, MODES, readUpload, SHEET, templateCsv, templateXlsx } from './eventsheet.js';
 import { menuName } from './stages.js';
 import { impossiblyFast } from './validate.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
@@ -422,6 +428,42 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     : post && !sameOrigin ? err('refused: not from this site', 403) : null);
 
   if (path === '/api/catalog') return json(catalog(await routesRows(env)));
+  // events in a spreadsheet (src/eventsheet.js): the template, its lists the catalog's own, and an uploaded file checked
+  if ((path === '/api/events/template.xlsx' || path === '/api/events/template.csv') && !post) {
+    const want = url.searchParams.get('for');
+    const mode = MODES.includes(want) ? want : 'league';
+    const cat = catalog(await routesRows(env));
+    const xlsx = path.endsWith('.xlsx');
+    return new Response(xlsx ? templateXlsx(cat, mode, { now }) : templateCsv(cat, mode, { now, sep: url.searchParams.get('sep') === ';' ? ';' : ',' }), {
+      headers: { 'Content-Type': xlsx ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="acr-daily-${mode === 'cup' ? 'cup-match' : mode}-events.${xlsx ? 'xlsx' : 'csv'}"`, 'Cache-Control': 'no-store' } });
+  }
+  if (path === '/api/events/import' && post) {
+    const no = need(); if (no) return no;
+    const want = url.searchParams.get('for');
+    const mode = MODES.includes(want) ? want : 'league';
+    const tz = goodZone(url.searchParams.get('tz')) ? url.searchParams.get('tz') : 'UTC';
+    let seasons = null, room = null;
+    if (mode === 'league' && url.searchParams.get('league')) {             // (the league's seasons: the Season column is read against them)
+      const l = await leagueRow(env, url.searchParams.get('league'));
+      if (!l || l.kind !== 'league') return err('no such league', 404);
+      if (!isStaff(await roleIn(env, l, me))) return err("only the championship's owner and admins can make events", 403);
+      seasons = (await env.DB.prepare('SELECT id, name FROM league_seasons WHERE league_id = ? ORDER BY id').bind(l.id).all()).results;
+      room = LIMITS.eventsPerLeague - (await env.DB.prepare('SELECT COUNT(*) AS n FROM league_events WHERE league_id = ?').bind(l.id).first()).n;
+    }
+    const bytes = new Uint8Array(await req.arrayBuffer());
+    const fileProblem = (message) => json({ ok: false, mode, events: [], errors: [{ row: null, column: null, message }], more: 0, warnings: [] });
+    let sheet;
+    try { sheet = await readUpload(bytes); } catch (e) { return fileProblem(e.message); }
+    const r = importEvents(sheet.rows, catalog(await routesRows(env)), { mode, tz, now, seasons });
+    if (room !== null && r.events.length > room) {
+      r.errors.push({ row: null, column: null, message: `This league has room for ${Math.max(0, room)} more events (at most ${LIMITS.eventsPerLeague}): the file has ${r.events.length}.` });
+    }
+    const { errors, more } = capErrors(r.errors);
+    return json({ ok: !r.errors.length, mode, tz, format: sheet.format, events: r.events, errors, more,
+      warnings: [...sheet.notes.map((message) => ({ row: null, message })), ...r.warnings],
+      seasons: seasons ? seasons.map((x) => ({ id: x.id, name: x.name })) : null });
+  }
   if (path === '/api/me') {
     if (!me) return json({ signedIn: false });
     // credits on: the balance for the header, and whether today's bonus is still to claim (the page claims it: src/bonus.js)
@@ -888,6 +930,32 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
       v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now,
       v.hide ? JSON.stringify(v.hide) : null).run();
     return json({ id: r.meta.last_row_id, seasonId: se.id });
+  }
+  if (action === 'importevents') {                        // several new events from a sheet (src/eventsheet.js): all or none
+    const list = Array.isArray(b.events) ? b.events : [];
+    if (!list.length) return err('no events to make');
+    if (list.length > SHEET.maxEvents) return err(`at most ${SHEET.maxEvents} events at a time`);
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM league_events WHERE league_id = ?').bind(l.id).first();
+    if (n.n + list.length > LIMITS.eventsPerLeague) return err(`at most ${LIMITS.eventsPerLeague} events in a league: it has ${n.n}`, 409);
+    const cat = catalog(await routesRows(env));
+    const checked = [];
+    for (const [k, x] of list.entries()) {
+      const c = checkEvent(x, cat, now);
+      if (c.error) return err(`${text(x && x.name, LIMITS.name) || `event ${k + 1}`}: ${c.error}`);
+      checked.push({ v: c.value, key: x.seasonId == null || x.seasonId === '' ? '' : String(x.seasonId) });
+    }
+    // the seasons: the league's own ones first, a new one (once, shared by the events that ask for it) last
+    const season = new Map();
+    for (const key of [...new Set(checked.map((c) => c.key))].sort((a, b2) => (a === 'new') - (b2 === 'new'))) {
+      const se = await seasonFor(env, l, key === '' ? null : key, now);
+      if (se.error) return err(se.error);
+      season.set(key, se.id);
+    }
+    const out = await env.DB.batch(checked.map((c) => env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class,
+      car_classes, rules, stages, opens, closes, created, hide) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, season.get(c.key), c.v.name,
+      c.v.rally, c.v.car, c.v.car_class, c.v.car_classes ? JSON.stringify(c.v.car_classes) : null, JSON.stringify(c.v.rules),
+      JSON.stringify(c.v.stages), c.v.opens, c.v.closes, now, c.v.hide ? JSON.stringify(c.v.hide) : null)));
+    return json({ ids: out.map((r) => r.meta.last_row_id), count: out.length });
   }
   if (!owner) return err('only the league\'s owner can do that', 403);
 

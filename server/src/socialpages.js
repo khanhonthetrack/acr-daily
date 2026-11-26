@@ -6,7 +6,7 @@
 import { WEATHER } from './conditions.js';
 import { H2H } from './h2h.js';
 import { MSG } from './social.js';
-import { BUILDER_JS, shell } from './leaguepages.js';
+import { BUILDER_JS, IMPORT_JS, shell } from './leaguepages.js';
 import { t, tq, tqp, ts } from './i18n.js';
 import { EVENT_LIVE_CSS, EVENT_LIVE_JS } from './eventlive.js';
 
@@ -344,7 +344,7 @@ export function cupsPage(env) {
   <h2>${t('Open for entries')}</h2><div id="open"></div>
   <h2>${t('Under way')}</h2><div id="running"></div>
   <h2>${t('Finished')}</h2><div id="finished"></div>
-  <h2 id="new">${t('Create a cup')}</h2><div class="formcard" id="form"></div>`, `${SOCIAL_JS()}${BUILDER_JS()}
+  <h2 id="new">${t('Create a cup')}</h2><div class="formcard" id="form"></div>`, `${SOCIAL_JS()}${BUILDER_JS()}${IMPORT_JS()}
   var C=null,CAT=null,B=null,FORM=false,CS={};   // CS: the matches' event (the builder fills it in)
   function bsize(n){var b=2;while(b<n)b*=2;return b}
   function load(){return api('/api/cups').then(render,function(e){msg('m',e.message)})}
@@ -396,9 +396,11 @@ export function cupsPage(env) {
       var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,TD(L.splits[k].label),'all')});opt(sp,'custom',${tq('Custom: you set each place')},'all');
       field(g3,${tq('The pot goes to')},sp);sp.onchange=prizes;var pz=el('div','prizes');pz.id='cpz';f.appendChild(pz)}
     add(f,el('h3',null,${tq('All matches')}),el('p','note',${tq('The stages, car and settings for all matches.')}));
+    var ib=el('div');f.appendChild(ib);
     var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty',${tq('Loading…')}));
     api('/api/catalog').then(function(c){CAT=c;B=eventBuilder(bx,{cat:CAT,state:CS,name:false,window:false,after:function(b){
-      var sb=el('button','btn',${tq('Create the cup')});sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw()},
+      var sb=el('button','btn',${tq('Create the cup')});sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw();
+      eventImporter(ib,{mode:'cup',scroll:bx,load:function(ev){B.load(ev.body)}})},
       function(e){bx.innerHTML='';add(bx,el('div','empty',e.message))})}
   // a custom split: a % for 1st, 2nd, then each of 3rd-4th, 5th-8th... down the bracket (src/cups.js checkSplit)
   var PZ=[60,30,5];

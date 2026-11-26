@@ -170,6 +170,23 @@ tr.me td.drv{color:var(--acct,#FF4655)}tr.me td{background:rgba(227,6,19,.12)}  
 .builder .st .tools button{background:none;border:1px solid var(--line2);color:var(--fg2);width:28px;height:28px;cursor:pointer}
 .builder .st .tools button:hover{color:var(--fg);border-color:var(--fg2)}
 .builder .between{font-size:12px;color:var(--fg3);padding:4px 0 0 52px}
+.imp{border:1px solid var(--line2);background:var(--panel);margin:18px 0 6px}
+.imp>summary{cursor:pointer;padding:14px 16px;font:700 16px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;list-style:none}
+.imp>summary::-webkit-details-marker{display:none}
+.imp>summary:before{content:'+';display:inline-block;width:18px;color:var(--acct)}
+.imp[open]>summary:before{content:'\\2013'}
+.imp .impbody{padding:0 16px 16px}
+.imp .dl{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.imp .drop{display:block;border:1px dashed var(--line2);padding:20px 14px;text-align:center;color:var(--fg2);cursor:pointer;margin-top:4px}
+.imp .drop:hover,.imp .drop.over{border-color:var(--acct);color:var(--fg)}
+.imp .drop input{display:none}
+.imp table{margin-top:10px}.imp td{white-space:normal;vertical-align:top;line-height:1.35}
+.imp td.rw{width:54px;font:700 17px/1.2 'Barlow Condensed',sans-serif;color:var(--fg2)}
+.imp td.cl{width:120px;color:var(--fg2)}
+.imp td small{display:block;color:var(--fg3);margin-top:3px}
+.imp .imphead{font:700 16px/1.3 Barlow,sans-serif;margin:18px 0 4px}.imp .imphead.bad{color:var(--bad)}.imp .imphead.good{color:var(--good)}
+.imp .warns{margin:10px 0 0;padding-left:18px;color:var(--slow);font-size:13px}
+.imp .acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 .sum{margin-top:14px;color:var(--fg2)}
 .danger-zone{margin-top:40px;padding-top:16px;border-top:1px solid var(--line)}
@@ -1252,7 +1269,78 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
     s.textContent=F(${tq('{0} · {1} · {2} of stages (limits: {3} stages, {4} days)')},P(${tqp('{0} stage', '{0} stages')},st.length),P(${tqp('{0} day', '{0} days')},S.days.length),km(m),CAT.limits.stages,CAT.limits.days)}
   function body(){var b={rally:S.rally,rules:S.rules,stages:flat(),hide:S.hide};if(o.name!==false)b.name=S.name;if(o.window){b.opens=S.opens;b.closes=S.closes}
     if(S.carMode==='car')b.car=S.car;else if(S.carMode==='classes')b.carClasses=S.carClasses;else b.carClass=S.carClass;return b}
-  return {S:S,draw:draw,body:body}}
+  // an event from a sheet (src/eventsheet.js: the body of an imported event) put in the form; the page sets its name and dates
+  function load(x){builderFrom(S,x);var f0=S.days.reduce(function(a,d){return a.concat(d)},[])[0];
+    S.rally=(f0&&placeOf(f0.track)||{}).name||S.rally;S.touched=true;draw()}
+  return {S:S,draw:draw,body:body,load:load}}
+`;
+
+// ------------------------------------------------------------------ events from a spreadsheet (the importer, shared)
+// A folded panel above a builder: the template to download, a file (.xlsx or .csv) to choose or drop, and what the server
+// found in it (src/eventsheet.js, POST /api/events/import): every problem with its row and column, or the events it
+// would make. One event goes straight into the form below; several can be made at once (a league) or loaded one at a time.
+//   eventImporter(box,{mode: 'league' | 'rally' | 'cup', leagueId, open, scroll: the node to scroll to,
+//     load: function(event) (puts it in the form), create: function(events) -> promise (a league: all of them at once)})
+export const IMPORT_JS = () => `
+function eventImporter(box,o){var mode=o.mode||'league',tz='',last=null;
+  try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''}catch(e){}
+  var d=el('details','imp');if(o.open)d.open=true;d.appendChild(el('summary',null,${tq('Import from Excel or CSV')}));
+  var body=el('div','impbody');d.appendChild(body);
+  add(body,el('p','note',mode==='league'?${tq('Build many events in a spreadsheet: one row is one stage, and the next event name starts the next event, so a whole season is one file. Download the template, fill it in, then choose the file. Every problem is listed with its row and column; nothing is made until you press the button.')}
+    :mode==='rally'?${tq('Build the rally in a spreadsheet: one row is one stage. Download the template, fill it in, then choose the file: it fills the form below, and every problem is listed with its row and column.')}
+    :${tq("Build the matches' event in a spreadsheet: one row is one stage. Download the template, fill it in, then choose the file: it fills the form below, and every problem is listed with its row and column.")}));
+  var dl=el('div','dl');body.appendChild(dl);
+  [[${tq('Excel template (.xlsx, with drop-downs)')},'/api/events/template.xlsx?for='+mode,true],[${tq('CSV template')},'/api/events/template.csv?for='+mode],
+   [${tq('CSV template with semicolons (Excel in Europe)')},'/api/events/template.csv?sep=;&for='+mode]].forEach(function(x){
+    var a=el('a','btn small'+(x[2]?'':' ghost'),x[0]);a.href=x[1];a.setAttribute('download','');dl.appendChild(a)});
+  var drop=el('label','drop'),inp=el('input');inp.type='file';inp.accept='.xlsx,.csv,.tsv,.txt,text/csv';
+  add(drop,${tq('Choose the filled-in file (.xlsx or .csv), or drop it here')},inp);body.appendChild(drop);
+  var res=el('div');body.appendChild(res);
+  drop.ondragover=function(e){e.preventDefault();drop.className='drop over'};drop.ondragleave=function(){drop.className='drop'};
+  drop.ondrop=function(e){e.preventDefault();drop.className='drop';if(e.dataTransfer.files[0])run(e.dataTransfer.files[0])};
+  inp.onchange=function(){var f=inp.files[0];if(f)run(f);inp.value=''};
+  function run(file){res.innerHTML='';add(res,el('p','note',F(${tq('Reading {0}…')},file.name)));
+    fetch('/api/events/import?for='+mode+'&tz='+encodeURIComponent(tz)+(o.leagueId?'&league='+encodeURIComponent(o.leagueId):''),
+      {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:file})
+      .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error(r.status===401?${tq('Sign in with Steam first.')}:j.error||('error '+r.status));return j})})
+      .then(show,function(e){res.innerHTML='';add(res,el('div','msg bad',e.message))})}
+  function row(){var r=el('tr');for(var i=0;i<arguments.length;i++){var c=arguments[i],td=el('td',c&&c.cls);
+      if(c&&c.nodes)add(td,c.nodes);else td.textContent=c&&c.text!=null?c.text:c==null?'':c;r.appendChild(td)}return r}
+  function show(j){res.innerHTML='';last=j;
+    if(j.errors.length){
+      add(res,el('div','imphead bad',P(${tqp('{0} problem found. Nothing was imported: fix it in your sheet and choose the file again.','{0} problems found. Nothing was imported: fix them in your sheet and choose the file again.')},j.errors.length+j.more)));
+      var t=el('table'),h=el('thead');h.appendChild(row({text:${tq('Row')}},{text:${tq('Column')}},{text:${tq('What is wrong')}}));
+      for(var i=0;i<h.firstChild.children.length;i++)h.firstChild.children[i].outerHTML=h.firstChild.children[i].outerHTML.replace(/^<td/,'<th').replace(/td>$/,'th>');
+      t.appendChild(h);var tb=el('tbody');
+      j.errors.forEach(function(x){var m=el('div',null,x.message);if(x.event)m.appendChild(el('small',null,F(${tq('Event: {0}')},x.event)));
+        tb.appendChild(row({cls:'rw',text:x.row==null?'–':x.row},{cls:'cl',text:x.column||''},{nodes:m}))});
+      t.appendChild(tb);var w=el('div','tablewrap');w.appendChild(t);res.appendChild(w);
+      if(j.more)add(res,el('p','note',P(${tqp('…and {0} more problem.','…and {0} more problems.')},j.more)));
+      warns(j);return}
+    var n=j.events.length;
+    if(!n){add(res,el('div','msg bad',${tq('No events in the file.')}));return}
+    if(n===1&&mode!=='league'||n===1){var ev=j.events[0];use(ev);
+      add(res,el('div','imphead good',F(${tq('Loaded {0} into the form below: check it, change what you like, then save.')},ev.name?'"'+ev.name+'"':${tq('the event')})));warns(j);return}
+    add(res,el('div','imphead good',P(${tqp('{0} event found.','{0} events found.')},n)));
+    var t2=el('table'),h2=el('thead');h2.appendChild(row({text:${tq('Event')}},{text:${tq('Where')}},{text:${tq('Car')}},{text:${tq('Stages')}},mode==='cup'?'':{text:${tq('Open')}},mode==='league'?{text:${tq('Season')}}:'',''));
+    for(var k=0;k<h2.firstChild.children.length;k++)h2.firstChild.children[k].outerHTML=h2.firstChild.children[k].outerHTML.replace(/^<td/,'<th').replace(/td>$/,'th>');
+    t2.appendChild(h2);var b2=el('tbody');
+    j.events.forEach(function(ev){var s=ev.summary,ld=el('button','btn ghost small',${tq('Load into the form')});
+      ld.onclick=function(){use(ev);add(res,'')};
+      var sn=ev.season==='new'?${tq('A new season')}:ev.season==null?${tq('One-off')}:((j.seasons||[]).filter(function(x){return x.id===ev.season})[0]||{name:String(ev.season||'')}).name;
+      var nm=el('div',null,ev.name||'');nm.appendChild(el('small',null,F(${tq('rows {0}–{1}')},ev.rows[0],ev.rows[1])));
+      b2.appendChild(row({nodes:nm},s.places.map(TD).join(' · '),s.car||s.classes.join(', '),F(${tq('{0} · {1} km')},s.stages,s.km),
+        mode==='cup'?'':when(s.opens)+' → '+when(s.closes),mode==='league'?sn:'',{nodes:ld}))});
+    t2.appendChild(b2);var w2=el('div','tablewrap');w2.appendChild(t2);res.appendChild(w2);
+    warns(j);
+    if(mode==='league'&&o.create){var a=el('div','acts'),cb=el('button','btn',P(${tqp('Create {0} event','Create {0} events')},n)),mm=el('span','msg');
+      cb.onclick=function(){cb.disabled=true;mm.className='msg';mm.textContent='';
+        o.create(j.events).catch(function(e){cb.disabled=false;mm.className='msg bad';mm.textContent=e.message})};
+      add(a,cb,mm);res.appendChild(a)}}
+  function warns(j){if(!j.warnings||!j.warnings.length)return;var u=el('ul','warns');
+    j.warnings.forEach(function(x){u.appendChild(el('li',null,(x.row?F(${tq('Row {0}: ')},x.row):'')+x.message))});res.appendChild(u)}
+  function use(ev){o.load(ev);var sc=o.scroll;if(sc&&sc.scrollIntoView)sc.scrollIntoView({behavior:'smooth',block:'start'})}
+  box.innerHTML='';box.appendChild(d)}
 `;
 
 // ------------------------------------------------------------------ /rallies/new: a rally (0033), anyone's
@@ -1263,7 +1351,8 @@ export function rallyNewPage(env) {
   return shell(t('New rally') + ' · ACR Daily', `
   <div class="top"><div class="kick"><span class="kindtag rally">${t('Rally')}</span></div><h1 id="h">${t('New rally')}</h1>
   <p class="note">${t("One event, open to every driver: a public one is in everyone's app, under RALLIES. One location or several, a service park at the start of each day, stages in time order. Each driver gets one go.")}</p></div>
-  <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}
+  <div id="imp"></div>
+  <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}${IMPORT_JS()}
   var Q=new URLSearchParams(location.search),eventId=+Q.get('edit')||null,FROM=+Q.get('from')||null,CAT=null,EV=null,limited=false,B=null;
   var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',carClasses:[],rules:null,opens:null,closes:null,days:[[]],about:'',pub:true};
   navOn('leagues');
@@ -1284,7 +1373,8 @@ export function rallyNewPage(env) {
         b.appendChild(f);$('ra').value=S.about;$('ra').oninput=function(){S.about=this.value};
         [].forEach.call(f.querySelectorAll('input[name=rp]'),function(x){x.checked=(x.value==='1')===!!S.pub;x.onchange=function(){S.pub=this.value==='1'}});
         var sv=el('button','btn',eventId?${tq('Save changes')}:${tq('Create the rally')});sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
-      B.draw()}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
+      B.draw();
+      if(!eventId)eventImporter($('imp'),{mode:'rally',scroll:$('b'),load:function(ev){S.name=ev.name;S.opens=ev.body.opens;S.closes=ev.body.closes;B.load(ev.body)}})}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
   function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
   function save(){var b=this;b.disabled=true;
     var body=limited?{name:S.name,closes:S.closes,hide:S.hide}:B.body();body.about=S.about;body.public=!!S.pub;
@@ -1298,7 +1388,8 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
   return shell((eventId ? t('Edit event') : t('New event')) + ' · ACR Daily', `
   <div class="top"><div class="kick" id="kick">${t('New event')}</div><h1 id="h">${eventId ? t('Edit event') : t('New event')}</h1>
   <p class="note">${t('One location or several, a service park at the start of each day, stages in time order. Each driver gets one go.')}</p></div>
-  <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}
+  <div id="imp"></div>
+  <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}${IMPORT_JS()}
   var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false,B=null;
   var FROM=new URLSearchParams(location.search).get('from');
   var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',carClasses:[],rules:null,opens:null,closes:null,days:[[]],seasonId:''};
@@ -1317,7 +1408,11 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
           else{var now=Date.now();S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000}}
         B=eventBuilder($('b'),{cat:CAT,state:S,seasons:LG.seasons,window:true,limited:limited,multi:true,after:function(b){
           var sv=el('button','btn',eventId?${tq('Save changes')}:${tq('Create event')});sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
-        B.draw()})}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
+        B.draw();
+        // (new events only: a sheet makes events, it does not change one)
+        if(!eventId)eventImporter($('imp'),{mode:'league',leagueId:leagueId,open:true,scroll:$('b'),
+          load:function(ev){S.name=ev.name;S.opens=ev.body.opens;S.closes=ev.body.closes;S.seasonId=ev.season==='new'?'new':ev.season==null?'':String(ev.season);B.load(ev.body)},
+          create:function(evs){return api('/api/leagues/'+leagueId+'/importevents',{events:evs.map(function(e){return Object.assign({},e.body,{seasonId:e.season})})}).then(function(){location.href='/l/'+leagueId})}})})}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
   function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
   function save(){var b=this;b.disabled=true;var season=S.seasonId===''?null:S.seasonId;
     var body=B.body();body.seasonId=season;
