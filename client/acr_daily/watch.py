@@ -6,7 +6,9 @@ the game's camera goes onto another driver's car: the live ghost cars (livelink.
 the game mod moves a real car for each), one followed, the camera behind it (mod main.lua: its own camera, moved every
 frame). Over the game, a broadcast (ig_watch.py): who is on the stage, how far, their time and the gap to today's #1 at
 the same place on the road (the #1's run, the daily's ghost: judge.Ghost), the day's best times, the followed driver
-big. The wheel's / pad's / keyboard's Left / Right: the driver before / after; Up / Down: the camera.
+big. The wheel's / pad's / keyboard's Left / Right: the driver before / after; Up / Down: the camera; Select / Enter:
+the spectator menu (all said on the broadcast, small under the ACR DAILY mark: ig_watch.overlay). Your own car, the
+one the game was set up with, is out of sight while another is followed (mod main.lua watch_tick).
 
 Nothing counts while watching: a run started meanwhile is practice (app._daily_started, ttui). Leaving the stage (the
 game's pause menu, MAIN MENU) ends it.

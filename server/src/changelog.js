@@ -75,6 +75,16 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // WATCH: your own car out of sight, the livery only on the same model, the keys on screen; CONTINUE after a crash on
+    // a rally across places or days (9141f0c); not released: its test builds (0.2.2.X) show it under their own number
+    version: '0.2.3', date: '2026-11-26', title: N_("WATCH clean-up, CONTINUE after a crash"), photo: 'alsace',
+    changes: [
+      FIX(N_("WATCH: your own car no longer stands in the way of the car you follow, and its livery is no longer mixed with the one you watch.")),
+      BETTER(N_("WATCH shows its keys: Left / Right for the driver, Up / Down for the camera, Enter for the menu.")),
+      FIX(N_("CONTINUE after a crash on a rally across several places or days no longer says to drive the first stages again. It starts at the stage you are on.")),
+    ],
+  },
+  {
     // CODRIVER (9594476..58f1c07, 01d8b02), special events (b9e29e8, 18a97d3), Oxmod's Thierache (b44aa6d, ef7475a),
     // Steam sign-in (a4722ca), the broadcast feed (548ed1c), event settings at DRIVE/CONTINUE (0b15df7); its test
     // builds (0.2.1.X) show it under their own number; the wheel in ACR DAILY, the tile after another mode, the start
