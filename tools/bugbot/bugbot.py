@@ -36,6 +36,10 @@ FORUM_NAME = 'bug-reports'
 SETTLE_MS = 10 * 60000          # a post is read once nobody has written in it for 10 minutes (screenshots come later)
 MAX_ROUNDS = 2                  # rounds of questions before the report is logged anyway (label needs-info)
 MAX_THREAD_CHARS = 20000
+MAX_CHAT_PER_CHANNEL = 400      # messages read per channel per run
+MAX_CHAT_CHARS = 60000          # chat sent to Claude per call (more is split over calls)
+CHAT_FIRST_LOOK_MS = 24 * 3600000    # the first run reads the last day; later ones from the last scheduled run on
+CHAT_MAX_LOOK_MS = 3 * 86400000
 MAX_ATTACHMENTS = 6
 MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
 TEXT_EXT = ('.txt', '.log', '.json', '.ini', '.lua', '.cfg', '.csv')
@@ -110,6 +114,19 @@ def set_seen(body, thread_id, msg_id):
 
 def thread_url(guild_id, thread_id):
     return 'https://discord.com/channels/%s/%s' % (guild_id, thread_id)
+
+
+def message_url(guild_id, channel_id, msg_id):
+    return 'https://discord.com/channels/%s/%s/%s' % (guild_id, channel_id, msg_id)
+
+
+def message_markers(body):
+    """(channel id, message id) of chat messages an issue came from (<!-- discord-message:CH:MSG -->)."""
+    return re.findall(r'<!-- discord-message:(\d+):(\d+) -->', body or '')
+
+
+def ms_to_snowflake(ms):
+    return str(max(0, int(ms) - DISCORD_EPOCH) << 22)
 
 
 def quote(text):
@@ -187,9 +204,40 @@ class Discord:
         q = '?limit=100' + ('&after=%s' % after if after else '')
         return sorted(self.get('/channels/%s/messages%s' % (channel_id, q)), key=lambda m: int(m['id']))
 
-    def post(self, channel_id, content):
-        return http('POST', DISCORD_API + '/channels/%s/messages' % channel_id, self.h,
-                    {'content': discord_safe(content), 'allowed_mentions': {'parse': []}})
+    def post(self, channel_id, content, reply_to=None):
+        body = {'content': discord_safe(content), 'allowed_mentions': {'parse': []}}
+        if reply_to:      # (under that message, without pinging its author; still sent if it was deleted)
+            body['message_reference'] = {'message_id': str(reply_to), 'fail_if_not_exists': False}
+        return http('POST', DISCORD_API + '/channels/%s/messages' % channel_id, self.h, body)
+
+    def chat_channels(self, skip_parent=None):
+        """Every text/announcement channel and every open thread outside the bug forum -> [{id, name}]."""
+        chans = self.get('/guilds/%s/channels' % self.guild_id)
+        names = {str(c['id']): c.get('name', '') for c in chans}
+        out = [{'id': str(c['id']), 'name': c.get('name', '')} for c in chans if c.get('type') in (0, 5)]
+        for t in self.get('/guilds/%s/threads/active' % self.guild_id).get('threads', []):
+            if skip_parent and str(t.get('parent_id')) == str(skip_parent):
+                continue
+            out.append({'id': str(t['id']), 'name': '%s > %s' % (names.get(str(t.get('parent_id')), '?'), t.get('name', ''))})
+        return out
+
+    def messages_since(self, channel_id, after_id, limit=MAX_CHAT_PER_CHANNEL):
+        """Messages after after_id, oldest first, up to limit (None when the bot may not read the channel)."""
+        out, after = [], str(after_id)
+        while len(out) < limit:
+            try:
+                batch = self.messages(channel_id, after=after)
+            except HttpError as e:
+                if e.status in (403, 404):
+                    return None
+                raise
+            if not batch:
+                break
+            out += batch
+            after = batch[-1]['id']
+            if len(batch) < 100:
+                break
+        return out[:limit]
 
     def patch_channel(self, channel_id, body):
         return http('PATCH', DISCORD_API + '/channels/%s' % channel_id, self.h, body)
@@ -243,6 +291,12 @@ class GitHub:
 
     def add_labels(self, n, labels):
         return self.call('POST', '/issues/%d/labels' % n, {'labels': labels})
+
+    def last_scheduled_run_s(self):
+        """When the last scheduled intake run that succeeded started (unix s), or None."""
+        r = self.call('GET', '/actions/workflows/bugbot-intake.yml/runs?event=schedule&status=success&per_page=1')
+        runs = (r or {}).get('workflow_runs') or []
+        return _iso_s(runs[0]['run_started_at'] or runs[0]['created_at']) if runs else None
 
     def start_fix(self, n, ref='main'):
         """Starts bugbot-fix.yml for issue n. (Issues and labels made with the workflow token start no workflows;
@@ -434,8 +488,10 @@ REPLY_NOT_BUG = ('This doesn\'t look like a bug report, so I haven\'t logged it.
                  'what you did, what you expected and what happened.')
 
 
-def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, model=None, dry=False, autofix=0):
-    """autofix: how many new bugs of this run go straight to an AI fix (0: none, only the ai-fix label starts one)."""
+def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, model=None, dry=False, autofix=0,
+           chat=True, chat_since_ms=None):
+    """autofix: how many new bugs of this run go straight to an AI fix (0: none, only the ai-fix label starts one).
+    chat: also look for bug reports in every other channel (chat_scan)."""
     now_ms = now_ms or int(time.time() * 1000)
     bot_id = dc.me()['id']
     forum = dc.forum(forum_id=forum_id)
@@ -461,6 +517,12 @@ def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, m
         except Exception as e:      # noqa: BLE001  (one bad thread must not stop the others)
             log('thread %s failed: %r' % (tid, e))
             did.append({'thread': tid, 'error': repr(e)[:300]})
+    if chat:
+        try:
+            did += chat_scan(dc, gh, bot_id, forum['id'], now_ms=now_ms, since_ms=chat_since_ms, runner=runner, model=model, dry=dry)
+        except Exception as e:      # noqa: BLE001
+            log('reading the other channels failed: %r' % e)
+            did.append({'chat': 'error', 'error': repr(e)[:300]})
     started = 0
     for d in did:                   # new, clear bugs -> an AI fix each, up to `autofix` a run (the Claude plan's usage)
         if d.get('fixable') and not dry:
@@ -535,6 +597,142 @@ def forward_new(dc, gh, issue, th, bot_id, dry):
     return [{'thread': tid, 'did': 'forwarded %d message(s) to #%d' % (len(new), issue['number'])}]
 
 
+# ------------------------------------------------------------------ the rest of the server
+
+CHAT_REPORT = dict(TRIAGE_SCHEMA['properties'])
+for _k in ('kind', 'questions'):
+    CHAT_REPORT.pop(_k)
+CHAT_REPORT['message_id'] = {'type': 'string'}
+CHAT_SCHEMA = {
+    'type': 'object',
+    'properties': {'reports': {'type': 'array', 'items': {
+        'type': 'object', 'properties': CHAT_REPORT,
+        'required': ['message_id', 'complete', 'duplicate_of', 'title', 'area', 'what_happened', 'expected', 'steps',
+                     'notes', 'likely_files', 'app_version', 'every_time']}}},
+    'required': ['reports'],
+}
+
+
+def chat_lines(channel, messages, bot_id, people):
+    """A channel's messages as lines for Claude: id, who (U1, U2... never names), when, what it replies to, text."""
+    out = []
+    for m in messages:
+        if m['author'].get('bot') or m['author']['id'] == bot_id or (not m.get('content') and not m.get('attachments')):
+            continue
+        who = people.setdefault(m['author']['id'], 'U%d' % (len(people) + 1))
+        ref = (m.get('message_reference') or {}).get('message_id')
+        att = ''.join(' [attachment: %s]' % a.get('filename') for a in m.get('attachments', []))
+        out.append('[id %s | %s | %s%s] %s%s' % (m['id'], who, time.strftime('%d %b %H:%M', time.gmtime(snowflake_ms(m['id']) / 1000)),
+                                                 ' | reply to %s' % ref if ref else '', m.get('content', '')[:1500], att))
+    return ('## #%s\n' % channel['name'] + '\n'.join(out)) if out else ''
+
+
+def chat_batches(blocks, limit=MAX_CHAT_CHARS):
+    batches, cur = [], ''
+    for b in blocks:
+        b = b[:limit]
+        if cur and len(cur) + len(b) > limit:
+            batches.append(cur)
+            cur = ''
+        cur += b + '\n\n'
+    return batches + ([cur] if cur else [])
+
+
+def chat_issue_body(t, guild_id, channel, m):
+    parts = [
+        '**Reported in Discord #%s:** %s' % (no_pings(channel['name']), message_url(guild_id, channel['id'], m['id'])),
+        '**App version:** %s' % (no_pings(t.get('app_version')) or 'not given'),
+        '**Area:** %s' % t.get('area', 'other'),
+        '**Every time?** %s' % (no_pings(t.get('every_time')) or 'not given'),
+    ]
+    if not t.get('complete'):
+        parts.append('\n> [!NOTE]\n> Found in chat: some details are missing.')
+    parts += ['', '### What happened', no_pings(t.get('what_happened')) or '-',
+              '', '### Expected', no_pings(t.get('expected')) or '-',
+              '', '### Steps', no_pings(t.get('steps')) or '-']
+    if t.get('notes') or t.get('likely_files'):
+        parts += ['', '### Notes (AI triage)', no_pings(t.get('notes', ''))]
+        if t.get('likely_files'):
+            parts.append('Likely places: ' + ', '.join('`%s`' % no_pings(f) for f in t['likely_files'][:8]))
+    parts += ['', '<details><summary>The message</summary>\n\n%s\n\n</details>' % quote(no_pings(m.get('content', '')[:6000])),
+              '', '<!-- discord-message:%s:%s -->' % (channel['id'], m['id'])]
+    return '\n'.join(parts)
+
+
+def reply_logged_chat(n, url, title, complete):
+    more = '' if complete else '\nMore details help: app version, what you did, what happened (here or in #bug-reports).'
+    return 'Logged this as a bug: **#%d** %s\n<%s>%s\nYou\'ll get a message here when the fix is out.' % (n, title, url, more)
+
+
+def chat_scan(dc, gh, bot_id, forum_id, now_ms=None, since_ms=None, runner=None, model=None, dry=False):
+    """Bug reports said anywhere else on the server since the last run -> issues + a reply under each."""
+    now_ms = now_ms or int(time.time() * 1000)
+    if since_ms is None:
+        last = gh.last_scheduled_run_s()
+        since_ms = int(last * 1000) - 15 * 60000 if last else now_ms - CHAT_FIRST_LOOK_MS
+    since_ms = max(since_ms, now_ms - CHAT_MAX_LOOK_MS)
+    logged = set()
+    for i in gh.issues():
+        logged.update(mid for _, mid in message_markers(i.get('body')))
+    after = ms_to_snowflake(since_ms)
+    people, blocks, by_id = {}, [], {}
+    for ch in dc.chat_channels(skip_parent=forum_id):
+        msgs = dc.messages_since(ch['id'], after)
+        if not msgs:
+            continue
+        for m in msgs:
+            by_id[m['id']] = (ch, m)
+        block = chat_lines(ch, msgs, bot_id, people)
+        if block:
+            blocks.append(block)
+    did = []
+    if not blocks:
+        return did
+    known = gh.open_issues()
+    for batch in chat_batches(blocks):
+        prompt = (prompt_file('chat.md').replace('{{CHAT}}', batch)
+                  .replace('{{OPEN_ISSUES}}', '\n'.join('#%d %s' % (i['number'], i['title']) for i in known[:100]) or '(none)'))
+        found = run_claude(prompt, CHAT_SCHEMA, tools=['Read', 'Grep', 'Glob'], model=model, max_turns=25, runner=runner)
+        for t in found.get('reports', [])[:10]:
+            mid = str(t.get('message_id', ''))
+            if mid not in by_id or mid in logged:          # (an id Claude made up, or logged already)
+                continue
+            logged.add(mid)
+            try:
+                did.append(log_chat_report(dc, gh, t, *by_id[mid], dry=dry))
+            except Exception as e:     # noqa: BLE001
+                log('message %s failed: %r' % (mid, e))
+                did.append({'message': mid, 'error': repr(e)[:300]})
+    return did
+
+
+def log_chat_report(dc, gh, t, ch, m, dry=False):
+    mark = '<!-- discord-message:%s:%s -->' % (ch['id'], m['id'])
+    link = message_url(dc.guild_id, ch['id'], m['id'])
+    dup = t.get('duplicate_of')
+    if dup:
+        try:
+            issue = gh.issue(int(dup))
+        except HttpError:
+            issue = None
+        if issue and 'pull_request' not in issue:
+            if not dry:
+                gh.edit_issue(issue['number'], body=(issue.get('body') or '') + '\n' + mark)
+                gh.add_labels(issue['number'], ['from-discord'])
+                gh.comment(issue['number'], 'Also reported in Discord #%s: %s\n\n%s' % (
+                    no_pings(ch['name']), link, quote(no_pings(m.get('content', '')[:3000]))))
+                dc.post(ch['id'], reply_known(issue['number'], issue['html_url'], issue['title']), reply_to=m['id'])
+            return {'message': m['id'], 'channel': ch['name'], 'did': 'duplicate of #%s' % issue['number']}
+    labels = ['from-discord', 'bug', 'area:' + t.get('area', 'other')] + ([] if t.get('complete') else ['needs-info'])
+    title = no_pings(t.get('title') or 'Bug report from Discord')
+    if dry:
+        return {'message': m['id'], 'channel': ch['name'], 'did': 'would log', 'title': title}
+    issue = gh.create_issue(title, chat_issue_body(t, dc.guild_id, ch, m), labels)
+    dc.post(ch['id'], reply_logged_chat(issue['number'], issue['html_url'], title, t.get('complete')), reply_to=m['id'])
+    return {'message': m['id'], 'channel': ch['name'], 'did': 'logged #%d' % issue['number'], 'issue': issue['number'],
+            'fixable': bool(t.get('complete'))}
+
+
 def setup_forum(dc, forum_id=None):
     forum = dc.forum(forum_id=forum_id)
     if not forum:
@@ -581,6 +779,15 @@ def tell_threads(dc, gh, issue, text, dry=False):
             sent.append(tid)
         except HttpError as e:
             log('thread %s: %s' % (tid, e))
+    for ch, mid in message_markers(issue.get('body')):     # reports found in chat: under the message
+        if dry:
+            sent.append(mid)
+            continue
+        try:
+            dc.post(ch, text, reply_to=mid)
+            sent.append(mid)
+        except HttpError as e:
+            log('message %s: %s' % (mid, e))
     if not dry and sent:
         gh.add_labels(issue['number'], ['notified'])
     return sent
@@ -701,7 +908,7 @@ def main(argv=None):
         out({'labels': list(LABELS)})
     elif a.command == 'intake':
         out(intake(dc(), gh(), forum_id=env.get('BUGBOT_FORUM_ID') or None, model=env.get('BUGBOT_TRIAGE_MODEL') or model, dry=a.dry,
-                   autofix=int(env.get('BUGBOT_AUTOFIX') or 0)))
+                   autofix=int(env.get('BUGBOT_AUTOFIX') or 0), chat=env.get('BUGBOT_READ_ALL', '1') != '0'))
     elif a.command == 'setup-forum':
         out(setup_forum(dc(), forum_id=env.get('BUGBOT_FORUM_ID') or None))
     elif a.command == 'notify':

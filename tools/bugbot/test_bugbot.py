@@ -42,7 +42,16 @@ class FakeDiscord:
         ms = sorted(self.threads_[tid][1], key=lambda m: int(m['id']))
         return [m for m in ms if not after or int(m['id']) > int(after)]
 
-    def post(self, tid, content):
+    def chat_channels(self, skip_parent=None):
+        return [{'id': cid, 'name': 'general'} for cid in getattr(self, 'chat', {})]
+
+    def messages_since(self, cid, after):
+        return [m for m in self.chat[cid] if int(m['id']) > int(after)]
+
+    def post(self, tid, content, reply_to=None):
+        if tid in getattr(self, 'chat', {}):
+            self.posts.append((tid, content, reply_to))
+            return
         self.posts.append((tid, content))   # (right after the newest message)
         last = max([int(m['id']) for m in self.threads_[tid][1]] or [int(sid(NOW))])
         self.threads_[tid][1].append({'id': str(last + (1 << 22)), 'author': {'id': BOT}, 'content': content})
@@ -59,6 +68,9 @@ class FakeGitHub:
 
     def start_fix(self, n):
         self.fixes.append(n)
+
+    def last_scheduled_run_s(self):
+        return None
 
     def issues(self, label='from-discord', state='all'):
         return [i for i in self.list if state == 'all' or i['state'] == state]
@@ -141,7 +153,7 @@ class Helpers(unittest.TestCase):
 class Intake(unittest.TestCase):
     def run_intake(self, dc, gh, runner, autofix=0):
         with tempfile.TemporaryDirectory() as d:
-            return bb.intake(dc, gh, now_ms=NOW, runner=runner, workdir=d, autofix=autofix)
+            return bb.intake(dc, gh, now_ms=NOW, runner=runner, workdir=d, autofix=autofix, chat=False)
 
     def test_autofix_new_clear_bugs_up_to_the_limit(self):
         threads = {}
@@ -225,6 +237,45 @@ class Intake(unittest.TestCase):
         self.assertIn('here is my log', gh.comments_[0][1])
         self.assertEqual(bb.seen_marker(issue['body'], th['id']), later['id'])
         self.assertEqual(self.run_intake(dc, gh, triage()), [])        # seen: not again
+
+
+class Chat(unittest.TestCase):
+    def setup(self):
+        report = msg(ALICE, 120, 'the timer overlay vanished after DRIVE on 0.2.2')
+        noise = msg(BOB, 100, 'gg everyone')
+        old = msg(BOB, 48 * 60, 'ancient bug')                       # before the first look (24 h)
+        bot = dict(msg(BOT, 90, 'board'), author={'id': BOT, 'bot': True})
+        dc = FakeDiscord({})
+        dc.chat = {'40': [old, report, noise, bot]}
+        return dc, report, noise
+
+    def test_logs_a_report_said_in_chat_and_replies_under_it(self):
+        dc, report, noise = self.setup()
+        gh, seen = FakeGitHub(), {}
+
+        def runner(prompt, schema, tools):
+            seen['prompt'] = prompt
+            return {'reports': [dict(triage()(), message_id=report['id']), dict(triage()(), message_id='123')]}   # (123: made up)
+        did = bb.chat_scan(dc, gh, BOT, '555', now_ms=NOW, runner=runner)
+        self.assertEqual([d['did'] for d in did], ['logged #10'])
+        self.assertIn('gg everyone', seen['prompt'])
+        self.assertNotIn('ancient bug', seen['prompt'])
+        self.assertNotIn('board', seen['prompt'])
+        self.assertNotIn(ALICE, seen['prompt'])                       # (people as U1, U2: no Discord ids or names)
+        self.assertEqual(bb.message_markers(gh.list[0]['body']), [('40', report['id'])])
+        self.assertEqual(dc.posts[0][2], report['id'])
+        # the next run: logged already -> no second issue
+        self.assertEqual(bb.chat_scan(dc, gh, BOT, '555', now_ms=NOW, runner=runner), [])
+        # fixed + released: the reply goes under the message too
+        gh.list[0].update(state='closed', state_reason='completed', closed_at='2027-01-01T00:00:00Z')
+        bb.notify(dc, gh, release='v0.2.3', release_time_s=bb._iso_s('2027-01-02T00:00:00Z'))
+        self.assertEqual((dc.posts[-1][0], dc.posts[-1][2]), ('40', report['id']))
+
+    def test_nothing_found(self):
+        dc, _, _ = self.setup()
+        gh = FakeGitHub()
+        self.assertEqual(bb.chat_scan(dc, gh, BOT, '555', now_ms=NOW, runner=lambda **kw: {'reports': []}), [])
+        self.assertEqual((gh.list, dc.posts), ([], []))
 
 
 class Notify(unittest.TestCase):

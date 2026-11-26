@@ -4,7 +4,7 @@ Discord **#bug-reports** → GitHub issue → AI fix (draft PR) → tests + AI r
 
 | Step | When | What | Workflow |
 |---|---|---|---|
-| Intake | every 12 hours, 06:17 and 18:17 UTC (or Run workflow by hand) | Claude reads each new forum post (10 min after the last message in it) and its screenshots/logs. A clear report becomes an issue (`from-discord`, `bug`, `area:*`) and the thread gets "Logged as #N". A known bug is added to its issue. Missing details: up to 2 rounds of questions, then logged with `needs-info`. Not a bug: a short reply, no issue. Later messages in a logged thread are copied to the issue. | `bugbot-intake.yml` |
+| Intake | every 12 hours, 06:17 and 18:17 UTC (or Run workflow by hand) | Claude reads each new forum post (10 min after the last message in it) and its screenshots/logs. A clear report becomes an issue (`from-discord`, `bug`, `area:*`) and the thread gets "Logged as #N". A known bug is added to its issue. Missing details: up to 2 rounds of questions, then logged with `needs-info`. Not a bug: a short reply, no issue. Later messages in a logged thread are copied to the issue. **The rest of the server too:** every channel and thread the bot can read, since the last run (Claude sees people as U1, U2..., never names). Real bug reports there become issues the same way, with a reply under the message ("Logged this as a bug: #N"); chat, ideas and solved problems are left alone. Variable `BUGBOT_READ_ALL=0` turns this off. | `bugbot-intake.yml` |
 | Fix | you add the label **`ai-fix`** to an issue | Claude **Opus 5.5** (Windows runner) finds the cause, edits, adds a test, runs the tests. The workflow opens a **draft PR** "Fixes #N" on `bugbot/issue-N`, or comments why it made no fix. | `bugbot-fix.yml` |
 | Test + review | right after | App + server unit tests on Windows; Claude Opus 5.5 reviews the diff and the test log. The review goes on the PR with labels `tests-passed`/`tests-failed` and `needs-in-game-test` (a checklist). PR marked ready only when both are good. | `bugbot-fix.yml` |
 | You | | Check it (in the game when asked), merge. Merging closes the issue. **The bot never merges or deploys.** | |
@@ -13,7 +13,7 @@ Discord **#bug-reports** → GitHub issue → AI fix (draft PR) → tests + AI r
 
 ## Setup (once)
 
-1. **Discord bot** (the one ACR Daily already uses for #faq and Events): in the [Developer Portal](https://discord.com/developers/applications) › the bot › *Bot*, turn on **Message Content Intent** (without it the posts read empty). In the server, give the bot on **#bug-reports**: View Channel, Read Message History, Send Messages in Threads (and Manage Channels for step 5, once).
+1. **Discord bot** (the one ACR Daily already uses for #faq and Events): in the [Developer Portal](https://discord.com/developers/applications) › the bot › *Bot*, turn on **Message Content Intent** (without it the posts read empty). In the server, give the bot View Channel, Read Message History, Send Messages and Send Messages in Threads on every channel it should read (channels it can't see are skipped), and Manage Channels on **#bug-reports** for step 5, once.
 2. **Claude login**: in a terminal run `claude setup-token` and copy the token it prints.
 3. **GitHub** › repo › Settings › Secrets and variables › Actions:
    - secret `CLAUDE_CODE_OAUTH_TOKEN` = the token from step 2
@@ -29,7 +29,7 @@ Anyone can post on Discord, and a post can try to steer an AI. So:
 - Fixing starts only from your `ai-fix` label (labels need write access), so you read a report before an AI works on it. The fixing job's GitHub token is read-only and not in the checkout; the bot's edits are a patch that another job (no Claude) turns into the PR. Patches touching `.github/` or `tools/bugbot/` are refused.
 - Every fix is a draft PR that only you can merge: read the diff, don't merge on the review alone.
 - Left over: the fixing Claude can run the unit tests, so a crafted post could in theory get code run that reads its Claude login. If that ever happens: run `claude setup-token` again and replace the secret (the old token can be revoked on claude.ai). Read the issue before you add `ai-fix`.
-- Issues are public: they copy the report text and link the thread, never Discord names.
+- Issues are public: they copy the report text and link the thread or message, never Discord names. A chat message only becomes an issue when Claude sees a real bug report in it, and the bot says so under it.
 
 ## Local
 
