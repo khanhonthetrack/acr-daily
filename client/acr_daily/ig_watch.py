@@ -133,7 +133,14 @@ def _tower(w, rows, fol, now, board_entries, codes):
 def _bug(w, now, following=True, anyone=True):
     """The LIVE bug top right (STANDBY, grey, with nobody on the stage), and under it the camera on (a moment after
     each cut, or while the menu is open). ACR DAILY's own mark is in the corner, bottom left."""
-    if anyone:
+    rp = getattr(w, 'replay', None)
+    if rp is not None:                                   # (a REPLAY: not live; its speed beside it, || paused)
+        # (▌▌ is not in the game's font: two boxes, the in-game test 26 Nov 2026; ▶ is)
+        live = box(row(txt('||' if rp.paused else '▶', 15, 'bold', WHITE, va='c'), sp(8),
+                       txt(_('REPLAY'), 18, 'bold', WHITE, sp=120, va='c'),
+                       txt('  %g×' % rp.rate, 16, 'bold', WHITE, va='c') if rp.rate != 1 else None),
+                   bg=NAVY3, p=[12, 5, 14, 5])
+    elif anyone:
         live = box(row(size(box(None, bg=WHITE, r=5), w=10, h=10, va='c'), sp(8),
                        txt(_('LIVE'), 18, 'bold', WHITE, sp=120, va='c')), bg=RED, p=[12, 5, 14, 5])
     else:
@@ -729,7 +736,9 @@ def overlay(ig):
     # bottom left: the spectator menu when open (the user, 21 Nov 2026: "bottom left with a X to close"), and the
     # ACR DAILY mark, as a TV channel's in its corner
     mark = row(size(box(None, bg=RED), w=6, h=40, sk=-18, va='c'), sp(10),
-               col(txt('ACR DAILY', 22, 'bold', WHITE, sp=60), txt(_('LIVE COVERAGE'), 11, 'bold', SOFT, sp=160)),
+               col(txt('ACR DAILY', 22, 'bold', WHITE, sp=60),
+                   txt(_('REPLAY') if getattr(w, 'replay', None) is not None else _('LIVE COVERAGE'), 11, 'bold', SOFT,
+                       sp=160)),
                va='b', al='l')
     corner = col(menu, sp(h=14) if menu else None, mark, va='b')
     if fol is not None:

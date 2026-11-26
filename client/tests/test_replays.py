@@ -238,6 +238,20 @@ class Playback(Base):
         self.assertIsNotNone(pose)
         self.assertEqual(d.dash_at(20.5)['gear'], 5)
 
+    def test_it_waits_for_the_viewer_at_the_start_line(self):
+        from acr_daily import replayplay
+        rows = [[100 + i * 100, i * 100, 0, 0, 0, 0, 0, 360, 5, 5000, 1000, 0, 0, 0] for i in range(100)]
+        d = replayplay.ReplayDriver({'head': {'track': 'Wales Afon Bidno', 'car': 'Car'}, 'rows': rows})
+        menus = N(track=None, clock_ms=None)
+        park = N(track='Wales Afon Bidno', clock_ms=-1)              # (the Service Park: no stage clock)
+        line = N(track='Wales Afon Bidno', clock_ms=0)
+        for f, t in ((menus, 1.0), (park, 2.0), (line, 3.0), (line, 4.0)):
+            d.arm(f, t)
+        self.assertTrue(d.waiting and d.paused)                       # (not yet ARM_S at the line)
+        d.arm(line, 5.5)
+        self.assertFalse(d.waiting or d.paused)
+        self.assertEqual(round(d.clock()), 100)                       # (from its start)
+
 
 class Page(Base):
     def test_the_replay_page_and_the_home_tile_build(self):

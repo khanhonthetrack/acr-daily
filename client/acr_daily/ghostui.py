@@ -380,6 +380,8 @@ class GhostOverlay:
                 live.set_livery(*liveries_ui.mine(self.app))
         # (a REPLAY watched: its one car, played from the file, nobody from the relay: replayplay.py)
         rp = getattr(getattr(self.app, 'watch', None), 'replay', None) if self._watching() else None
+        if rp is not None and hasattr(rp, 'arm'):
+            rp.arm(f)                                   # (it plays once you are at its start line)
         others = [rp] if rp is not None else live.others() if live is not None else []
         if not others:
             self.status = _('Nobody else on %s right now%s') % (f.track, self._live_note())

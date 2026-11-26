@@ -11,6 +11,7 @@ import time
 from . import livelink, replays
 
 RATES = (0.25, 0.5, 1.0, 2.0, 4.0, 8.0)
+ARM_S = 2.0                      # the viewer's car this long at the start line: the replay plays
 REPLAY_ID = 9001                 # its car's id for the mod ('L9001')
 JUMP_MS = 10000
 
@@ -36,6 +37,28 @@ class ReplayDriver(livelink.LiveDriver):
         self.start_wall = time.monotonic()
         self.rate, self.paused = 1.0, True       # (paused at its start until the car is in view: start())
         self._at_ms, self._at_wall = float(self.first), time.monotonic()
+        self.track = h.get('track') or ''
+        self.waiting, self._there_at = True, None   # (until the viewer's car is at the stage's start line: arm())
+
+    def arm(self, f, now=None):
+        """Every frame while it is watched: the game on its stage, the viewer's car at the start line (the clock at 0)
+        for ARM_S -> played from its start. (Started as the game set the stage up, it was half a minute in by the time
+        the camera got there: the in-game test, 26 Nov 2026.)"""
+        if not self.waiting:
+            return
+        now = time.monotonic() if now is None else now
+        from .names import same_track
+        there = (f is not None and getattr(f, 'track', None) and same_track(f.track, {'track': self.track})
+                 and getattr(f, 'clock_ms', None) is not None and f.clock_ms >= 0)
+        if not there:
+            self._there_at = None
+            return
+        if self._there_at is None:
+            self._there_at = now
+        elif now - self._there_at >= ARM_S:
+            self.waiting = False
+            self.seek(self.first)
+            self.play(True)
 
     # ---- the viewer's clock
     def clock(self, now=None):
@@ -131,8 +154,13 @@ def start(ig, name):
     def begin():
         a.watch.start('event', 1, event=held)
         a.watch.replay = driver
-        a.watch.target = driver.id
-        driver.play(True)
+        a.watch.target = driver.id               # (played once the viewer is at the start line: ReplayDriver.arm)
+    from .names import same_track
+    f = getattr(a, 'last_frame', None)
+    if f is not None and getattr(f, 'track', None) and same_track(f.track, {'track': h.get('track')}):
+        begin()                                  # (on its stage already, a run just driven: watched from here)
+        ig.note(_('Replay on: it plays from its start.'))
+        return
     ig_watch._when_ready(ig, lambda: ig_watch._go(ig, setup, ch, begin))
 
 
