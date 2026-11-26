@@ -378,7 +378,9 @@ class GhostOverlay:
             live.root = self.root                       # (sent along: where your car's model sits, for the others)
             if hasattr(live, 'set_livery'):              # (and its livery: those watching you see it)
                 live.set_livery(*liveries_ui.mine(self.app))
-        others = live.others() if live is not None else []
+        # (a REPLAY watched: its one car, played from the file, nobody from the relay: replayplay.py)
+        rp = getattr(getattr(self.app, 'watch', None), 'replay', None) if self._watching() else None
+        others = [rp] if rp is not None else live.others() if live is not None else []
         if not others:
             self.status = _('Nobody else on %s right now%s') % (f.track, self._live_note())
             if self._ingame_cfg():
@@ -752,6 +754,9 @@ class GhostOverlay:
             # (in their own livery: the mod paints it on, main.lua livery_tick; one not here fetched first)
             name = liveries_ui.ready(self.app, fol) if fol is not None else None
             lines.append('wlivery %d %s' % (seq, name or '-'))
+            rate = getattr(fol, 'rate_now', None) if fol is not None else None
+            if rate is not None:                        # (a REPLAY: played faster, slower or paused; main.lua play_clock)
+                lines.append('wrate %.3f %d' % (rate(), seq))
         lines.append('end %d' % seq)                 # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)

@@ -50,12 +50,12 @@ STATUS_S = 15.0                         # the app's status line shown over the p
 # (championships, 1V1s, cups), WATCH (everyone on a stage now), COMMUNITY)
 TABS = (('home', _('HOME')), ('events', _('EVENTS'))) + (
     (('live', _('RANKED')),) if liverally.ON else ()) + (
-    ('comp', _('ONLINE RALLIES')), ('watch', _('WATCH')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')),
-    ('profile', _('PROFILE')), ('settings', _('SETTINGS')))
+    ('comp', _('ONLINE RALLIES')), ('watch', _('WATCH')), ('replay', _('REPLAY')), ('community', _('COMMUNITY')),
+    ('inbox', _('INBOX')), ('profile', _('PROFILE')), ('settings', _('SETTINGS')))
 # each tab's page (ig_<name>.py); 'daily' and 'tt' are EVENTS' sub-tabs, each its own page still
 PAGES = {'home': 'ig_home', 'events': 'ig_events', 'daily': 'ig_daily', 'tt': 'ig_tt', 'copilot': 'ig_copilot', 'casual': 'ig_casual',
          'live': 'ig_ranked', 'comp': 'ig_comp', 'watch': 'ig_watchlist', 'community': 'ig_community', 'inbox': 'ig_inbox',
-         'profile': 'ig_profile', 'settings': 'ig_settings',
+         'profile': 'ig_profile', 'settings': 'ig_settings', 'replay': 'ig_replay',
          'prep': 'ig_prep'}                 # (DRIVE's set-up screen: no tab of its own)
 EVENT_SUBS = ('daily', 'tt', 'copilot')
 FIRST_TAB = 'home'                      # (where ACR DAILY opens, as the app's window: HOME)

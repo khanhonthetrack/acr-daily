@@ -209,6 +209,51 @@ class Api:
     def run_trace(self, run_id):
         return self._req('GET', '/api/runs/%s/trace' % run_id)
 
+    # ---------------------------------------------------------------- replays (server src/replays.js, replays.py)
+
+    def replay_begin(self, body):
+        """A counted run's start: {kind, ref, track, car, clockMs, key} -> {rid, nonce}."""
+        return self._req('POST', '/api/replays/begin', body, auth=True, timeout=8)
+
+    def replay_commit(self, body):
+        """The replay's rows so far, hashed: {rid, n, count, hash, clockMs, fin}."""
+        return self._req('POST', '/api/replays/commit', body, auth=True, timeout=8)
+
+    def replay_upload(self, data, public=False):
+        """A replay file's bytes -> {code, verdict, report, action, why, public, stamp, url}; a refused one: ApiError
+        (code 422, its notes in the message)."""
+        return self._req('POST', '/api/replays/upload' + ('?public=1' if public else ''), auth=True, timeout=40,
+                         raw=(data, 'application/octet-stream'))
+
+    def replays_wanted(self):
+        return self._req('GET', '/api/replays/wanted', auth=True, timeout=10).get('wanted') or []
+
+    def replay_none(self, request_id):
+        """A steward's request answered: no replay of that stage on this PC."""
+        return self._req('POST', '/api/replays/requests/%d/none' % int(request_id), {}, auth=True, timeout=10)
+
+    def replay_meta(self, code):
+        return self._req('GET', '/api/replays/%s' % code, auth=True, timeout=10)
+
+    def replay_share(self, code, public):
+        return self._req('POST', '/api/replays/%s/share' % code, {'public': bool(public)}, auth=True, timeout=10)
+
+    def replay_file(self, code):
+        """A replay's file from the server (its code) -> bytes; ApiError when not there or not ours to see."""
+        if not self.base:
+            raise ApiError(_('no server set'))
+        headers = {'User-Agent': USER_AGENT}
+        if self.s.get('token'):
+            headers['Authorization'] = 'Bearer ' + self.s['token']
+        req = urllib.request.Request(self.base + '/api/replays/%s/file' % code, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.read(8 * 1024 * 1024)
+        except urllib.error.HTTPError as e:
+            raise ApiError(_('no such replay (private, or no longer kept)') if e.code == 404 else str(e), e.code) from None
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            raise ApiError(_('server not reachable (%s)') % getattr(e, 'reason', e), unreachable=True) from None
+
     def version(self):
         return self._req('GET', '/api/version')
 

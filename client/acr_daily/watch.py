@@ -29,6 +29,7 @@ ROUTE_AHEAD_M, ROUTE_STEP_M = 520.0, 10.0  # the road ahead of the followed car 
 AUTO_DRIVER_S = 40.0              # AUTO driver: another driver at most this often
 # the spectator menu's lines (Up / Down between them, Left / Right change them, Select / Back close it)
 MENU = ('driver', 'camera', 'auto_driver', 'graphics', 'splits')
+REPLAY_MENU = ('play', 'speed', 'camera', 'graphics', 'splits')   # (a REPLAY watched: replayplay.py)
 
 
 class Watch:
@@ -50,6 +51,7 @@ class Watch:
         self._auto_at = 0.0
         self.shot = None                      # the camera on now, as the mod says (main.lua: tv, onboard...)
         self.shot_at = 0.0                    # (when it changed: its name shown a moment)
+        self.replay = None                    # a REPLAY watched: its car the only one (replayplay.ReplayDriver)
 
     # ---- on / off
     def start(self, kind, slot, event=None, prefer=None):
@@ -69,6 +71,7 @@ class Watch:
         self.on = False
         self.target = None
         self.event = None
+        self.replay = None
         self.drivers()                               # (their playback back to as soon as it can be: driving)
 
     def ch(self):
@@ -94,7 +97,9 @@ class Watch:
 
     # ---- the drivers on the stage
     def drivers(self):
-        """The relay's drivers on the stage now (livelink.LiveDriver), the furthest on first."""
+        """The relay's drivers on the stage now (livelink.LiveDriver), the furthest on first. A REPLAY: its car only."""
+        if self.on and getattr(self, 'replay', None) is not None:
+            return [self.replay]
         g = getattr(self.app, 'ghostcars', None)
         live = getattr(g, 'live', None)
         out = list(live.others()) if live is not None else []
@@ -307,6 +312,10 @@ class Watch:
         if self.copilot():
             cp = self.app.crew_owner() if hasattr(self.app, 'crew_owner') else getattr(self.app, 'copilot', None)
             return bool(cp is not None and cp.key(k))
+        rp = getattr(self, 'replay', None)
+        if rp is not None and self.menu is None and k in ('left', 'right'):
+            rp.jump(-1 if k == 'left' else 1)        # (a REPLAY: 10 s back / on; its menu plays / pauses, its speed)
+            return True
         if k == 'select':
             self.menu = None if self.menu is not None else 0
             return True
@@ -319,14 +328,19 @@ class Watch:
             else:
                 return False
             return True
+        lines = self.menu_lines()
         if k == 'back':
             self.menu = None
         elif k in ('up', 'down'):
-            self.menu = (self.menu + (-1 if k == 'up' else 1)) % len(MENU)
+            self.menu = (self.menu + (-1 if k == 'up' else 1)) % len(lines)
         elif k in ('left', 'right'):
             d = -1 if k == 'left' else 1
-            line = MENU[self.menu]
-            if line == 'driver':
+            line = lines[self.menu % len(lines)]
+            if line == 'play':
+                rp.play()
+            elif line == 'speed':
+                rp.speed(d)
+            elif line == 'driver':
                 self.auto_driver = False
                 self.step(d)
             elif line == 'camera':
@@ -341,6 +355,10 @@ class Watch:
         else:
             return False
         return True
+
+    def menu_lines(self):
+        """The spectator menu's lines: a REPLAY's (play / pause, its speed) or WATCH's."""
+        return REPLAY_MENU if getattr(self, 'replay', None) is not None else MENU
 
     def profile(self, steam_id):
         """A driver's page as the server gives it ({name, country, look: {tag}...}), fetched once in a thread; None until

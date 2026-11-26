@@ -29,6 +29,7 @@ from .browserui import BrowserUI
 from .cupbrowser import CupBrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .liverallyui import LiveRallyUI
+from .replayui import ReplayUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
 from .commentui import CommentUI
@@ -965,7 +966,7 @@ class Overlay:
 # ---------------------------------------------------------------------- main window
 
 class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI,
-          CommentUI, CommunityUI, LiveRallyUI):
+          CommentUI, CommunityUI, LiveRallyUI, ReplayUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -1032,6 +1033,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.ghostcars = ghostui.GhostOverlay(self)     # ghost cars on the road (a test, ghostui.py)
         self.ghost_setup = None
         self.ghost_buttons()
+        self._replay_init()                        # every run kept as a replay (replayui.py, replays.py)
         # (no "Getting started" box: 0.2 opens on the launcher, and the game's pages say what each part is)
         self.open_home()                          # (where the app opens: HOME, its tiles; homeui.py)
         self._gate_check()                         # (not signed in: Steam first, over it all; signinui.py)
@@ -2377,6 +2379,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                              + waiting.HINT + ('\n\n' + _('Close ACR Daily?'))):
             return
         try:
+            self._replay_close()                   # (a run under way kept as it is)
+        except Exception:
+            pass
+        try:
             self._save_window()
         except (tk.TclError, OSError):
             pass
@@ -3543,6 +3549,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if f is not None or getattr(self.shm, 'unloaded', False):
             self._game_at = now            # the game is open: on a stage or in its menus (_game_open)
         self.auto_rec.feed(f, now)
+        self._replay_feed(f, now)          # (before the judges: their start / end tag the run being recorded)
         if self.auto_rec.state == 'done':
             self._contribute(self.auto_rec.saved)
             self.auto_rec = RouteRecorder()
@@ -3594,6 +3601,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             for ev in evs:
                 if ev == 'start':
                     self._daily_started(slot, d)
+                    # (its replay: a counted run followed by the server, a proof of its finish: replays.py)
+                    ch = d['ch'] or {}
+                    self._replay_tag('daily', ch.get('id'), 'SS%d · %s' % (slot, ch.get('date') or ''),
+                                     not (d.get('norally') or d.get('practice') or d.get('unstaked')),
+                                     stageId=ch.get('stageId'), carId=ch.get('carId'))
+                if ev in ('finished', 'dnf', 'invalid'):
+                    self._replay_end(ev, j.result)
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
                     self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
                 elif ev in ('finished', 'dnf', 'invalid') and d.get('norally'):

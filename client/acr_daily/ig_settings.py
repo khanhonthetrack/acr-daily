@@ -70,8 +70,25 @@ def page(ig):
     # game; the user, 20 Nov 2026: "most settings are outdated")
     from . import ig_copilot
     left = col(language_panel(a), timer_panel(a, o), ig_copilot.settings_panel(ig), fill=1)   # (COPILOT's voice)
-    right = col(displays_panel(a), stream_panel(a), account_panel(a), save_panel(), about_panel(a, m), admin_panel(a), fill=1)
+    right = col(displays_panel(a), replays_panel(a), stream_panel(a), account_panel(a), save_panel(), about_panel(a, m),
+                admin_panel(a), fill=1)
     return row(left, sp(GAP), right)
+
+
+def replays_panel(a):
+    """REPLAYS (replays.py): every run kept, how many, and a steward's request sent by itself or asked first."""
+    from . import replays
+    o = replays.opts(a.s)
+    keeps = [(str(n), str(n)) for n in (25, 50, 100, 250, 500)]
+    return panel(_('Replays'),
+                 setting(_('Keep a replay of every run'), _('On this PC, to watch again in the game, send or share. '
+                                                            'A counted run\'s replay can prove a finish the game lost.'),
+                         switch('rpl_on', o['on'])),
+                 setting(_('How many'), _('The newest are kept; starred ones and ones sent to you never go.'),
+                         under=choices('rpl_keep', keeps, str(o['keep']))),
+                 setting(_("Stewards' requests"), _("A rally's stewards may ask for a stage's replay: sent by itself, "
+                                                    'or asked first on the REPLAY page.'),
+                         under=choices('rpl_send', [('auto', _('SEND BY ITSELF')), ('ask', _('ASK ME FIRST'))], o['send'])))
 
 
 def stream_panel(a):
@@ -341,6 +358,15 @@ def click(ig, action, arg):
         from . import rankedchat
         if on != rankedchat.on(a):
             rankedchat.toggle(a)
+    elif action in ('rpl_on', 'rpl_keep', 'rpl_send'):   # (REPLAYS: replays.py)
+        r = a.s.setdefault('replays', {})
+        if action == 'rpl_on':
+            r['on'] = on
+        elif action == 'rpl_keep':
+            r['keep'] = int(arg)
+        else:
+            r['send'] = 'ask' if arg == 'ask' else 'auto'
+        a.save_settings()
     elif action == 'stream':                         # (broadcastfeed.py: the overlay for OBS)
         from . import broadcastfeed
         a.s['streamOverlay'] = on

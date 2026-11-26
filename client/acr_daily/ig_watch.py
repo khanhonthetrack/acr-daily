@@ -486,11 +486,15 @@ def _menu(w, fol):
         'graphics': (_('GRAPHICS'), watch_mod.GRAPHICS_NAMES.get(w.graphics, w.graphics.upper())),
         'splits': (_('SPLITS'), _('ON') if w.splits else _('OFF')),
     }
+    rp = getattr(w, 'replay', None)
+    if rp is not None:                                   # (a REPLAY: replayplay.py)
+        vals['play'] = (_('REPLAY'), _('PAUSED') if rp.paused else _('PLAYING'))
+        vals['speed'] = (_('SPEED'), '%g×' % rp.rate)
     close = box(row(txt('✕', 16, 'bold', WHITE, va='c'), sp(6), txt(_('BACK'), 12, 'bold', WHITE, sp=100, va='c')),
                 bg='000000', a=0.25, p=[8, 2, 8, 2], r=3, va='c')
     lines = [box(row(txt(_('SPECTATOR'), 20, 'bold', WHITE, sp=120, va='c'), sp(fill=1), close),
                  bg=RED, p=[16, 8, 10, 8])]
-    for i, key in enumerate(watch_mod.MENU):
+    for i, key in enumerate(w.menu_lines() if hasattr(w, 'menu_lines') else watch_mod.MENU):
         label, value = vals[key]
         on = i == w.menu
         lines.append(box(row(size(box(None, bg=RED if on else NAVY), w=5, h=30, va='c'), sp(12),

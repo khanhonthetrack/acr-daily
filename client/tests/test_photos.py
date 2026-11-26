@@ -14,13 +14,15 @@ from test_app import tk_root  # noqa: E402
 PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community', 'london')     # (london: ACR DAILY London's card)
 # (WRC Generations' stages on the COMMUNITY page: their country's, 19 Nov 2026; Greece and Sweden use the rallies')
 PARTS += ('spain', 'corsica', 'italy', 'kenya', 'mexico', 'germany', 'portugal')
+PARTS += ('replay',)                     # (the REPLAY tile: a TV helicopter over the car, 26 Nov 2026)
 # (Oxmod's Thierache stages: in-game screenshots of his stages, credited to him, 25 Nov 2026)
 SCREENSHOTS = ('thierache', 'chemin-erables')
 PARTS += SCREENSHOTS
 RALLIES = ('Monte Carlo', 'Greece', 'Alsace', 'Wales', 'Livigno')
 FREE = ('CC0 1.0', 'CC BY 2.0', 'CC BY 3.0', 'CC BY 4.0', 'Public domain')
-SHARE_ALIKE = {'community': 'CC BY-SA'}   # (the one photo under share-alike, chosen for COMMUNITY: CREDITS.md says its
-                                         # resized copy is shared under the same licence)
+SHARE_ALIKE = {'community': 'CC BY-SA',   # (the photos under share-alike: COMMUNITY's and REPLAY's (26 Nov 2026, cropped,
+               'replay': 'CC BY-SA 4.0'}  # the TV helicopter moved into the frame); CREDITS.md says each copy of ours is
+                                         # shared under the same licence)
 DAY, HOUR = 86400000, 3600000
 
 

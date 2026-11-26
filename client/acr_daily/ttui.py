@@ -610,6 +610,13 @@ class TimeTrialUI:
             if cp is not None:                       # (COPILOT: the game's own co-driver on during the stage: a DNF)
                 evs = evs + cp.watch_run(t, j, evs)
             for ev in evs:
+                if hasattr(self, '_replay_tag'):    # (its replay: kept on this PC, not followed by the server)
+                    if ev == 'start':
+                        tch = t.get('ch') or {}
+                        self._replay_tag('tt', 'tt:%s' % (tch.get('id') or slot), 'TT%d' % slot, False,
+                                         stageId=tch.get('stageId'), carId=tch.get('carId'))
+                    elif ev in ('finished', 'dnf', 'invalid'):
+                        self._replay_end(ev, j.result)
                 if ev == 'start':
                     b = self._game_save()
                     t['known'] = self._game_results(b)  # the game's result of this run will be a new one

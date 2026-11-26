@@ -134,7 +134,17 @@ function load(){return api('/api/admin/review').then(function(r){R=r;runs();mess
 
 // ---- DNFs and lost times (the user, 24 Nov 2026: "I can see the DNF and dictate if I can remove the time or not")
 var DAYS=14;
-function loadDnfs(){return api('/api/admin/dnfs?days='+DAYS).then(function(d){D=d;dnfs();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function loadDnfs(){return Promise.all([api('/api/admin/dnfs?days='+DAYS),api('/api/admin/replays').catch(function(){return {replays:[]}})])
+  .then(function(x){D=x[0];D.replays=x[1].replays||[];dnfs();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+// ---- REPLAYS (src/replays.js): the ones sent as a DNF's proof or whose checks want a look. Opened in this tab: the
+// replay's page uses this tab's admin key to show a private one (sessionStorage, never in its address)
+function replaysPart(p){add(p,el('h2',null,'Replays sent (last 30 days)'),el('p','lead','A DNF\\'s proof (taken back by itself when its checks are clean, three a week a driver) '+
+    'and replays whose checks want a look. Open one to watch it on the map: its checks are on its page.'));
+  if(!D.replays.length){p.appendChild(el('div','empty','None.'));return}
+  D.replays.forEach(function(r){var it=el('div','item');var a=el('a',null,'watch ›');a.href='/r/'+r.code;
+    add(it,add(el('div','top'),add(el('span','t'),drv({steamId:r.steamId,name:r.name})),el('span','s',r.code+' · '+(r.ref||r.kind)+' · '+r.track+' · '+when(r.created)),a));
+    var ch=el('div','chips');add(ch,el('span','chip'+(r.verdict==='clean'?'':' flag'),r.verdict),el('span','chip',r.why),r.action?el('span','chip',r.action):null);
+    ((r.report||{}).notes||[]).forEach(function(n){ch.appendChild(el('span','chip flag',n))});it.appendChild(ch);p.appendChild(it)})}
 function stageOf(r){return r.date+' · SS'+r.slot+' · '+(r.track||'')+(r.car?' · '+r.car:'')}
 function dnfs(){var p=$('p-dnfs');p.innerHTML='';
   var pick=el('select');[7,14,30,60].forEach(function(n){var o=el('option',null,'last '+n+' days');o.value=n;o.selected=n===DAYS;pick.appendChild(o)});
@@ -169,7 +179,8 @@ function dnfs(){var p=$('p-dnfs');p.innerHTML='';
   if(!D.events.length)p.appendChild(el('div','empty','None in these days.'));
   D.events.forEach(function(r){var it=el('div','item');
     add(it,add(el('div','top'),add(el('span','t'),drv(r)),el('span','s',(r.event||'')+' · '+r.done+' stage'+(r.done===1?'':'s')+' done · '+when(r.updated)),link('the event ›','/e/'+r.eventId)));
-    add(it,el('div','body',r.reason||'(no reason)'));p.appendChild(it)})}
+    add(it,el('div','body',r.reason||'(no reason)'));p.appendChild(it)});
+  replaysPart(p)}
 
 // ---- bug reports: read, set their status (the reporter is told), their files
 var RS='open';

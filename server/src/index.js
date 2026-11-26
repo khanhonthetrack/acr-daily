@@ -71,7 +71,9 @@ import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
-import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner, replayStageTime } from './leaguesapi.js';
+import { adminReplays, replaysApi } from './replays.js';
+import { replayPage } from './replaypage.js';
 import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
 import { developersPage } from './developerspage.js';
@@ -1301,6 +1303,18 @@ async function reinstateRun(env, id, body = {}) {
   return json({ ok: true, id, totalMs: run.total_ms, rank: me ? me.rank : null, credits: bonus });
 }
 
+/** What src/replays.js needs from here: the daily's reinstate (as the admin's), an event stage's time (as a steward's),
+ *  a stage's road. */
+function replayDeps(req, env, url) {
+  return { json, err, admin: isAdmin(req, env), site: url.origin,
+    reinstate: (id, penaltyMs) => reinstateRun(env, id, penaltyMs === undefined ? {} : { penaltyMs }),
+    stageTime: (eventId, sid, no, timeMs, penaltyMs, reason, now) => replayStageTime(env, eventId, sid, no, timeMs, penaltyMs, reason, now),
+    route: async (track) => {
+      const r = track && await env.DB.prepare('SELECT points FROM routes WHERE track = ?').bind(track).first();
+      try { return r ? JSON.parse(r.points) : null; } catch { return null; }
+    } };
+}
+
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
 const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear|reinstate|reviewed)|tt\/runs\/\d+\/reject)$/;
 
@@ -1393,6 +1407,7 @@ async function adminCall(req, env, path) {
   // the admin panel's DNF review (src/adminpage.js, the user 24 Nov 2026: "I can see the DNF and dictate if I can remove
   // the time or not"): the dailies' DNFs with a stage clock (the game lost the result: reinstate or keep), the times the
   // app stood in with (keep or take off), the championships' DNFs (a look: their event and the driver's report)
+  if (path === '/api/admin/replays' && req.method === 'GET') return json({ replays: await adminReplays(env, Date.now()) });
   if (path === '/api/admin/dnfs' && req.method === 'GET') {
     const days = Math.min(Math.max(Number(new URL(req.url).searchParams.get('days')) || 14, 1), 60);
     const since = dayOf(Date.now() - days * 86400000), sinceMs = Date.now() - days * 86400000;
@@ -1815,6 +1830,20 @@ async function route(req, env, ctx, L) {
       if (res) return res;
     }
     if (path === '/liveries') return html(inLang(L, () => liveriesPage(env)));   // the drivers' liveries (src/liverypage.js)
+    if (path.startsWith('/api/replays')) {             // REPLAYS: proofs of a run, shared runs (src/replays.js)
+      // (the website's share button posts with its cookie: from this site's own pages only; the app signs in by token)
+      if (req.method === 'POST' && !sameSite(req, url) && !(req.headers.get('Authorization') || '').startsWith('Bearer ')) return err('not from this site', 403);
+      const res = await replaysApi(req, env, path, url, await playerFrom(req, env), Date.now(), replayDeps(req, env, url));
+      if (res) return res;
+    }
+    const rpm = path.match(/^\/r\/([a-z0-9]{10})$/);   // a replay's page: the run on the stage's map (src/replaypage.js)
+    if (rpm) {        // (a public one's driver, stage and time in the page's meta: its link shows them where it is posted)
+      const meta = await env.DB.prepare(`SELECT f.track, f.car, f.fin_ms, f.penalty_ms, f.status, f.public, p.name FROM replay_files f
+          LEFT JOIN players p ON p.steam_id = f.steam_id WHERE f.code = ?`).bind(rpm[1]).first();
+      const pub = meta && meta.public ? meta : null;
+      return new Response(inLang(L, () => replayPage(rpm[1], pub)), { headers: { ...PAGE_HEADERS,
+        ...(pub ? {} : { 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'no-store' }) } });
+    }
     if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
     // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)

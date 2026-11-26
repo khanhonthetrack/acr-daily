@@ -301,8 +301,9 @@ class Home(unittest.TestCase):
         ig.app.credits = {'balance': 50}
         node = ig_home.page(ig)
         self.assertEqual(check(node), [])
-        for key in ('events', 'comp', 'profile', 'watch', 'community'):
+        for key in ('events', 'comp', 'replay', 'watch', 'community'):   # (REPLAY in PROFILE's place, 26 Nov 2026)
             self.assertIn('home.go:%s' % key, str(node))
+        self.assertIn('Every run kept', str(node))
         self.assertIn('1 LIVE', str(node))           # (Bob on the daily's stage)
 
 

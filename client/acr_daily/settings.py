@@ -32,6 +32,8 @@ DEFAULTS = {
     'overlay': {'scale': 1.0, 'visible': True, 'onlyOnDaily': True},
     # autoDrive: after DRIVE, press the game's menu keys up to the Service Park (autodrive.py); off until turned on
     'autoDrive': False,
+    # replays (replays.py): every run kept as one (on), the newest `keep`; a steward's request sent by itself or asked
+    'replays': {'on': True, 'keep': 100, 'send': 'auto'},
     'admin': False,
     'adminKey': '',
 }

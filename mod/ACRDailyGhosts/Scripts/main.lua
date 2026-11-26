@@ -187,6 +187,9 @@ local function read_ghosts(t)
         elseif w[1] == "wlivery" then                                   -- wlivery <seq> <livery name...> (WATCH)
             if w[2] ~= seq then return nil end
             names_now["\0wlivery"] = line:match("^wlivery %S+ (.+)$")
+        elseif w[1] == "wrate" and #w >= 3 then                        -- wrate <rate> <seq> (a REPLAY played faster / slower / paused)
+            if w[3] ~= seq then return nil end
+            names_now["\0wrate"] = tonumber(w[2])
         elseif w[1] == "wdash" and #w >= 5 then                        -- wdash <rpm> <throttle> <gear> <seq> (WATCH: its sound)
             if w[5] ~= seq then return nil end
             names_now["\0wdash"] = {rpm = tonumber(w[2]) or 0, load = tonumber(w[3]) or 0, gear = tonumber(w[4]) or 1}
@@ -246,21 +249,23 @@ end
 -- pace, nudged at most PLAY_WARP towards where the app says it is, so the app's updates (each placed by when it wrote
 -- them, a millisecond or two either way, and its own clock eased 5 % at most) never step the car back or on.
 local PLAY_WARP, PLAY_SNAP = 0.06, 0.5           -- (a little over the app's own 5 %: it always keeps up)
+local watch_rate = 1                             -- a REPLAY's speed (the app's "wrate" line: 0 paused, 0.5, 2...; else 1)
 local function play_clock(c, t)
     local P = c.path
+    local r = watch_rate or 1
     -- (the app sends one pose before now: their clock now is the second pose's. Taken as the first, the car was
     -- drawn a pose early, where the curve has no pose behind it, its speed swinging: the shake left, seen live on
     -- Bughuul 23 Nov 2026)
     -- (path3: the app says their clock now outright; its poses on a fixed grid of their clock, the same in every path)
-    local target = (P.now or (P.c0 + P.dt)) + (t - P.t0)
-    if not c.pc or not c.pc_t or math.abs(target - (c.pc + (t - c.pc_t))) > PLAY_SNAP then
+    local target = (P.now or (P.c0 + P.dt)) + (t - P.t0) * r
+    if not c.pc or not c.pc_t or math.abs(target - (c.pc + (t - c.pc_t) * r)) > PLAY_SNAP * math.max(1, r) then
         c.pc, c.pc_t = target, t
         return target
     end
     local dt = t - c.pc_t
     if dt > 0 then
-        local err = target - (c.pc + dt)
-        c.pc = c.pc + dt * (1 + math.max(-PLAY_WARP, math.min(PLAY_WARP, err)))
+        local err = target - (c.pc + dt * r)
+        c.pc = c.pc + dt * r * (1 + math.max(-PLAY_WARP, math.min(PLAY_WARP, err)))
         c.pc_t = t
     end
     return c.pc
@@ -1972,6 +1977,8 @@ local function tick()
         ghost_names["\0wdash"] = nil
         watch_livery = ghost_names["\0wlivery"]
         ghost_names["\0wlivery"] = nil
+        watch_rate = ghost_names["\0wrate"] or 1       -- (a REPLAY's speed; live drivers: always 1)
+        ghost_names["\0wrate"] = nil
         if not watching then watch_route = nil end
     end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end

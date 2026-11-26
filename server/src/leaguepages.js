@@ -1070,6 +1070,7 @@ export function eventPage(id, env, meta = {}) {
     D.forEach(function(x){var it=el('div','decision');var d=el('div');
       // (an entry's DNF taken back, an entry retired, a stage's time set by the stewards: kept as they were decided)
       var tag=x.kind==='dsq'?el('b','bad',${tq('DSQ')}):x.kind==='reinstate'?el('b','good',${tq('DNF taken back')}):
+        x.kind==='replay'?el('b',null,F(${tq('SS{0} replay asked for')},x.stage)):
         x.kind==='retire'?el('b','bad',${tq('Retired by the stewards')}):x.kind==='settime'?el('b',null,F(${tq('SS{0} time set: {1}')},x.stage,ms(x.ms))):
         el('b',x.ms<0?'good':'bad',x.stage?F(${tq('{0} on SS{1}')},secs(x.ms),x.stage):F(${tq('{0} on the total')},secs(x.ms)));
       add(d,tag,' '+x.driver+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+(x.at?' · '+when(x.at):'')));it.appendChild(d);
@@ -1096,7 +1097,15 @@ export function eventPage(id, env, meta = {}) {
     var f2=el('div','stewform');f2.innerHTML='<label><span>${ts('Stage time (m:ss.sss)')}</span><input type="text" id="pst" placeholder="4:12.345"></label>'+
       '<label><span>${ts('Its penalty (s)')}</span><input type="text" id="psp" placeholder="0"></label>';
     var bt2=el('div','row');var rb2=el('button','btn small',${tq('Take back DNF')}),tb2=el('button','btn small',${tq('Set stage time')}),
-      xb2=el('button','btn danger small',${tq('Retire (DNF)')});add(bt2,rb2,tb2,xb2);f2.appendChild(bt2);box.insertBefore(f2,$('swm'));
+      xb2=el('button','btn danger small',${tq('Retire (DNF)')}),yb2=el('button','btn ghost small',${tq('Ask for the replay')});add(bt2,rb2,tb2,xb2,yb2);f2.appendChild(bt2);box.insertBefore(f2,$('swm'));
+    // (REPLAYS, src/replays.js: the driver's app sends that stage's replay by itself; the ones sent listed under)
+    yb2.onclick=function(){if(!$('ps').value){msg('swm',${tq('Pick the stage the time is for.')});return}
+      api('/api/events/'+id+'/steward',{steamId:$('pd').value,reason:$('pr').value||'stewards\\' check',op:'replay',stage:+$('ps').value})
+        .then(function(r){if(r&&r.code)location.href='/r/'+r.code;else load()},function(er){msg('swm',er.message)})};
+    fetch('/api/replays/event/'+id,{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+      if(!j||!j.replays||!j.replays.length)return;var rl=el('div','decision');add(rl,el('b',null,${tq('Replays sent')}));
+      j.replays.forEach(function(x){var a=el('a',null,' '+x.name+' · SS'+(x.stage)+' · '+(x.verdict==='clean'?${tq('clean')}:${tq('wants a look')}));a.href='/r/'+x.code;add(rl,el('div',null,a))});
+      box.insertBefore(rl,f2)});
     function stw(body){return api('/api/events/'+id+'/steward',Object.assign({steamId:$('pd').value,reason:$('pr').value},body)).then(load,function(er){msg('swm',er.message)})}
     function parseT(s){var m=/^\\s*(?:(\\d+):)?(\\d+(?:[.,]\\d+)?)\\s*$/.exec(s||'');return m?Math.round(((+(m[1]||0))*60+parseFloat(m[2].replace(',','.')))*1000):NaN}
     rb2.onclick=function(){stw({op:'reinstate'})};

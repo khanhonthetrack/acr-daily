@@ -1343,10 +1343,20 @@ class LeaguesUI:
                 run['sent'] = None                 # (the next stage under way: the last one's results left behind)
                 self._league_started(run)
                 self._league_live(run, f, 'live', force=True)
+                if hasattr(self, '_replay_tag'):   # (its replay, followed by the server: a proof of its finish)
+                    st = (run['ev'].get('stages') or [{}] * (run['no'] + 1))[run['no']] or {}
+                    self._replay_tag('event', 'event:%d:%d' % (run['ev']['id'], run['no']),
+                                     '%s · SS%d' % (run['ev'].get('name') or '', run['no'] + 1), not run.get('ignore'),
+                                     stageId=st.get('stageId'), carId=(run.get('car') or {}).get('id'),
+                                     weather=st.get('weatherGame'), startSeconds=st.get('startSeconds'))
             elif e == 'finished':
+                if hasattr(self, '_replay_end'):
+                    self._replay_end('finished', j.result)
                 self._league_live(run, f, 'finished', force=True)
                 self._league_finished(run)
             elif e in ('dnf', 'invalid'):
+                if hasattr(self, '_replay_end'):
+                    self._replay_end(e, j.result)
                 self._league_live(run, f, 'dnf', force=True)
                 self._league_failed(run, (j.result or {}).get('reason') or e)
         if j.state == 'running':

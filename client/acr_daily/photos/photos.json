@@ -1,4 +1,16 @@
 {
+ "replay": {
+  "file": "replay.jpg",
+  "title": "2019 Rally Poland - Łukasz Habaj.jpg",
+  "author": "Makary & Myszka",
+  "licence": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:2019_Rally_Poland_-_%C5%81ukasz_Habaj.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+  "focus": [
+   0.55,
+   0.45
+  ]
+ },
  "dailies": {
   "file": "dailies.jpg",
   "title": "Loeb at Basse Correo Stage, Rallye Monte-Carlo 2019.jpg",

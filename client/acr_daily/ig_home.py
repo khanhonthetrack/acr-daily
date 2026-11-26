@@ -1,6 +1,6 @@
 """HOME in the game (ingamekit.py says how a page is made): a photo tile for each part of ACR Daily, the big ones over
-the small ones (the user, 22 Nov 2026: EVENTS and RANKED on top; ONLINE RALLIES, PROFILE, WATCH and COMMUNITY under
-them). Each tile says what it is, what is on now and its badge (the window's tiles' words where it has them:
+the small ones (the user, 22 Nov 2026: EVENTS and RANKED on top; ONLINE RALLIES, REPLAY (PROFILE's place from 26 Nov
+2026), WATCH and COMMUNITY under them). Each tile says what it is, what is on now and its badge (the window's tiles' words where it has them:
 homeui._home_spec); a click goes to that tab."""
 from . import liverally
 from .i18n import _
@@ -10,7 +10,7 @@ TAB = 'home'
 GAP = 20
 BIG_H, SMALL_H = 500, 350              # (the page's height filled: 200 were left empty at its foot, 22 Nov 2026)
 BIG = ('events', 'live')
-SMALL = ('comp', 'profile', 'watch', 'community')
+SMALL = ('comp', 'replay', 'watch', 'community')   # (REPLAY in PROFILE's place, the user 26 Nov 2026: PROFILE in the header)
 
 
 def opened(ig):
@@ -62,6 +62,18 @@ def spec(ig, key):
                                      (_('%d credits') % credits) if credits is not None else '') if x)
         return {'title': _('PROFILE'), 'photo': 'portugal', 'badge': None,
                 'lines': [(_('Your page, flag, team and achievements'), 'sub')] + ([(who, 'info')] if who else [])}
+    if key == 'replay':                          # (replays.py: every run kept; a TV helicopter over the car)
+        from . import replays
+        try:
+            rows = replays.index()
+        except OSError:
+            rows = []
+        asks = getattr(a, 'replay_asks', None)
+        asks = len(asks) if isinstance(asks, list) else 0
+        last = rows[0] if rows else None
+        info = [('%s · %s' % (last.get('track') or '', last.get('car') or ''), 'info')] if last else []
+        return {'title': _('REPLAY'), 'photo': 'replay', 'badge': (_('%d ASKED') % asks, ACC) if asks else None,
+                'lines': [(_('Every run kept: watch, send, share'), 'sub')] + info}
     if key == 'watch':
         try:
             from . import ig_watchlist

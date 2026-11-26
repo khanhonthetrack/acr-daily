@@ -222,10 +222,11 @@ function decisions(res, nStages, entryDecisions = []) {
   }
   // (a DNF taken back, an entry retired, a stage's time set: stewardEntry)
   for (const d of entryDecisions) {
-    out.push({ id: null, kind: d.op === 'reinstate' ? 'reinstate' : d.op === 'retire' ? 'retire' : 'settime', steamId: d.steam_id,
+    out.push({ id: null, kind: d.op === 'reinstate' ? 'reinstate' : d.op === 'retire' ? 'retire' : d.op === 'replay' ? 'replay' : 'settime', steamId: d.steam_id,
       driver: d.driver_name || 'Driver', stage: d.stage_no != null && d.stage_no < nStages ? d.stage_no + 1 : null,
       ms: d.op === 'time' ? (d.ms || 0) + (d.penalty_ms || 0) : 0, penaltyMs: d.op === 'time' ? d.penalty_ms || 0 : undefined,
-      reason: d.reason, by: d.by_name || 'a steward', at: d.created });
+      // (a time set by the driver's replay, src/replays.js: the replay check's, not a steward's)
+      reason: d.reason, by: d.by === 'replay' ? 'replay check' : d.by_name || 'a steward', at: d.created });
   }
   return out.sort((a, b) => (a.at || 0) - (b.at || 0));
 }
@@ -1097,7 +1098,36 @@ async function stewardEntry(env, ev, b, me, nStages, now) {
       log('time', no, timeMs, penMs)]);
     return json({ done, status });
   }
-  return err('what should the stewards do? reinstate, retire or time', 400);
+  if (op === 'replay') {                                // a stage's replay asked of the driver (src/replays.js): their app sends it
+    const no = Math.round(+b.stage) - 1;
+    if (!(no >= 0 && no < nStages)) return err('which stage?');
+    if (no > entry.done) return err(`SS${no + 1} not driven yet`, 409);
+    const open = await env.DB.prepare(`SELECT 1 AS x FROM replay_requests WHERE event_id = ? AND steam_id = ? AND stage_no = ? AND state = 'open'`)
+      .bind(ev.id, sid, no).first();
+    if (open) return err('already asked: waiting for the driver\'s app', 409);
+    const sent = await env.DB.prepare(`SELECT code FROM replay_files WHERE steam_id = ? AND ref = ? ORDER BY created LIMIT 1`)
+      .bind(sid, `event:${ev.id}:${no}`).first();
+    if (sent) return json({ sent: true, code: sent.code });      // (already here: no need to ask)
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO replay_requests (event_id, stage_no, steam_id, by, reason, created) VALUES (?, ?, ?, ?, ?, ?)`)
+        .bind(ev.id, no, sid, me.steam_id, reason, now),
+      noticeStmt(env, sid, 'replay', `The stewards of ${ev.name} asked for your SS${no + 1} replay (${reason}). ACR DAILY sends it when it runs.`,
+        `event:${ev.id}`, now),
+      log('replay', no)]);
+    return json({ asked: true });
+  }
+  return err('what should the stewards do? reinstate, retire, time or replay', 400);
+}
+
+/** A stage's time from the driver's replay (src/replays.js: a clean one, the DNF on that stage taken back): as the
+ *  stewards' "time", logged as the replay check's. -> {ok, done, status} or {error}. */
+export async function replayStageTime(env, eventId, steamId, no, timeMs, penaltyMs, reason, now = Date.now()) {
+  const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(eventId).first();
+  if (!ev) return { error: 'no such event' };
+  const res = await stewardEntry(env, ev, { steamId, op: 'time', stage: no + 1, timeMs, penaltyMs, reason },
+    { steam_id: 'replay' }, JSON.parse(ev.stages).length, now);
+  const out = await res.json().catch(() => ({}));
+  return res.ok ? { ok: true, ...out } : { error: out.error || 'not set' };
 }
 
 async function eventAction(env, ev, l, role, me, action, req, now) {
