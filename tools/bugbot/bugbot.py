@@ -322,13 +322,32 @@ def claude_env():
     env = {k: v for k, v in os.environ.items() if not SECRET_NAME.search(k) or k == 'CLAUDE_CODE_OAUTH_TOKEN'}
     env.pop('GITHUB_TOKEN', None)
     env.pop('GH_TOKEN', None)
+    if 'CLAUDE_CODE_OAUTH_TOKEN' in env:   # (a token copied from a wrapped terminal line can carry a break or spaces)
+        env['CLAUDE_CODE_OAUTH_TOKEN'] = re.sub(r'\s+', '', env['CLAUDE_CODE_OAUTH_TOKEN'])
     return env
+
+
+def token_problem(env=None):
+    """What is wrong with the Claude login secret as far as we can tell without using it, or None."""
+    tok = re.sub(r'\s+', '', (env if env is not None else os.environ).get('CLAUDE_CODE_OAUTH_TOKEN') or '')
+    if not tok:
+        return ('the secret CLAUDE_CODE_OAUTH_TOKEN is empty or missing: add it under Settings > Secrets and variables '
+                '> Actions > Repository secrets')
+    if not tok.startswith('sk-ant-oat'):
+        return ('the secret CLAUDE_CODE_OAUTH_TOKEN does not start with sk-ant-oat (%d characters): paste the token '
+                'that `claude setup-token` prints, not an API key or the Discord token' % len(tok))
+    if len(tok) < 80:
+        return 'the secret CLAUDE_CODE_OAUTH_TOKEN is only %d characters: part of the token is missing' % len(tok)
+    return None
 
 
 def run_claude(prompt, schema, tools, allowed=None, model=None, cwd=None, max_turns=30, permission_mode=None, runner=None):
     """claude -p with a JSON schema for its answer -> the answer (dict). runner: a stand-in for tests."""
     if runner:
         return runner(prompt=prompt, schema=schema, tools=tools)
+    problem = token_problem()
+    if problem:
+        raise ClaudeError('Claude could not run: ' + problem)
     cmd = ['claude', '-p', '--output-format', 'json', '--json-schema', json.dumps(schema),
            '--tools', ','.join(tools), '--allowedTools', ','.join(allowed or tools), '--max-turns', str(max_turns)]
     if model:
@@ -353,7 +372,9 @@ def claude_failure(code, stdout, stderr):
         if isinstance(data, list):
             data = [d for d in data if d.get('type') == 'result'][-1]
         if data.get('result'):
-            return 'Claude could not run: %s' % data['result']
+            hint = (' (Claude refused the CLAUDE_CODE_OAUTH_TOKEN secret: make a new one with `claude setup-token` '
+                    'and paste it again)' if data.get('api_error_status') == 401 else '')
+            return 'Claude could not run: %s%s' % (data['result'], hint)
     except (ValueError, IndexError, AttributeError):
         pass
     return 'Claude could not run (exit %d): %s %s' % (code, (stderr or '')[-800:], (stdout or '')[-800:])

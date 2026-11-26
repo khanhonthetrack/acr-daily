@@ -219,6 +219,13 @@ class Intake(unittest.TestCase):
     def test_claude_down_says_why_once_and_stops(self):
         out = json.dumps({'type': 'result', 'is_error': True, 'duration_api_ms': 0, 'result': 'Invalid API key · Please run /login'})
         self.assertEqual(bb.claude_failure(1, out, ''), 'Claude could not run: Invalid API key · Please run /login')
+        out401 = json.dumps({'type': 'result', 'api_error_status': 401, 'result': 'Not logged in · Please run /login'})
+        self.assertIn('setup-token', bb.claude_failure(1, out401, ''))
+        good = 'sk-ant-oat01-' + 'a' * 90
+        self.assertIsNone(bb.token_problem({'CLAUDE_CODE_OAUTH_TOKEN': good[:50] + '\n  ' + good[50:]}))
+        self.assertIn('empty', bb.token_problem({}))
+        self.assertIn('sk-ant-oat', bb.token_problem({'CLAUDE_CODE_OAUTH_TOKEN': 'MTU1NjgwOD' * 9}))
+        self.assertIn('missing', bb.token_problem({'CLAUDE_CODE_OAUTH_TOKEN': good[:40]}))
         threads, calls = {}, []
         for k in range(3):
             th = {'id': sid(NOW - 3600000 - k * 60000), 'name': 'b%d' % k}
