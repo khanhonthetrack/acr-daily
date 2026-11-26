@@ -930,10 +930,13 @@ class LeaguesUI:
                                          tail=True)
             setup.update(gear.for_setup(self.s, ev, car['id'], rec['leg']))   # (the tyres and livery picked: gear.py)
             setup['damage'] = rec['damage']
+            if rec.get('whole'):                   # (the whole car at that line, kept on this PC: body, tyres and all)
+                setup['whole'] = rec['whole']
         except (saveslot.SaveError, KeyError, ValueError, IndexError):
             return False
-        waiting.note('%s: SS%d lost by the game; on from SS%d with the car as it finished (%s)' % (
-            ev['name'], rec['start'], rec['start'] + 1, ', '.join('%s %g' % x for x in sorted(rec['damage'].items())) or 'intact'))
+        waiting.note('%s: SS%d lost by the game; on from SS%d with the car as it finished (%s%s)' % (
+            ev['name'], rec['start'], rec['start'] + 1, ', '.join('%s %g' % x for x in sorted(rec['damage'].items())) or 'intact',
+            '; the whole car' if rec.get('whole') else '; parts only'))
 
         def ok():
             leagues.forget_parked(ev['id'])
@@ -1010,6 +1013,9 @@ class LeaguesUI:
             if leagues.carried(ev, done) and isinstance(d, dict) and d.get('no') == done - 1 and \
                     isinstance(d.get('parts'), dict):
                 setup['damage'] = dict(d['parts'])
+                whole = leagues.kept_car(ev['id'], done - 1)
+                if whole is not None:
+                    setup['whole'] = whole
                 waiting.note('%s: SS%d in a new place, the car as it finished SS%d (%s)' % (
                     ev['name'], done + 1, done, ', '.join('%s %g' % x for x in sorted(d['parts'].items())) or 'intact'))
         except (leagues.Gone, saveslot.SaveError, KeyError, ValueError):
@@ -1535,6 +1541,11 @@ class LeaguesUI:
             if dmg:
                 waiting.note('league:%d:%d: the car at the finish: %s' % (ev['id'], k, ', '.join(
                     '%s %g' % (p, v) for p, v in sorted(dmg.items()))))
+        # the whole car at the line too (body, panels, scratches, lights, wear, tyres), kept on this PC: the next stage
+        # set up again from here gets it all, not only the parts' life points (leagues.keep_car)
+        whole = ingamedrive.read_finish_car()
+        if whole is not None and leagues.keep_car(ev['id'], k, whole):
+            waiting.note('league:%d:%d: the whole car at the finish kept' % (ev['id'], k))
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
                            'watch': saveslot.SaveWatch()}

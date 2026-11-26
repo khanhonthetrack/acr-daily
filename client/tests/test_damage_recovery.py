@@ -74,6 +74,55 @@ class Recover(unittest.TestCase):
             self.assertIsNone(leagues.recover(event(self.entry(done=0, no=-1)), 'none', None))
 
 
+class WholeCar(unittest.TestCase):
+    """The whole car at the line (the mod's ingame-finishcar.json: body, panels, scratches, lights, wear, tyres) kept
+    with the event's stage on this PC and given back when the next stage is set up again (the user, 26 Nov 2026:
+    going on from ACR DAILY must look as going on in the game)."""
+    WHOLE = {'v': 1, 'at': 1000.0, 'world': 'World /Game/Levels/X.X', 'lights': 'FrontLeft,FrontRight',
+             'car': {'CarDamage': {'PartsStates': {'n': 1, 'by': {'Engine': {'LifePoints': 0.4}}}}},
+             'tyres': {'ProviderState': {'Tires': {'n': 1, 'by': {'TarmacSoft_0': {'MaxTread': {'n': 1, '1': 0.5}}}}}}}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dirs = mock.patch.object(leagues, 'CARS_DIR', self.tmp.name)
+        self.dirs.start()
+
+    def tearDown(self):
+        self.dirs.stop()
+        self.tmp.cleanup()
+
+    def test_kept_with_the_stage_and_given_back(self):
+        self.assertIsNone(leagues.kept_car(7, 1))
+        self.assertTrue(leagues.keep_car(7, 1, self.WHOLE))
+        self.assertEqual(leagues.kept_car(7, 1), self.WHOLE)
+        self.assertIsNone(leagues.kept_car(7, 0))                    # (another stage's)
+        self.assertFalse(leagues.keep_car(7, 2, {'v': 1}))           # (no car in it)
+        ev = event({'status': 'running', 'done': 2, 'damage': {'no': 1, 'parts': {'Engine': 40.0}}})
+        with mock.patch.object(leagues, 'is_parked', return_value=False):
+            rec = leagues.recover(ev, 'none', None)
+        self.assertEqual(rec['whole'], self.WHOLE)
+        self.assertEqual(rec['damage'], {'Engine': 40.0})           # (the server's parts as before)
+
+    def test_only_the_newest_are_kept(self):
+        with mock.patch.object(leagues, 'CARS_KEPT', 3):
+            for no in range(5):
+                leagues.keep_car(7, no, self.WHOLE)
+                t = 1000 + no
+                os.utime(leagues._car_path(7, no), (t, t))
+        self.assertEqual(len(os.listdir(self.tmp.name)), 3)
+
+    def test_the_finish_file_read_only_while_fresh(self):
+        import json
+        p = os.path.join(self.tmp.name, 'ingame-finishcar.json')
+        with open(p, 'w', encoding='utf-8') as f:
+            json.dump(self.WHOLE, f)
+        self.assertEqual(ingamedrive.read_finish_car(p, now=1010), self.WHOLE)
+        self.assertIsNone(ingamedrive.read_finish_car(p, now=1000 + ingamedrive.FINISH_CAR_FRESH_S + 1))   # (an old one)
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write('{"v": 1, "at": 10')                                 # (half written)
+        self.assertIsNone(ingamedrive.read_finish_car(p, now=10))
+
+
 class DamageFile(unittest.TestCase):
     def read(self, text):
         with tempfile.TemporaryDirectory() as d:

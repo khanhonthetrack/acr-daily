@@ -104,6 +104,18 @@ class ReplayDriver(livelink.LiveDriver):
     def clock_now(self, now):
         return self.clock(now)
 
+    def motion(self, now):
+        """(pose, its rate per second of the viewer's time): the replay's own rate times its speed, and none while it
+        stands (paused, or held at its end: the finish line). Sent with the replay's own rate when it had stopped, the
+        mod carried the car on past the line between two updates and back each time, a stutter at the finish (the user,
+        26 Nov 2026: "when the car crosses the finish line, it should STOP")."""
+        m = super().motion(now)
+        if m is None:
+            return None
+        pose, rate = m
+        k = self.rate_now()
+        return pose, tuple(x * k for x in rate)
+
     def delay_ms(self):
         return 0
 

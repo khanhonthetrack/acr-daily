@@ -230,7 +230,56 @@ def recover(ev, state, p):
         ev['_split'] = setup_split(ev, done)
     if leg_starts(ev, done) and not carried(ev, done):
         return None
-    return {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts'])}
+    out = {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts'])}
+    whole = kept_car(ev['id'], done - 1)          # (the whole car at that line, kept on this PC: kept_car)
+    if whole is not None:
+        out['whole'] = whole
+    return out
+
+
+# The whole car at a stage's finish line (the game mod's ingame-finishcar.json: body, panels off, scratches and dirt,
+# lights, wear, tyres, every part), kept on this PC with the event's stage. The server keeps only the parts' life
+# points (entry 'damage'); when the game loses a stage after its finish (left from its results screen, a crash, a hang)
+# or a leg goes on in a new place, the next stage's car gets this whole car (drive.lua load_whole), so going on from
+# ACR DAILY looks as going on in the game does (the user, 26 Nov 2026). The newest few are kept.
+CARS_DIR = os.path.join(settings.DIR, 'league-cars')
+CARS_KEPT = 30
+
+
+def _car_path(event_id, no):
+    return os.path.join(CARS_DIR, 'event-%d-ss%d.json' % (int(event_id), int(no)))
+
+
+def keep_car(event_id, no, whole):
+    """The whole car at the finish line of the event's stage `no` (0-based) kept. -> True when written."""
+    if not isinstance(whole, dict) or not isinstance(whole.get('car'), dict):
+        return False
+    try:
+        os.makedirs(CARS_DIR, exist_ok=True)
+        path = _car_path(event_id, no)
+        with open(path + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump(whole, f, separators=(',', ':'))
+        os.replace(path + '.tmp', path)
+        old = sorted((os.path.join(CARS_DIR, n) for n in os.listdir(CARS_DIR) if n.endswith('.json')),
+                     key=os.path.getmtime, reverse=True)
+        for p in old[CARS_KEPT:]:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def kept_car(event_id, no):
+    """keep_car's car for the event's stage `no`, or None."""
+    try:
+        with open(_car_path(event_id, no), encoding='utf-8') as f:
+            whole = json.load(f)
+    except (OSError, ValueError, TypeError):
+        return None
+    return whole if isinstance(whole, dict) and isinstance(whole.get('car'), dict) else None
 
 
 def setup_split(ev, done):

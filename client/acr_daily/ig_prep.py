@@ -15,6 +15,13 @@ TILE_W, TILE_H = 260, 146                # a livery's / a car's tile
 PER_ROW = 4
 COUNT_W = 34
 ROW_H = 40                               # a tyre tab's row (its buttons' height, a little over)
+CELL_W = 230                             # a compound's cell: name, ‹ count › (AUTO + 4 of them + pads: 1130 of W)
+TYRES_PER_LINE = 4                       # (AUTO + 4 cells fit the screen's width; more go on a second line)
+
+
+def _per_line(n):
+    """Compounds on one line: all of them up to 4, else split evenly (6 -> 3 + 3)."""
+    return n if n <= TYRES_PER_LINE else -(-n // 2)
 
 
 def open_(ig, kind, key):
@@ -107,17 +114,23 @@ def tyres(ig, ev):
         return out
     mine = gear.tyres_of(a.s, ev, surface=on)
     counts = mine or gear.start_counts(ev, on)
-    cells = [btn(tab_id(TAB, 'tyreauto', on), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE, foc=FOCUS,
-                 fg=BG if not mine else SOFT, hfg=BG, sz=16, f='bold', p=[16, 6, 16, 6], r=2,
-                 ol=None if not mine else LINE2, va='c')]
+    auto = btn(tab_id(TAB, 'tyreauto', on), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE, foc=FOCUS,
+               fg=BG if not mine else SOFT, hfg=BG, sz=16, f='bold', p=[16, 6, 16, 6], r=2,
+               ol=None if not mine else LINE2, va='c')
+    cells = []
     for r in rows_:
-        cells.append(row(txt(gear.NAMES.get(r, r), 17, 'semi', SOFT, va='c'), sp(10),
-                         quiet(tab_id(TAB, 'tyre', '%s:%s:-1' % (on, r)), '‹', p=[12, 4, 12, 4], va='c'),
-                         size(txt('%d' % counts.get(r, 0), 20, 'bold', WHITE if mine else MUTED, j=1, va='c'),
-                              w=COUNT_W),
-                         quiet(tab_id(TAB, 'tyre', '%s:%s:1' % (on, r)), '›', p=[12, 4, 12, 4], va='c'),
-                         pad=[26, 0, 0, 0], va='c'))
-    out.append(size(row(*cells), minh=ROW_H))
+        # (a cell as wide as the others: six compounds ran past the screen's edge, Snow cut off; the user, 26 Nov 2026)
+        cells.append(size(row(txt(gear.NAMES.get(r, r), 17, 'semi', SOFT, va='c'), sp(fill=1),
+                              quiet(tab_id(TAB, 'tyre', '%s:%s:-1' % (on, r)), '‹', p=[12, 4, 12, 4], va='c'),
+                              size(txt('%d' % counts.get(r, 0), 20, 'bold', WHITE if mine else MUTED, j=1, va='c'),
+                                   w=COUNT_W),
+                              quiet(tab_id(TAB, 'tyre', '%s:%s:1' % (on, r)), '›', p=[12, 4, 12, 4], va='c'),
+                              va='c'), w=CELL_W, minh=ROW_H, pad=[26, 0, 0, 0]))
+    per = _per_line(len(cells))
+    lines = [row(*cells[i:i + per]) for i in range(0, len(cells), per)]
+    tall = max(-(-len(gear.compounds(ev, surface=k)) // _per_line(len(gear.compounds(ev, surface=k))))
+               for k in kinds)                  # (every tab as tall as the tallest: switching doesn't move the page)
+    out.append(size(row(col(auto, va='t'), col(*lines)), minh=ROW_H * tall))
     out.append(txt(_('%d tyres in all') % gear.TYRES, 15, 'medium', MUTED, pad=[0, 6, 0, 0]))
     return out
 

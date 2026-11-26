@@ -253,8 +253,12 @@ end
 steps[7] = function(t)
     live("PlayerFlowComponent"):ServerExecuteFlow(FName("FSM.Flow.StartRaceEvent"))
     log("DRIVE %s: started (%s, %s, %d stages)", tostring(job.n), job.setup.preset, job.setup.car, #job.setup.stages)
-    if type(job.setup.damage) == "table" then            -- (the car as it finished the stage before: restore below)
-        car_damage = {parts = job.setup.damage, n = job.n, tell = job.tell, at = t, index = 0}
+    -- (the car as it finished the stage before: restore below; whole = the whole car the mod kept at that finish line
+    -- (FINISH_FILE, as the app kept it), damage = its parts' life points, all the server keeps)
+    local whole = type(job.setup.whole) == "table" and type(job.setup.whole.car) == "table" and job.setup.whole or nil
+    if type(job.setup.damage) == "table" or whole then
+        car_damage = {parts = type(job.setup.damage) == "table" and job.setup.damage or nil, whole = whole, n = job.n,
+                      tell = job.tell, at = t, index = 0}
     end
     job.tell("drive", string.format("%s ok", job.n))
     job = nil
@@ -285,6 +289,8 @@ local function sub_index()
     return ok and i or nil
 end
 
+local load_whole                  -- (below, "the whole car at the finish line": the game's own snapshot load)
+
 local function restore_damage(t)
     local d = car_damage
     if not d then return end
@@ -304,16 +310,9 @@ local function restore_damage(t)
     if not (pawn and pawn:IsValid()) then return end
     local at = pawn:GetAddress()
     local at_park = pawn:GetClass():GetFName():ToString():find("ServicePark", 1, true) ~= nil
-    local comp = nil
-    if at_park then                                      -- (the Service Park: its car isn't the player's pawn)
-        for _, c in ipairs(FindAllOf("CarDamageComponent") or {}) do
-            local ok, n = pcall(function() return c:GetFullName() end)
-            if ok and n:find("PersistentLevel", 1, true) and not n:find("Default__", 1, true) then comp = comp or c end
-        end
-    else
+    if not at_park then
         local ok, c = pcall(function() return pawn.CarDamage end)
-        comp = ok and c and c.IsValid and c:IsValid() and c or nil
-        if not comp then return end                      -- (not a car: a camera, a menu)
+        if not (ok and c and c.IsValid and c:IsValid()) then return end   -- (not a car: a camera, a menu)
         local okv, v = pcall(function() return pawn:GetVelocity() end)
         if okv and v and math.sqrt(v.X * v.X + v.Y * v.Y) * 0.036 > CAR_STILL_KMH then
             if not d.moving then
@@ -323,21 +322,49 @@ local function restore_damage(t)
             return
         end
     end
-    if not comp then return end
     if d.index ~= nil then                               -- (only the stage it is for)
         local i = sub_index()
         if i ~= nil and i ~= d.index then return end
     end
+    -- the same pawn (the stage's car, or the Service Park's camera) this long first: the level settled, its car made.
+    -- Only then are objects looked up (a lookup through every object while a level is being taken down can meet one
+    -- half gone: the game crashed so, 26 Nov 2026)
     if d.seen ~= at then
         d.seen, d.seen_t = at, t
         return
     end
     if t - d.seen_t < DAMAGE_WAIT_S then return end
+    local comp = nil
+    if at_park then                                      -- (the Service Park: its car isn't the player's pawn)
+        for _, c in ipairs(FindAllOf("CarDamageComponent") or {}) do
+            local ok, n = pcall(function() return c:GetFullName() end)
+            if ok and n:find("PersistentLevel", 1, true) and not n:find("Default__", 1, true) then comp = comp or c end
+        end
+    else
+        comp = pawn.CarDamage
+    end
+    if not comp then return end
     local count = 0
     pcall(function() comp.NamedParts:ForEach(function() count = count + 1 end) end)
     if count < 5 then return end
+    -- the whole car first, the game's own way (its snapshot of the car loaded, as the next stage of a Rally Weekend
+    -- loads the one it stored: body, panels come off, scratches and dirt, lights, wear, tyres): then the parts' life
+    -- points below as well, for the Service Park's repairs (its repair screen reads the park car's own parts)
+    local whole = "none"
+    if d.whole and load_whole then
+        local okl, got = pcall(load_whole, pc, d.whole)
+        whole = okl and got or ("failed " .. tostring(got))
+    end
     local want = {}
-    for k, v in pairs(d.parts or {}) do
+    local parts = d.parts
+    if not parts and d.whole then                        -- (the whole car's parts: 0-1 in the snapshot)
+        parts = {}
+        local by = d.whole.car.CarDamage and d.whole.car.CarDamage.PartsStates and d.whole.car.CarDamage.PartsStates.by
+        for k, v in pairs(type(by) == "table" and by or {}) do
+            if type(v) == "table" and type(v.LifePoints) == "number" then parts[k] = v.LifePoints * 100.0 end
+        end
+    end
+    for k, v in pairs(parts or {}) do
         if type(k) == "string" and type(v) == "number" then want[k:lower()] = math.max(0, math.min(100, v)) end
     end
     local set, missed = 0, 0
@@ -360,9 +387,11 @@ local function restore_damage(t)
     end)
     if not okr then states = "failed" end
     car_damage = nil
-    log("DRIVE %s: the car as it finished put on (%s): %d parts%s; states %s", tostring(d.n), at_park and "Service Park" or "start line",
-        set, missed > 0 and (", " .. missed .. " not") or "", states)
-    d.tell("drive", string.format("%s damage %d %d %s %s", d.n, set, missed, at_park and "park" or "line", states))
+    log("DRIVE %s: the car as it finished put on (%s): whole car %s; %d parts%s; states %s", tostring(d.n),
+        at_park and "Service Park" or "start line", whole, set, missed > 0 and (", " .. missed .. " not") or "", states)
+    -- ("<n> damage <set> <missed> <park|line> <states>" as before, then the whole car's answer: older apps read the first)
+    d.tell("drive", string.format("%s damage %d %d %s %s %s", d.n, set, missed, at_park and "park" or "line", states,
+                                  (tostring(whole):gsub("%s+", "_"))))
 end
 
 -- CONTINUE (a rally of the player's in progress in the game: an event's, set up before): the game's own way back into
@@ -520,11 +549,15 @@ local function dress(t)
     local due = LIVERY_AT[livery_done + 1]
     if not due or t - livery_at < due then return end
     livery_done = livery_done + 1
+    -- the player controller's own component (its property: probed 26 Nov 2026), never a lookup through every object:
+    -- the last pass (35 s) could fall while the game was leaving the Service Park for its menu, the level half taken
+    -- down, and reading the name of a component being destroyed crashed the game (the user, 26 Nov 2026)
     local c = nil
-    for _, x in ipairs(FindAllOf("PlayerCustomizationComponent") or {}) do
-        local ok, n = pcall(function() return x:GetFullName() end)
-        if ok and n:find("PersistentLevel", 1, true) and n:find("RacePlayerController", 1, true) then c = x end
-    end
+    pcall(function()
+        local pc = UEHelpers.GetPlayerController()
+        local x = pc and pc:IsValid() and pc.PlayerCustomization
+        if x and x:IsValid() then c = x end
+    end)
     if c then
         if livery_done == 1 and livery:sub(1, 8) == "usergen_" then D.rescan_liveries() end   -- (one installed since)
         local ok = pcall(function() c:ApplyLivery(FName(livery)) end)
@@ -631,7 +664,49 @@ local function snap_write(x, sch, d, st)
     end
 end
 
-D._snap = {read = snap_read, write = snap_write, CAR = SNAP_CAR, TYRES = SNAP_TYRES}   -- (tests: client/tests/test_mod_snapshot.py)
+-- The car at the finish line kept on disk too (FINISH_FILE, JSON): the app keeps it with the event's stage, and gives it
+-- back with the next DRIVE (setup.whole) when the game lost the stage after its finish (left from its results screen, a
+-- crash, a hang) or the next leg starts in a new place: then the next stage's car gets it the game's own way
+-- (load_whole). Plain numbers, booleans and names only (what snap_read keeps); arrays' places as keys "1", "2"...
+local FINISH_FILE = (os.getenv("APPDATA") or ".") .. "\\ACR Daily\\ingame-finishcar.json"
+
+local function to_json(v)
+    local k = type(v)
+    if k == "number" then
+        if v ~= v or v == math.huge or v == -math.huge then return "0" end
+        if math.type and math.type(v) == "integer" then return tostring(v) end
+        return string.format("%.9g", v)
+    elseif k == "boolean" then
+        return v and "true" or "false"
+    elseif k == "string" then
+        return '"' .. v:gsub('[%c"\\]', function(c) return string.format("\\u%04x", c:byte()) end) .. '"'
+    elseif k == "table" then
+        local out = {}
+        for key, x in pairs(v) do
+            local kt = type(key)
+            local xt = type(x)
+            if (kt == "string" or kt == "number") and (xt == "table" or xt == "number" or xt == "boolean" or xt == "string") then
+                out[#out + 1] = to_json(tostring(key)) .. ":" .. to_json(x)
+            end
+        end
+        table.sort(out)
+        return "{" .. table.concat(out, ",") .. "}"
+    end
+    return "null"
+end
+
+local function norm(v)
+    -- a snapshot back from JSON: places ("1", "2"...) as numbers again, as snap_read made them
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for key, x in pairs(v) do
+        local n = type(key) == "string" and key:match("^%d+$") and tonumber(key) or nil
+        out[n or key] = norm(x)
+    end
+    return out
+end
+
+D._snap = {read = snap_read, write = snap_write, CAR = SNAP_CAR, TYRES = SNAP_TYRES, json = to_json, norm = norm}   -- (tests: client/tests/test_mod_snapshot.py)
 
 -- _G.ACRDAILY_FINISH: {world, at, pending, car (snap_read of the car's), tyres (of the tyres'), lights (zone names),
 -- parts {<part> = life points 0-100} (main.lua writes these to ingame-damage.txt while it is kept), stored}
@@ -669,9 +744,72 @@ local function capture(f)
         nt = nt + 1
     end
     log("finish: the car kept as it crossed the line (%s, %d tyres)", f.car and "car" or "NO car", nt)
+    if f.car then                                        -- (on disk for the app: FINISH_FILE above)
+        local ok, e = pcall(function()
+            local h = assert(io.open(FINISH_FILE .. ".tmp", "w"))
+            h:write(to_json({v = 1, at = os.time(), world = f.world, car = f.car, tyres = f.tyres, lights = f.lights}))
+            h:close()
+            os.remove(FINISH_FILE)
+            assert(os.rename(FINISH_FILE .. ".tmp", FINISH_FILE))
+        end)
+        if not ok then log("finish: the car not written to disk: %s", tostring(e)) end
+    end
+end
+
+-- The whole car put on the car of this level, the game's own way (probed 26 Nov 2026): the components' own snapshot
+-- taken (ClientStoreSnapshot -> ServerSnapshotStored(struct)), the kept car written into that struct, and the struct
+-- given back to the component's ClientLoadSnapshot, all inside the store's call (the struct lives only there). On a
+-- stage's start line the car takes it at once (dents, panels off, scratches, wear); at a Service Park the park's car
+-- takes the body, and the game stores it when the stage starts, so the stage's car has it all, lights too. Not kept:
+-- the windscreens' cracks themselves (their history has no fields the game shows: their life points are kept, as every
+-- part's) and each part's property bag. -> "car <fields> tyres <fields>"
+local LOAD = nil                  -- {data = {car, tyres, lights}, said = {}} while load_whole runs
+load_whole = function(pc, whole)
+    whole = norm(whole)
+    LOAD = {data = whole, said = {}}
+    local ok1, e1 = pcall(function() pc.CarRace:ClientStoreSnapshot() end)
+    if type(whole.tyres) == "table" then
+        pcall(function() pc.PlayerTiresSetup:ClientStoreSnapshot() end)
+    end
+    local said = LOAD.said
+    LOAD = nil
+    if not ok1 then error(tostring(e1)) end
+    return string.format("car %s tyres %s", said.car or "not loaded", said.tyres or "none")
+end
+
+local function on_load(which, self, s)
+    -- (inside load_whole's store call: the game's struct, the kept car written in, loaded back)
+    local whole = LOAD.data
+    local data = which == "car" and whole.car or whole.tyres
+    if type(data) ~= "table" then return end
+    local st = {set = 0, skipped = 0}
+    if which == "car" then
+        local names = {}
+        pcall(function()
+            local zn = s.LightsDamage.ZoneNames
+            for i = 1, #zn do names[i] = zn[i]:ToString() end
+        end)
+        if table.concat(names, ",") ~= whole.lights then          -- (other light zones: their damage left as it is)
+            local d = {}
+            for k, v in pairs(data) do d[k] = v end
+            d.LightsDamage = nil
+            data = d
+        end
+        snap_write(s, SNAP_CAR, data, st)
+    else
+        snap_write(s, SNAP_TYRES, data, st)
+    end
+    self:get():ClientLoadSnapshot(s)
+    LOAD.said[which] = string.format("%d/%d", st.set, st.set + st.skipped)
 end
 
 local function on_stored(which, self, param)
+    if LOAD then
+        local pc = UEHelpers.GetPlayerController()
+        local comp = which == "car" and pc.CarRace or pc.PlayerTiresSetup
+        if self:get():GetAddress() == comp:GetAddress() then on_load(which, self, param:get()) end
+        return
+    end
     local f = rawget(_G, "ACRDAILY_FINISH")
     if not f then return end
     local pc = UEHelpers.GetPlayerController()

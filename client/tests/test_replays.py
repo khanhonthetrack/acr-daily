@@ -239,6 +239,25 @@ class Playback(Base):
         self.assertIsNotNone(pose)
         self.assertEqual(d.dash_at(20.5)['gear'], 5)
 
+    def test_it_stops_at_the_finish_line(self):
+        """At its end (the finish line) the car stands: no speed sent with it, so the mod doesn't carry it on past the
+        line and back between updates (the user, 26 Nov 2026: "it should STOP. Not stutter")."""
+        from acr_daily import replayplay
+        rows = [[100 + i * 100, i * 1000, 0, 0, 0, 0, 0, 360, 5, 5000, 1000, 0, 0, 0] for i in range(50)]
+        d = replayplay.ReplayDriver({'head': {'car': 'Car'}, 'rows': rows})
+        with mock.patch('time.monotonic', return_value=10.0):
+            d.play(True)
+        moving = d.motion(11.0)[1]
+        self.assertGreater(abs(moving[0]), 50)                      # (10 m per 100 ms of its clock: 100 m/s)
+        with mock.patch('time.monotonic', return_value=11.0):
+            d.speed(+1)                                              # (2x: twice as fast in the viewer's time)
+        self.assertAlmostEqual(d.motion(11.5)[1][0], 2 * moving[0], delta=abs(moving[0]) * 0.05)
+        end = d.motion(99.0)                                         # (past its end: held at the line)
+        self.assertTrue(d.paused)
+        self.assertEqual(round(d.clock(99.0)), rows[-1][0])
+        self.assertEqual(end[1], (0.0,) * 6)
+        self.assertEqual(d.motion(100.0)[0], end[0])                 # (and still there)
+
     def test_it_waits_for_the_viewer_at_the_start_line(self):
         from acr_daily import replayplay
         rows = [[100 + i * 100, i * 100, 0, 0, 0, 0, 0, 360, 5, 5000, 1000, 0, 0, 0] for i in range(100)]

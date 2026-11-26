@@ -170,6 +170,31 @@ def read_damage(path=None):
     return out
 
 
+FINISH_CAR_FILE = 'ingame-finishcar.json'   # the whole car as it crossed the last finish line (drive.lua capture)
+FINISH_CAR_FRESH_S = 180                     # one older than this isn't the stage just finished
+
+
+def read_finish_car(path=None, now=None):
+    """The whole car as it crossed the finish line just now (the mod writes it at the line: body, panels, scratches,
+    lights, wear, tyres, parts) -> {'v', 'at', 'world', 'car', 'tyres', 'lights'}, or None (none, older than
+    FINISH_CAR_FRESH_S, an older mod). Kept with the event's stage (leagues.keep_car) and given back to the mod when
+    the next stage has to be set up again (setup['whole'])."""
+    import json
+    import os
+    from . import settings
+    try:
+        with open(path or os.path.join(settings.DIR, FINISH_CAR_FILE), encoding='utf-8') as f:
+            whole = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(whole, dict) or not isinstance(whole.get('car'), dict) or \
+            not isinstance(whole.get('at'), (int, float)):
+        return None
+    if abs((time.time() if now is None else now) - whole['at']) > FINISH_CAR_FRESH_S:
+        return None
+    return whole
+
+
 SETUP_FILE = 'ingame-setup.txt'      # the stage being driven as the game runs it (main.lua read_setup)
 
 

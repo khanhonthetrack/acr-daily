@@ -57,4 +57,64 @@ other.LightsDamage.ZoneDamages = {0.9, 0.9, 0.9}
 local st2 = {set = 0, skipped = 0}
 S.write(other, S.CAR, at_line, st2)
 check(other.LightsDamage.ZoneDamages[3] == 0.9 and st2.skipped > 0, "another list of lights: left")
+
+-- the car kept on disk (ingame-finishcar.json) and back from the app as JSON: places come back as keys "1", "2"...,
+-- norm makes them numbers again, and it writes into a new car exactly as the car kept in memory does
+local function decode(s)                       -- (a small JSON reader for the test: objects, numbers, true/false, strings)
+    local i = 1
+    local function ws() i = s:find("%S", i) or #s + 1 end
+    local val
+    local function str()
+        local j = s:find('"', i + 1, true)
+        local out = s:sub(i + 1, j - 1):gsub("\\u(%x%x%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+        i = j + 1
+        return out
+    end
+    function val()
+        ws()
+        local c = s:sub(i, i)
+        if c == "{" then
+            local t = {}
+            i = i + 1
+            ws()
+            if s:sub(i, i) == "}" then i = i + 1 return t end
+            while true do
+                ws()
+                local k = str()
+                ws()
+                i = i + 1                      -- (:)
+                t[k] = val()
+                ws()
+                local sep = s:sub(i, i)
+                i = i + 1
+                if sep == "}" then return t end
+            end
+        elseif c == '"' then
+            return str()
+        elseif s:sub(i, i + 3) == "true" then
+            i = i + 4 return true
+        elseif s:sub(i, i + 4) == "false" then
+            i = i + 5 return false
+        end
+        local j = s:find("[,}%]]", i)
+        local n = tonumber(s:sub(i, j - 1))
+        i = j
+        return n
+    end
+    return val()
+end
+local text = S.json({v = 1, car = at_line, tyres = t_line, lights = "A,B"})
+local back = S.norm(decode(text))
+check(back.lights == "A,B", "lights' zone names kept")
+local fresh = car({part("Engine", 1.0), part("Radiator", 1.0)}, {bone("Bumper_F", 0.0)}, 0)
+local st3 = {set = 0, skipped = 0}
+S.write(fresh, S.CAR, back.car, st3)
+check(math.abs(fresh.CarDamage.PartsStates[1].LifePoints - 0.5) < 1e-6, "engine back from JSON")
+check(math.abs(fresh.CarDestruction.CarDeformer.DeformableBones[1].State.CurrentDeformation - 0.2) < 1e-6, "bumper back from JSON")
+check(math.abs(fresh.LightsDamage.ZoneDamages[2] - 0.2) < 1e-6, "lights by place back from JSON")
+check(math.abs(fresh.CarFX.ZonesData[1].Values[2] - 2) < 1e-6, "dirt zones back from JSON")
+check(math.abs(fresh.Windshields.Windshields[1].BakedCracksIntensities.X - 0.6) < 1e-6, "windscreen back from JSON")
+local t_new = {ProviderState = {Tires = {tyre("Soft_0", 1.0)}}}
+S.write(t_new, S.TYRES, back.tyres, {set = 0, skipped = 0})
+check(math.abs(t_new.ProviderState.Tires[1].Damage.Wear.Normalized - 0.33) < 1e-6, "tyre back from JSON")
 print("ok")

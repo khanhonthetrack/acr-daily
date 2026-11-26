@@ -232,9 +232,14 @@ local function angle(a)            -- degrees, to -180..180
     return (a + 180) % 360 - 180
 end
 
+local watch_rate = 1                             -- a REPLAY's speed (the app's "wrate" line: 0 paused, 0.5, 2...; else 1)
+
 local function carried_raw(c, t)
-    -- where car c is at this mod's clock t: the app's last pose, moved on at its speed (at most AHEAD_S)
+    -- where car c is at this mod's clock t: the app's last pose, moved on at its speed (at most AHEAD_S); a REPLAY
+    -- standing (paused, or held at its end, the finish line) not moved on: carried on past the line between two
+    -- updates and back each time, it stuttered there (the user, 26 Nov 2026)
     local b, v = c.base, c.vel
+    if watch_rate == 0 then v = nil end
     local dt = math.max(0, math.min(AHEAD_S, t - c.t))
     local p = {}
     for i = 1, 6 do p[i] = b[i] + (v and v[i] or 0) * dt end
@@ -249,7 +254,6 @@ end
 -- pace, nudged at most PLAY_WARP towards where the app says it is, so the app's updates (each placed by when it wrote
 -- them, a millisecond or two either way, and its own clock eased 5 % at most) never step the car back or on.
 local PLAY_WARP, PLAY_SNAP = 0.06, 0.5           -- (a little over the app's own 5 %: it always keeps up)
-local watch_rate = 1                             -- a REPLAY's speed (the app's "wrate" line: 0 paused, 0.5, 2...; else 1)
 local function play_clock(c, t)
     local P = c.path
     local r = watch_rate or 1
@@ -290,6 +294,8 @@ local function on_path(c, t)
         u = (t - P.t0) / P.dt
     end
     local n = #P.poses
+    -- (a REPLAY standing at its path's last pose, its end: held there, not off the path and carried on)
+    if watch_rate == 0 and n >= 1 and u > n - 1 and u < n + 1 then u = n - 1 end
     if u < 0 or u > n - 1 then return nil end
     local i = math.floor(u)
     local f = u - i
@@ -312,6 +318,7 @@ local function carried(c, t)
     -- ... plus what is left of the difference being eased out (on a path: from it, the app's word only its fallback)
     local pp, pv = on_path(c, t)
     if pp then
+        if watch_rate == 0 then pv = {0, 0, 0, 0, 0, 0} end     -- (a REPLAY standing: still)
         c.vel = pv
         c.base, c.t, c.err = pp, t, nil                -- (off its end: carried on from here, no jump)
         return pp

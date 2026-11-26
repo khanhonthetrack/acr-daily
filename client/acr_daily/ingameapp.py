@@ -826,8 +826,11 @@ class InGameApp:
                   txt(_('%d credits') % credits, 14, 'medium', MUTED, j=2) if credits is not None else None,
                   va='c', pad=[20, 0, 20, 0])
         logo = box(txt('ACR DAILY', 24, 'bold', WHITE, sp=60), bg=ACC, p=[14, 4, 14, 4], va='c')
-        return row(logo, sp(22), row(*tabs, va='c'), sp(fill=1), who,
-                   quiet('close', _('BACK TO THE GAME'), va='c'))
+        # back to the game: a red X, no words (the user, 26 Nov 2026: "everyone will get it")
+        # ('×' is Latin-1: in the game's font, as 'é' / 'ü' are)
+        close = btn('close', c=size(txt('×', 30, 'bold', WHITE, j=1, va='c'), w=26, h=30, va='c'), bg=ACC,
+                    hov='FF4655', p=[10, 4, 10, 4], r=2, va='c')
+        return row(logo, sp(22), row(*tabs, va='c'), sp(fill=1), who, close)
 
     def dialog_node(self):
         d = self.dialog
