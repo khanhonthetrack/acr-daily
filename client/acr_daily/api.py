@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-from . import USER_AGENT, __version__, settings
+from . import USER_AGENT, __version__, regions, settings
 from . import i18n
 from .i18n import _
 
@@ -131,6 +131,11 @@ class Api:
     @property
     def site(self):
         """Where the browser goes (the guide, the website's pages, Steam's sign-in): acrdaily.com (site_of)."""
+        explicit = (os.environ.get('ACR_DAILY_SERVER') or self.s.get('server') or '').strip().rstrip('/')
+        if explicit:
+            return site_of(explicit)
+        if settings.DEFAULT_SERVER:
+            return site_of(settings.DEFAULT_SERVER)
         return site_of(self.base)
 
     @property
@@ -139,8 +144,12 @@ class Api:
 
     def _req(self, method, path, body=None, auth=False, admin=False, timeout=15, raw=None):
         """raw: (bytes, content type) sent as they are instead of a JSON body (a picture)."""
-        if not self.base:
-            raise ApiError(_('no server set'))
+        cands = regions.DEFAULT_SELECTOR.api_candidates(self.s, settings.DEFAULT_SERVER)
+        if not cands:
+            base = self.base
+            if not base:
+                raise ApiError(_('no server set'))
+            cands = [base]
         headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json', 'X-ACR-Legs': '1',   # (long rallies in legs: leagues.py)
                    'X-ACR-Locked': '1',   # (private rallies listed with a lock, their code asked for: leagueui.py)
                    'Accept-Language': i18n.accept_language()}   # (the server's messages in the app's language)
@@ -154,22 +163,35 @@ class Api:
             headers['Authorization'] = 'Bearer ' + self.s['token']
         if admin:
             headers['Authorization'] = 'Bearer ' + (self.s.get('adminKey') or '')
-        req = urllib.request.Request(self.base + path, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read().decode('utf-8') or 'null')
-        except urllib.error.HTTPError as e:
+        idempotent = method in ('GET', 'HEAD') or path in ('/api/live/ticket', '/api/live', '/auth/logout')
+        tries = cands if idempotent else cands[:1]
+        last_err = None
+        for idx, base in enumerate(tries):
+            req = urllib.request.Request(base + path, data=data, headers=dict(headers), method=method)
             try:
-                msg = json.loads(e.read().decode('utf-8')).get('error') or str(e)
-            except Exception:
-                msg = str(e)
-            if e.code == 401 and auth:
-                self.s['token'] = ''
-                settings.save(self.s)
-            raise ApiError(msg, e.code) from None
-        except (urllib.error.URLError, OSError, ValueError) as e:
-            why = str(getattr(e, 'reason', e))
-            raise ApiError(_('server not reachable (%s)') % why, unreachable=True, why=why) from None
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    return json.loads(r.read().decode('utf-8') or 'null')
+            except urllib.error.HTTPError as e:
+                if e.code in (502, 503, 504) and len(cands) > 1:
+                    regions.DEFAULT_SELECTOR.mark_api_failed(base)
+                    if idx + 1 < len(tries):
+                        continue
+                try:
+                    msg = json.loads(e.read().decode('utf-8')).get('error') or str(e)
+                except Exception:
+                    msg = str(e)
+                if e.code == 401 and auth:
+                    self.s['token'] = ''
+                    settings.save(self.s)
+                raise ApiError(msg, e.code) from None
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                if len(cands) > 1:
+                    regions.DEFAULT_SELECTOR.mark_api_failed(base)
+                why = str(getattr(e, 'reason', e))
+                last_err = ApiError(_('server not reachable (%s)') % why, unreachable=True, why=why)
+                if idx + 1 < len(tries):
+                    continue
+                raise last_err from None
 
     # ---------------------------------------------------------------- public data
 

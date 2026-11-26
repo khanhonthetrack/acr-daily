@@ -8,7 +8,7 @@ switch; WHAT'S NEW and the photo credits open in the page; signing in is the lau
 import threading
 import webbrowser
 
-from . import __version__, i18n
+from . import __version__, i18n, regions
 from .i18n import _
 from .ingamekit import (ACC, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SOFT, WHITE, box, btn, col, edit,
                         kicker, link, quiet, row, rule, size, sp, tab_id, txt)
@@ -170,8 +170,11 @@ def displays_panel(a):
         status = getattr(getattr(a, 'ghostcars', None), 'status', None) or ''
         keeper = getattr(a, 'gamemod', None)
         note = keeper.note() if keeper is not None and hasattr(keeper, 'note') else ''
+        cur_reg = (cfg.get('region') or 'auto').strip().lower()
         under = col(row(txt(_('Show through trees and hills'), 17, 'semi', SOFT, va='c', fill=1),
                         switch('always', bool(cfg.get('always')))),
+                    row(txt(_('Relay region'), 17, 'semi', SOFT, va='c', fill=1),
+                        choices('region', regions.REGION_CHOICES, cur_reg), pad=[0, 8, 0, 0]),
                     row(size(txt(_('Live server'), 17, 'semi', SOFT), w=160, va='c'),
                         box(edit(_id('liveServer'), cfg.get('liveServer') or '', '', fill=1), bg=PANEL2,
                             p=[12, 6, 12, 6], r=2, ol=LINE2, fill=1), pad=[0, 8, 0, 0])
@@ -379,6 +382,13 @@ def click(ig, action, arg):
         cfg = ghost_cfg(a)
         if on != bool(cfg.get('always')):
             cfg['always'] = on
+            a.save_settings()
+    elif action == 'region':
+        cfg = ghost_cfg(a)
+        valid = {k for k, _lbl in regions.REGION_CHOICES}
+        if arg in valid and arg != (cfg.get('region') or 'auto'):
+            cfg['region'] = arg
+            a.s['region'] = arg
             a.save_settings()
     elif action == 'signout':
         if a.s.get('token'):

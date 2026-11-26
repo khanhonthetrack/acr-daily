@@ -10,6 +10,7 @@ For development: ACR_DAILY_GHOST_TEST=1 draws in a plain 1280 x 720 window at (4
 game window needed; with ACR_DAILY_REPLAY a recorded run plays as you).
 """
 import ctypes
+import inspect
 import math
 import os
 import struct
@@ -18,7 +19,7 @@ import time
 import tkinter as tk
 from ctypes import wintypes
 
-from . import ghostcars as gc, livelink, liveries_ui, widgets
+from . import ghostcars as gc, livelink, liveries_ui, regions, widgets
 from .ingamehud import camera_groups
 from .telemetry import ReplaySource, SharedMemory, _Block
 from .i18n import _
@@ -355,7 +356,9 @@ class GhostOverlay:
             f = self.src.read()
         except Exception:
             f = None
-        live = self._live_link(watch=True)
+        owner = getattr(self.app, 'crew_owner', lambda: None)()
+        crew = bool(owner is not None and getattr(owner, 'room', lambda: None)())
+        live = self._live_link(watch=True, driving=bool(crew or (f is not None and f.track and f.clock_ms > 0)))
         if live is not None:
             live.spectating = self._watching()          # (WATCH: your car waits at the start: never shown standing)
             live.feed(f)
@@ -404,17 +407,45 @@ class GhostOverlay:
         names are the game mod's alone. (ACR_DAILY_GHOST_TEST: the test window still draws.)"""
         return not (widgets.WINDOWS or self.test)
 
-    def _live_link(self, watch=True, on=True):
+    def _live_link(self, watch=True, on=True, driving=False):
         """The connection to the live relay (made again when the server, your name or watch changes; on=False: none).
-        watch: ghost cars on, the others' cars come too; off, yours is only sent (_share)."""
+        watch: ghost cars on, the others' cars come too; off, yours is only sent (_share).
+        driving: while on a live stage, never switch an already-connected relay just because background RTT shifted."""
         want = None
-        server = os.environ.get('ACR_DAILY_LIVE_SERVER') or self.cfg.get('liveServer') or ''   # (a test relay)
-        if on and server.startswith(('ws://', 'wss://')):
-            want = (server, self.app.s.get('name') or _('Driver'), bool(watch))
+        cands = ()
+        mode = (self.cfg.get('region') or 'auto').strip().lower()
+        custom = (self.cfg.get('liveServer') or '').strip()
+        if on:
+            cands = tuple(u for u in regions.DEFAULT_SELECTOR.relay_candidates(
+                mode=mode, custom_relay=custom, default_pi_relay=gc.LIVE_SERVER) if u.startswith(('ws://', 'wss://')))
+            if cands:
+                name = self.app.s.get('name') or _('Driver')
+                cur = getattr(self, 'live', None)
+                prev = getattr(self, '_live_want', None)
+                # Pin the active relay while driving if user settings (mode, custom, name, watch) didn't change
+                if (driving and cur is not None and getattr(cur, 'state', '') == 'live' and prev is not None
+                        and prev[1:] == (name, bool(watch), mode, custom)):
+                    return cur
+                want = (cands[0], name, bool(watch), mode, custom)
+                # Off-stage: if link failed over to a backup relay earlier, fail back once cands[0] is healthy again
+                if (not driving and cur is not None and getattr(cur, 'state', '') == 'live'
+                        and getattr(cur, 'active_url', cands[0]) != cands[0]):
+                    self._live_want = None
         if want != getattr(self, '_live_want', None):
             if getattr(self, 'live', None) is not None:
                 self.live.close()
-            self.live = livelink.LiveLink(want[0], want[1], ticket=self._ticket, watch=want[2]) if want else None
+            if want:
+                kw = dict(ticket=self._ticket, watch=want[2])
+                if len(cands) > 1:
+                    try:
+                        params = inspect.signature(livelink.LiveLink).parameters
+                    except (TypeError, ValueError):
+                        params = {}
+                    if 'urls' in params:
+                        kw.update(urls=list(cands), on_fail=regions.DEFAULT_SELECTOR.mark_relay_failed)
+                self.live = livelink.LiveLink(cands[0], want[1], **kw)
+            else:
+                self.live = None
             self._live_want = want
         return self.live
 
@@ -434,7 +465,7 @@ class GhostOverlay:
         owner = getattr(self.app, 'crew_owner', lambda: None)()
         crew = bool(owner is not None and getattr(owner, 'room', lambda: None)())   # (a crew's lobby: its voice by the relay)
         keep = signed_in and (crew or now - getattr(self, '_share_seen', -1e9) < SHARE_IDLE_S)
-        live = self._live_link(watch=False, on=keep)
+        live = self._live_link(watch=False, on=keep, driving=bool(crew or (f is not None and f.track and f.clock_ms > 0)))
         if live is None:
             self._fine_timer(False)
             if self._phys is not None:
@@ -464,7 +495,10 @@ class GhostOverlay:
         live = getattr(self, 'live', None)
         if live is None:
             return ''
-        return {'live': (' ' + _('· live: on')), 'connecting': (' ' + _('· live: connecting')), 'signin': (' ' + _('· live: sign in to the app first')),
+        reg = regions.DEFAULT_SELECTOR.summary_for_url(getattr(live, 'active_url', None) or getattr(live, 'url', ''))
+        tag = (' · %s' % reg) if reg and live.state == 'live' else ''
+        return {'live': (' ' + _('· live: on') + tag), 'connecting': (' ' + _('· live: connecting')),
+                'signin': (' ' + _('· live: sign in to the app first')),
                 'offline': (' ' + _("· live: can't reach the server"))}.get(live.state, '')
 
     def _follow_camera(self):

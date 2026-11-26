@@ -1,0 +1,413 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acr-daily
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acr-mesh-config
+  namespace: acr-daily
+data:
+  ROLE: "edge"
+  REGION: "uk"
+  DISABLE_LIVE_RELAY: "1"
+  RELAY_UPSTREAM_HOST: "acr-relay-service"
+  RELAY_PORT: "8765"
+  PRIMARY_URL: "http://127.0.0.1:8080"
+  RELAY_PEERS: ""
+  EU_API_URL: "https://acrdaily-eu.34-49-33-253.sslip.io"
+  EU_RELAY_URL: "wss://acrdaily-eu.34-49-33-253.sslip.io/live"
+  UK_API_URL: "https://acrdaily-uk.34-117-213-59.sslip.io"
+  UK_RELAY_URL: "wss://acrdaily-uk.34-117-213-59.sslip.io/live"
+  JP_API_URL: "https://acrdaily-jp.136-82-36-100.sslip.io"
+  JP_RELAY_URL: "wss://acrdaily-jp.136-82-36-100.sslip.io/live"
+  FALLBACK_RELAY_URL: "wss://immich.tail0d617f.ts.net:10000/live"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acr-daily
+  namespace: acr-daily
+  labels:
+    app: acr-daily
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: acr-daily
+  template:
+    metadata:
+      labels:
+        app: acr-daily
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: server
+          image: europe-west3-docker.pkg.dev/PROJECT_ID/acr-daily/acr-daily-server:v0.2.0-multiregion
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: acr-mesh-config
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DATA_DIR
+              value: "/tmp/acr-edge"
+            - name: LIVE_RELAY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: acr-daily-secrets
+                  key: LIVE_RELAY_KEY
+          readinessProbe:
+            httpGet:
+              path: /api/endpoints
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/endpoints
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "800m"
+              memory: "768Mi"
+---
+# Dedicated stateless 50 Hz Ghost Relay with 30-minute zero-drop RollingUpdate draining
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acr-relay
+  namespace: acr-daily
+  labels:
+    app: acr-relay
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: acr-relay
+  template:
+    metadata:
+      labels:
+        app: acr-relay
+    spec:
+      terminationGracePeriodSeconds: 1800
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: relay
+          image: europe-west3-docker.pkg.dev/PROJECT_ID/acr-daily/acr-daily-server:v0.2.0-multiregion
+          imagePullPolicy: Always
+          command: ["python3", "/app/live/relay.py"]
+          ports:
+            - name: ws-public
+              containerPort: 8765
+            - name: ws-peer
+              containerPort: 8766
+          env:
+            - name: RELAY_BIND_HOST
+              value: "0.0.0.0"
+            - name: RELAY_PORT
+              value: "8765"
+            - name: RELAY_PEER_BIND_HOST
+              value: "0.0.0.0"
+            - name: RELAY_PEER_PORT
+              value: "8766"
+            - name: RELAY_REGION_SLOT
+              value: "2"
+            - name: RELAY_DRAIN_PEER
+              value: "ws://acr-relay-service:8766/live"
+            - name: RELAY_DRAIN_SETTLE_S
+              value: "12"
+            - name: RELAY_DRAIN_TIMEOUT_S
+              value: "1740"
+            - name: RELAY_PEERS
+              valueFrom:
+                configMapKeyRef:
+                  name: acr-mesh-config
+                  key: RELAY_PEERS
+            - name: LIVE_RELAY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: acr-daily-secrets
+                  key: LIVE_RELAY_KEY
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8765
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8765
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "128Mi"
+            limits:
+              cpu: "1200m"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acr-mesh-internal
+  namespace: acr-daily
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+    networking.gke.io/internal-load-balancer-allow-global-access: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: acr-relay
+  ports:
+    - name: relay-peer
+      port: 8766
+      targetPort: 8766
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acr-daily-lb
+  namespace: acr-daily
+spec:
+  type: LoadBalancer
+  sessionAffinity: ClientIP
+  selector:
+    app: acr-daily
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: acr-daily-backend-config
+  namespace: acr-daily
+spec:
+  timeoutSec: 60
+  connectionDraining:
+    drainingTimeoutSec: 30
+  healthCheck:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    type: HTTP
+    requestPath: /api/endpoints
+    port: 8080
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: acr-relay-backend-config
+  namespace: acr-daily
+spec:
+  timeoutSec: 86400
+  connectionDraining:
+    drainingTimeoutSec: 1800
+  healthCheck:
+    checkIntervalSec: 5
+    timeoutSec: 3
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    type: HTTP
+    requestPath: /readyz
+    port: 8765
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acr-daily-service
+  namespace: acr-daily
+  annotations:
+    cloud.google.com/backend-config: '{"default": "acr-daily-backend-config"}'
+spec:
+  type: NodePort
+  selector:
+    app: acr-daily
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acr-relay-service
+  namespace: acr-daily
+  annotations:
+    cloud.google.com/backend-config: '{"ws-public": "acr-relay-backend-config"}'
+spec:
+  type: NodePort
+  selector:
+    app: acr-relay
+  ports:
+    - name: ws-public
+      port: 8765
+      targetPort: 8765
+      protocol: TCP
+    - name: ws-peer
+      port: 8766
+      targetPort: 8766
+      protocol: TCP
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: acr-uk-sslip-cert
+  namespace: acr-daily
+spec:
+  domains:
+    - acrdaily-uk.34-117-213-59.sslip.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acr-daily-ingress
+  namespace: acr-daily
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "acr-uk-gke-ip"
+    networking.gke.io/managed-certificates: "acr-uk-sslip-cert"
+spec:
+  defaultBackend:
+    service:
+      name: acr-daily-service
+      port:
+        number: 80
+  rules:
+    - http:
+        paths:
+          - path: /live
+            pathType: Prefix
+            backend:
+              service:
+                name: acr-relay-service
+                port:
+                  number: 8765
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acr-daily-service
+                port:
+                  number: 80
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acr-rollout-watcher
+  namespace: acr-daily
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acr-rollout-watcher
+  namespace: acr-daily
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["acr-relay", "acr-daily", "acr-rollout-watcher"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acr-rollout-watcher
+  namespace: acr-daily
+subjects:
+  - kind: ServiceAccount
+    name: acr-rollout-watcher
+    namespace: acr-daily
+roleRef:
+  kind: Role
+  name: acr-rollout-watcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acr-rollout-watcher
+  namespace: acr-daily
+  labels:
+    app: acr-rollout-watcher
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: acr-rollout-watcher
+  template:
+    metadata:
+      labels:
+        app: acr-rollout-watcher
+    spec:
+      serviceAccountName: acr-rollout-watcher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: watcher
+          image: europe-west3-docker.pkg.dev/PROJECT_ID/acr-daily/acr-daily-server:v0.2.0-multiregion
+          imagePullPolicy: Always
+          command: ["python3", "/app/tools/auto_rollout_watcher.py"]
+          env:
+            - name: POD_NAMESPACE
+              value: "acr-daily"
+            - name: GHCR_IMAGE
+              value: "khanhonthetrack/acr-daily-server"
+            - name: GHCR_TAG
+              value: "main"
+            - name: ROLLOUT_POLL_INTERVAL_S
+              value: "90"
+            - name: ROLLOUT_TARGETS
+              value: "deployments/acr-relay:relay,deployments/acr-daily:server,deployments/acr-rollout-watcher:watcher"
+            - name: GHCR_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: acr-daily-secrets
+                  key: GHCR_READ_TOKEN
+                  optional: true
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "48Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

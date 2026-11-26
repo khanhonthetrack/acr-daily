@@ -1,0 +1,11 @@
+name = "acr-daily"
+main = "index.js"
+compatibility_date = "2026-09-01"
+# Keeps acr-daily.acr-daily-server.workers.dev active for already-installed v0.2.1 desktop apps, forwarding all API
+# requests transparently to GKE Primary while detaching the Worker's custom_domain route from acrdaily.com so DNS A
+# record acrdaily.com -> 34.49.33.253 takes over cleanly!
+workers_dev = true
+
+[vars]
+UPSTREAM_ORIGIN = "https://acrdaily-eu.34-49-33-253.sslip.io"
+MAINTENANCE = "0"
