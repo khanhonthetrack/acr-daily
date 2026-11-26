@@ -956,7 +956,7 @@ def main(argv=None):
         out({'labels': list(LABELS)})
     elif a.command == 'intake':
         out(intake(dc(), gh(), forum_id=env.get('BUGBOT_FORUM_ID') or None, model=env.get('BUGBOT_TRIAGE_MODEL') or model, dry=a.dry,
-                   autofix=int(env.get('BUGBOT_AUTOFIX') or 0), chat=env.get('BUGBOT_READ_ALL', '1') != '0'))
+                   autofix=int(env.get('BUGBOT_AUTOFIX') or 0), chat=env.get('BUGBOT_READ_ALL', '0') == '1'))   # (off: only #bug-reports, the owner's call)
     elif a.command == 'setup-forum':
         out(setup_forum(dc(), forum_id=env.get('BUGBOT_FORUM_ID') or None))
     elif a.command == 'notify':
