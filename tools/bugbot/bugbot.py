@@ -404,7 +404,7 @@ TRIAGE_SCHEMA = {
     'properties': {
         'kind': {'type': 'string', 'enum': ['bug', 'feature', 'question', 'other']},
         'complete': {'type': 'boolean'},
-        'questions': {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 5},
+        'questions': {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 3},
         'duplicate_of': {'type': ['integer', 'null']},
         'title': {'type': 'string'},
         'app_version': {'type': 'string'},
@@ -518,7 +518,7 @@ def reply_known(n, url, title):
 
 
 def reply_questions(questions):
-    qs = '\n'.join('- ' + q.strip()[:200] for q in questions[:5] if q.strip())
+    qs = '\n'.join('- ' + q.strip()[:200] for q in questions[:3] if q.strip())
     return ('Thanks for the report. To track it down we need a bit more:\n%s\n'
             'Screenshots and log files can go here, or at <https://acrdaily.com/report>.' % qs)
 
@@ -588,7 +588,7 @@ def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, m
 
 def handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry):
     tid = str(th['id'])
-    atts = fetch_attachments(dc, msgs, os.path.join(workdir, 'att', tid)) if not dry else []
+    atts = fetch_attachments(dc, msgs, os.path.join(workdir, 'att', tid))   # (dry runs too: reading is no change)
     t = run_claude(triage_prompt(th, thread_text(msgs, bot_id), atts, gh.open_issues()), TRIAGE_SCHEMA,
                    tools=['Read', 'Grep', 'Glob'], model=model, max_turns=25, runner=runner)
     rounds = question_rounds(msgs, bot_id)
@@ -614,7 +614,7 @@ def handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry):
     if not t['complete'] and t.get('questions') and rounds < MAX_ROUNDS:
         if not dry:
             dc.post(tid, reply_questions(t['questions']))
-        return {'thread': tid, 'did': 'asked %d questions' % len(t['questions']), 'questions': t['questions'][:5]}
+        return {'thread': tid, 'did': 'asked %d questions' % len(t['questions']), 'questions': t['questions'][:3]}
     needs_info = not t['complete']
     labels = ['from-discord', 'enhancement' if t['kind'] == 'feature' else 'bug', 'area:' + t.get('area', 'other')]
     if needs_info:

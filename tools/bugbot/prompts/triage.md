@@ -22,7 +22,7 @@ Attachments saved for you (screenshots, logs; open each with Read):
 - `kind`: `bug` (something doesn't work), `feature` (a wish), `question` (how do I...), `other` (chat, spam, unclear).
 - `duplicate_of`: the issue number if this is clearly the same problem as an open issue above, else null. Only when you are sure.
 - `complete`: true when a developer could start looking: we know what they were doing, what happened, and (for app/game bugs) roughly which app version. Missing a screenshot alone does not make it incomplete. If BOT already asked questions in the thread, judge with the answers included and don't ask the same again.
-- `questions`: when not complete, 1 to 4 short, plain questions for the player (one line each, friendly, no jargon). For crashes, freezes or lost times, ask them to send logs at https://acrdaily.com/report. Empty when complete.
+- `questions`: when not complete, at most 3 questions for the player, the most useful first. Each is one short sentence (under 20 words), plain, friendly, no jargon, asking one thing. Don't ask what the post or its attachments already show. For crashes, freezes or lost times, one of them asks for logs at https://acrdaily.com/report. Empty when complete.
 - `title`: a short, plain GitHub issue title (under 80 characters), e.g. "WATCH shows own car twice on Sanremo SS2".
 - `what_happened`, `expected`, `steps`, `every_time`, `app_version`: from the report, in plain English (translate if needed). "" when not given.
 - `area`: the closest of the listed areas.
