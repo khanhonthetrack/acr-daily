@@ -318,7 +318,8 @@ const rankBy = (list, key, out) => list.forEach((x, i) => {
  *  the app, leaguesapi missed) counts as the slowest total on that stage + retireMs (a cell {retired: true, reason,
  *  totalMs}), and a DNF stays classified (classified: true, a rank and a total, after everyone who finished) with each
  *  stage it did not drive counted the same. Finishers and classified DNFs rank by stages driven, then the total. Not
- *  while a stage to price has no time from anyone yet (totalMs null). */
+ *  while a stage to price has no time from anyone yet (totalMs null). The gaps while it runs: cumGapMs on a stage's cell,
+ *  liveGapMs / liveGapAfter on a row not finished (below). */
 export function eventStandings(ev, entries, times, now = Date.now(), penalties = []) {
   const n = ev.stages.length;
   const byDriver = new Map(entries.map((e) => [e.steam_id, { e, t: new Array(n).fill(null), pen: new Array(n).fill(0), over: 0 }]));
@@ -396,6 +397,30 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
     x.rank = p && p.totalMs === x.totalMs && p.driven === x.driven && !!p.classified === !!x.classified ? p.rank : i + 1;
   });
   fin.forEach((r) => { r.gapMs = r.totalMs - fin[0].totalMs; });
+  // while the event runs: the gap at the stages a driver has driven (a user, 26 Nov 2026: the gaps were only there once
+  // everyone had finished). cumGapMs on each stage's cell: that driver's time over the stages so far against the best
+  // time anyone had over the same stages (a driver who retired later counts as far as they went); liveGapMs on a row
+  // not finished (running, or a DNF with stages driven): the same after its last stage, liveGapAfter: how many stages
+  // that is. A finisher keeps gapMs (to the winner's total). Stewards' penalties on the whole count in the totals only.
+  const cums = new Map();
+  for (const r of rows) {
+    if (r.status === 'dsq') continue;
+    const c = [];
+    let sum = 0;
+    for (const x of r.stages) { if (!x || x.retired || x.totalMs == null) break; sum += x.totalMs; c.push(sum); }
+    cums.set(r.steamId, c);
+  }
+  const best = Array.from({ length: n }, (_, k) => {
+    let b = null;
+    for (const c of cums.values()) if (c.length > k && (b === null || c[k] < b)) b = c[k];
+    return b;
+  });
+  for (const r of rows) {
+    const c = cums.get(r.steamId);
+    if (!c || !c.length) continue;
+    c.forEach((v, k) => { r.stages[k].cumGapMs = v - best[k]; });
+    if (r.gapMs === undefined) Object.assign(r, { liveGapMs: c[c.length - 1] - best[c.length - 1], liveGapAfter: c.length });
+  }
   return { rows, stages };
 }
 

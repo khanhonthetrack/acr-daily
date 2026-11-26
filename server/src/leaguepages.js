@@ -145,6 +145,7 @@ td.tot{font:700 19px/1 'Barlow Condensed',sans-serif}
 td.t{font:600 15px/1 'Barlow Condensed',sans-serif}
 td.t small{display:block;font:500 11px/1.2 Barlow,sans-serif;color:var(--fg3);margin-top:3px}
 td.t small.pen{color:var(--slow)}
+td.muted small{display:block;font:500 11px/1.2 Barlow,sans-serif;color:var(--fg3);margin-top:3px}
 td.tot small.why{display:block;font:500 11px/1.25 Barlow,sans-serif;color:var(--fg3);margin-top:3px;white-space:normal;max-width:200px;margin-left:auto}
 td.t.w{color:var(--acct,#FF4655)}
 .dnf{color:var(--bad);font:600 13px/1 Barlow,sans-serif;letter-spacing:.04em}
@@ -1063,7 +1064,7 @@ export function eventPage(id, env, meta = {}) {
           if(bits.length)td.appendChild(el('small',s.penaltyMs?'pen':null,bits.join(' · ')));
           if(s.stewardMs)td.appendChild(el('small','st'+(s.stewardMs<0?' back':''),F(${tq('{0} stewards')},secs(s.stewardMs))));
           td.title=F(${tq('stage time {0}')},ms(s.timeMs))+(s.penaltyMs?' + '+F(${tq('{0} game penalty')},pen(s.penaltyMs)):'')+(s.stewardMs?' '+F(${tq('{0} from the stewards')},secs(s.stewardMs)):'')+
-            (s.pos?' · '+F(${tq('P{0} on the stage, P{1} overall after it')},s.pos,s.cumPos):'')}return td});
+            (s.pos?' · '+F(${tq('P{0} on the stage, P{1} overall after it')},s.pos,s.cumPos):'')+(s.cumGapMs?' · '+F(${tq('{0} behind the best after it')},gap(s.cumGapMs)):'')}return td});
       var tot=el('td','r tot');var gp=el('td','r muted');
       // (the Gap column: gaps only; why a DNF or a DSQ, a time still hidden or so far: under the total, a UI review)
       function why(x){if(x)tot.appendChild(el('small','why',x))}
@@ -1073,6 +1074,8 @@ export function eventPage(id, env, meta = {}) {
       else if(r.status==='dnf'&&r.classified&&r.totalMs!=null){tot.textContent=ms(r.totalMs);tot.appendChild(el('small','dnf',' '+${tq('DNF')}));gp.textContent=r.gapMs==null?'':gap(r.gapMs);why(r.reason)}
       else if(r.status==='dnf'){tot.appendChild(el('span','dnf',${tq('DNF')}));why(r.reason)}
       else{tot.appendChild(el('span','run',F(${tq('SS{0} next')},r.done+1)));if(r.done&&r.totalMs!=null)why(F(${tq('{0} so far')},ms(r.totalMs)))}
+      // (not finished: the gap to the best over the stages it has driven, and which: the gaps while the event runs)
+      if(r.liveGapMs!=null&&r.status!=='finished'&&r.status!=='dsq'&&!(r.status==='dnf'&&r.classified)){if(r.liveGapMs)gp.textContent=gap(r.liveGapMs);gp.appendChild(el('small',null,F(${tq('after SS{0}')},r.liveGapAfter)))}
       if(r.stewardMs&&r.status!=='dsq')tot.appendChild(el('small',null,' '+F(${tq('incl. {0} stewards')},secs(r.stewardMs))));
       row(tr,{pos:pos,drv:d,car:car,ss:ss,tot:tot,gp:gp});t.appendChild(tr)});
     h.setAttribute('data-nopage','');paginate(t,'event'+(g?GSEL:''),$('stwrap'));   // (30 a page: src/pager.js)

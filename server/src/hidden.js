@@ -64,9 +64,9 @@ const ORDER = { finished: 0, running: 1, dnf: 2, dsq: 3 };
 export function maskRows(rows, me) {
   return rows.map((r) => {
     const mine = me && r.steamId === me;
-    return { ...r, rank: null, gapMs: null, ...(mine ? {} : { totalMs: null, penaltyMs: null, stewardMs: null }),
-      stages: r.stages.map((x) => (!x || x.retired ? null : mine ? { ...x, pos: null, cumPos: null }
-        : { timeMs: null, penaltyMs: null, stewardMs: null, totalMs: null, pos: null, cumPos: null, splits: null })) };
+    return { ...r, rank: null, gapMs: null, liveGapMs: null, liveGapAfter: null, ...(mine ? {} : { totalMs: null, penaltyMs: null, stewardMs: null }),
+      stages: r.stages.map((x) => (!x || x.retired ? null : mine ? { ...x, pos: null, cumPos: null, cumGapMs: null }
+        : { timeMs: null, penaltyMs: null, stewardMs: null, totalMs: null, pos: null, cumPos: null, cumGapMs: null, splits: null })) };
   }).sort((a, b) => ORDER[a.status] - ORDER[b.status] || (a.name || '').localeCompare(b.name || ''));
 }
 

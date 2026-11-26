@@ -271,7 +271,7 @@ test('the stewards: a penalty on a stage moves its positions, one on the total m
     [['Ben', 'finished', 1, 455000, 0], ['Ann', 'finished', 2, 458000, 8000], ['Ed', 'dsq', undefined, 420000, 0]]);
   assert.equal(rows[2].reason, 'wrong car');
   assert.deepEqual(stages[0].map((s) => [s.steamId, s.pos, s.totalMs]), [['b', 1, 101000], ['a', 2, 110000]]);   // Ed: no place
-  assert.deepEqual(rows[1].stages[0], { timeMs: 100000, penaltyMs: 0, stewardMs: 10000, totalMs: 110000, pos: 2, cumPos: 2, splits: null });
+  assert.deepEqual(rows[1].stages[0], { timeMs: 100000, penaltyMs: 0, stewardMs: 10000, totalMs: 110000, pos: 2, cumPos: 2, splits: null, cumGapMs: 9000 });
   assert.equal(rows[2].stages[0].pos, null);
 });
 
@@ -359,4 +359,40 @@ test('Sweden (the game\'s 0.7) is a location events can be made in, with its sta
   assert.ok(sw, 'Sweden is in the catalog');
   assert.equal(sw.surface, 'Snow');
   assert.equal(sw.stages.length, 2);
+});
+
+test('the gaps while the event runs: to the best time over the same stages, stage by stage, for who has driven only some', () => {
+  // (a user, 26 Nov 2026: the gap was blank until everyone had finished.) Three stages; Ann finished all, Ben is on SS4... of
+  // 3: Ben has driven two, Cas one, Dan retired after one (DNF), Eve has not started
+  const entries = [entry('a', 'Ann', 'finished', 3), entry('b', 'Ben', 'running', 2), entry('c', 'Cas', 'running', 1),
+    entry('d', 'Dan', 'dnf', 1, 'retired'), entry('e', 'Eve', 'running', 0)];
+  const times = [time('a', 0, 100000), time('a', 1, 200000), time('a', 2, 150000),
+    time('b', 0, 98000), time('b', 1, 205000),                               // Ben: faster on SS1, slower over two than Ann
+    time('c', 0, 103500),
+    time('d', 0, 99000)];
+  const { rows } = eventStandings(E, entries, times, NOW);
+  const by = Object.fromEntries(rows.map((r) => [r.name, r]));
+  // Ann finished: her gap is to the winner (herself), as before; her cells say how far she was off the best after each stage
+  assert.deepEqual([by.Ann.rank, by.Ann.gapMs, by.Ann.liveGapMs], [1, 0, undefined]);
+  assert.deepEqual(by.Ann.stages.map((x) => x.cumGapMs), [2000, 0, 0]);                     // (Ben's 98 s start, then Ann's 300 s vs his 303 s)
+  assert.deepEqual(by.Ben.stages.filter(Boolean).map((x) => x.cumGapMs), [0, 3000]);
+  // not finished: the gap to the best over as many stages as they have driven, and how many that is
+  assert.deepEqual([by.Ben.liveGapMs, by.Ben.liveGapAfter, by.Ben.gapMs], [3000, 2, undefined]);
+  assert.deepEqual([by.Cas.liveGapMs, by.Cas.liveGapAfter], [5500, 1]);                     // 103.5 s against Ben's 98 s
+  assert.deepEqual([by.Dan.liveGapMs, by.Dan.liveGapAfter, by.Dan.status], [1000, 1, 'dnf']);   // a DNF too, as far as it went
+  assert.equal(by.Eve.liveGapMs, undefined, 'nothing driven: no gap');
+  assert.equal(by.Eve.gapMs, undefined);
+});
+
+test('the live gaps skip a disqualified driver, a stage nobody has priced, and are hidden with the results', async () => {
+  const entries = [entry('a', 'Ann', 'running', 1), { ...entry('b', 'Ben', 'running', 1), dsq: 'cut' }];
+  const times = [time('a', 0, 100000), time('b', 0, 90000)];
+  const { rows } = eventStandings(E, entries, times, NOW);
+  assert.equal(rows.find((r) => r.name === 'Ann').liveGapMs, 0, 'the disqualified time is not the best');
+  assert.equal(rows.find((r) => r.name === 'Ben').liveGapMs, undefined);
+  const { maskRows } = await import('../src/hidden.js');
+  const masked = maskRows(rows, null);
+  assert.deepEqual(masked.map((r) => [r.liveGapMs, r.liveGapAfter, r.stages[0] && r.stages[0].cumGapMs]), [[null, null, null], [null, null, null]]);
+  const mine = maskRows(rows, 'a').find((r) => r.steamId === 'a');
+  assert.deepEqual([mine.liveGapMs, mine.stages[0].cumGapMs], [null, null], 'the results hidden: even the gaps of one\'s own');
 });
