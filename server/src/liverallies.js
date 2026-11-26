@@ -441,6 +441,23 @@ export async function outRun(env, s, starts, ev, steamId, no, reason, now) {
   return { status: 'dnf', reason: why };
 }
 
+/** A driver who registered and never started is a DNF (the user, 26 Nov 2026: "if someone signed up but didn't drive at
+ *  all, should also be DNF"): the entry made, with no stage, once the session is closed, or sooner when they missed
+ *  their turn too often (out: did not start; a start already on its way when that happened is given two minutes).
+ *  Nobody has an entry until they start, so the results had nobody in them: "1 driver" and an empty page. Idempotent.
+ *  ids: the sessions' events. */
+export async function dnsEntries(env, ids, now) {
+  if (!ids.length) return;
+  await env.DB.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, reason, done, on_stage, total_ms, started, updated)
+    SELECT e.id, j.value, COALESCE(u.car, e.car, ''), 'dnf', 'did not start', 0, NULL, 0, ?1, ?1
+    FROM league_events e JOIN json_each(e.only_ids) j JOIN live_sessions ls ON ls.event_id = e.id
+      LEFT JOIN live_signups u ON u.series = ls.series AND u.starts = ls.starts AND u.steam_id = j.value
+    WHERE e.id IN (SELECT value FROM json_each(?2)) AND NOT EXISTS (SELECT 1 FROM league_entries le WHERE le.event_id = e.id AND le.steam_id = j.value)
+      AND (e.closes <= ?1 OR EXISTS (SELECT 1 FROM live_slots sl WHERE sl.event_id = e.id AND sl.steam_id = j.value AND sl.stage_no = 0
+        AND sl.out = 'dns' AND sl.moved_at IS NOT NULL AND sl.moved_at < ?1 - 120000))
+    ON CONFLICT (event_id, steam_id) DO NOTHING`).bind(now, JSON.stringify(ids)).run();
+}
+
 /** SS1's start refused (src/leaguesapi.js, before the entry is made): the driver missed their start too often and is out
  *  of the session (did not start), unless this start was made before they were taken out (on its way to the server
  *  then). -> why, or null (it may start). */
@@ -585,11 +602,8 @@ async function overview(env, me, now, rand) {
   const since = Math.max(now - LIVE.recentMs, liveFrom(env));
   const PAST = `SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s JOIN league_events e ON e.id = s.event_id
     WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ?`;
-  // (the list for everyone: sessions somebody drove; one whose registered driver never started has no results to open,
-  // "1 driver" and nobody in it, the user, 26 Nov 2026. Their own no-show stays in a driver's own results: minePast)
   const [{ results: last }, { results: minePast }] = await Promise.all([
-    env.DB.prepare(`${PAST} AND EXISTS (SELECT 1 FROM league_entries le WHERE le.event_id = s.event_id)
-      ORDER BY s.starts DESC LIMIT ${RECENT_N}`).bind(since, from).all(),
+    env.DB.prepare(`${PAST} ORDER BY s.starts DESC LIMIT ${RECENT_N}`).bind(since, from).all(),
     sid ? env.DB.prepare(`${PAST} AND EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?) ORDER BY s.starts DESC LIMIT ${RECENT_N}`)
       .bind(since, from, sid).all() : { results: [] },
   ]);
@@ -598,14 +612,14 @@ async function overview(env, me, now, rand) {
       JOIN league_events e ON e.id = s.event_id WHERE s.event_id IN (SELECT value FROM json_each(?))`)
     .bind(JSON.stringify([...doneEarly])).all()).results : [];
   const past = [...new Map([...early, ...last, ...minePast].map((r) => [r.event_id, r])).values()].sort((a, b) => b.starts - a.starts);
+  await dnsEntries(env, [...new Set([...evIds, ...past.map((r) => r.event_id)])], now);       // (the ones who never started: DNFs)
   const table = await eventsRows(env, past.map((r) => r.event_id), now);
   const recent = past.map((r) => {
     const s = seriesOf(r.series), only = JSON.parse(r.only_ids || '[]');
     const rows = table.get(r.event_id) || [];
     const won = rows.find((x) => x.rank === 1), me = sid ? rows.find((x) => x.steamId === sid) : null;
-    if (!rows.length && !(sid && only.includes(sid))) return null;                   // (nobody drove it: nothing to show)
     return s ? { series: s.key, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id, drivers: only.length,
-      started: rows.length, mine: !!sid && only.includes(sid),
+      mine: !!sid && only.includes(sid),
       winner: won ? { steamId: won.steamId, name: won.name, country: won.country || null, totalMs: won.totalMs } : null,
       me: me ? { rank: me.rank || null, status: me.status, totalMs: me.totalMs ?? null } : null,
       ...(isSpecial(s) ? { special: true, name: s.name } : {}) } : null;
@@ -692,6 +706,7 @@ async function sessionView(env, s, starts, me, now, rand) {
   }
   const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(row.event_id).first();
   const turns = await settle(env, ev, now);
+  await dnsEntries(env, [ev.id], now);
   const [{ results: people }, standings, routes, mineEntry] = await Promise.all([
     env.DB.prepare(`SELECT p.steam_id, p.name, p.country, p.avatar, u.car FROM json_each(?) j JOIN players p ON p.steam_id = j.value
         LEFT JOIN live_signups u ON u.series = ? AND u.starts = ? AND u.steam_id = p.steam_id`)

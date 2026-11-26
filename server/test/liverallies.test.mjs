@@ -389,9 +389,11 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
   const later = (await live(f, '/api/liverallies', ANN, H + 3 * 3600000)).body;
   assert.deepEqual(later.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.eventId]),
     [['rally2', H, 1, true, after.sessions.find((x) => x.starts === H).eventId]]);
-  // ... only for the driver who registered and never started (a DNS): to everyone else it is "1 driver" and nobody in it,
-  // results that open on an empty page (the user, 26 Nov 2026), so the list leaves it out
-  assert.deepEqual((await live(f, '/api/liverallies', BEN, H + 3 * 3600000)).body.recent, []);
+  // ... a driver who registered and never started is a DNF in it (the user, 26 Nov 2026), so for everyone it is a session
+  // with one driver, who did not start, not an empty page
+  const dns = (await live(f, '/api/liverallies', BEN, H + 3 * 3600000)).body.recent;
+  assert.deepEqual(dns.map((r) => [r.drivers, r.mine, r.winner]), [[1, false, null]]);
+  assert.deepEqual((await live(f, '/api/liverallies', ANN, H + 3 * 3600000)).body.recent.map((r) => [r.mine, r.me.status, r.me.rank]), [[true, 'dnf', null]]);
   assert.equal((await live(f, '/api/liverallies', ANN, H + 6 * 24 * 3600000)).body.recent.length, 1);
   assert.deepEqual((await live(f, '/api/liverallies', ANN, H + 8 * 24 * 3600000)).body.recent, []);
   const off = fakeD1();
@@ -515,14 +517,40 @@ test('a special event: registration open for days, its one car, four stages of i
   assert.deepEqual([rec.special, rec.name, rec.mine], [true, 'Skoda Saturday Challenge', true]);
 });
 
-test('the latest results list: a session somebody drove, with how many drove; one nobody started is left out', async () => {
+test('registered and never started: a DNF in the results, with the car signed up with; whoever drove is classified', async () => {
   const f = world();
   const id = await published(f, [CAT, BEN]);
   const t0 = H + LIVE.firstStartMs;
   const over = H + 3 * 3600000;
-  assert.deepEqual((await live(f, '/api/liverallies', DAN, over)).body.recent, [], 'two registered, nobody started');
+  // (the session is still open: no entry for who has not started yet)
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_entries WHERE event_id = ?').get(id).n, 0);
+  await live(f, '/api/liverallies', DAN, t0 + 10000);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_entries WHERE event_id = ?').get(id).n, 0);
   await start(f, id, CAT, t0, t0);                                   // (Cat drives; Ben does not show up)
   const r = (await live(f, '/api/liverallies', DAN, over)).body.recent;
-  assert.deepEqual(r.map((x) => [x.eventId, x.drivers, x.started, x.mine]), [[id, 2, 1, false]]);
-  assert.equal((await live(f, '/api/liverallies', BEN, over)).body.recent[0].mine, true, 'the one who did not start still has it as theirs');
+  assert.deepEqual(r.map((x) => [x.eventId, x.drivers, x.mine]), [[id, 2, false]]);
+  const ben = f.db.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, BEN);
+  assert.deepEqual([ben.status, ben.reason, ben.done, ben.total_ms, ben.car], ['dnf', 'did not start', 0, 0, 'Skoda Fabia RS Rally2']);
+  const view = (await live(f, '/api/liverallies', BEN, over)).body.recent[0];
+  assert.deepEqual([view.mine, view.me.status], [true, 'dnf']);
+  // (the event's own results page lists them: the entries are what its standings are made of)
+  const e = f.db.prepare('SELECT status FROM league_entries WHERE event_id = ?').all(id).map((x) => x.status).sort();
+  assert.deepEqual(e, ['dnf', 'running'], 'Cat is still running (her run never finished here), Ben DNF');
+  // once: asked again, no second entry, nothing changed
+  await live(f, '/api/liverallies', DAN, over + 60000);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_entries WHERE event_id = ?').get(id).n, 2);
+});
+
+test('a driver out for missing their turns is a DNF at once, not when the session closes', async () => {
+  const f = world();
+  const id = await published(f, [CAT, BEN]);
+  const t0 = H + LIVE.firstStartMs;
+  const late = t0 + 12 * LIVE.turnMs + 5 * MIN;                       // (both missed every turn: out, did not start)
+  await live(f, S(), DAN, late);
+  const slots = f.db.prepare("SELECT steam_id, out FROM live_slots WHERE event_id = ? AND stage_no = 0 AND out = 'dns'").all(id);
+  assert.ok(slots.length >= 1, JSON.stringify(f.db.prepare('SELECT * FROM live_slots WHERE event_id = ?').all(id)));
+  await live(f, S(), DAN, late + 3 * MIN);
+  const dnf = f.db.prepare("SELECT steam_id, reason FROM league_entries WHERE event_id = ? AND status = 'dnf'").all(id);
+  assert.deepEqual(dnf.map((x) => x.steam_id).sort(), slots.map((x) => x.steam_id).sort());
+  assert.ok(late + 3 * MIN < H + 105 * MIN, 'the session is still open');
 });
