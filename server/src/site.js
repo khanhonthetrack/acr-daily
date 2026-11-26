@@ -38,9 +38,9 @@ export function sitePage(env) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ACR Daily · ${t("Today's stages")}</title>
-${metaTags({ title: 'ACR Daily · ' + t("Today's stages"), url: '/', site: env.SITE_URL || '',
-    description: t('Two special stages a day for Assetto Corsa Rally. One car, one set of conditions, one timing sheet.') })}
+<title>ACR Daily · ${t('Your daily competitive portal')}</title>
+${metaTags({ title: 'ACR Daily · ' + t('Your daily competitive portal'), url: '/', site: env.SITE_URL || '',
+    description: t('Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.') })}
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -378,17 +378,23 @@ ${STAGE_MAP_JS()}
   // ---- CODRIVER (src/copilot.js: the daily for two): today's crews' standings to everyone; the stage, its map and the crews on it
   // only to someone who has driven it (as driver or co-driver): it stays hidden until then (the user, 26 Nov 2026)
   var tab='official',cpOn=false,cpShown=false,cpLive=0;
+  // (the day's heading: the day before / after go through the CODRIVER days too, as the official ones: the user, 26 Nov
+  // 2026 "we should be able to see the history, like yesterday, just like normal daily")
+  function dayHead(){$('dayname').textContent=tab==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):
+    (cur===today?${tq("Today's CODRIVER DAILY")}:${tq('CODRIVER')}+' · '+dayLabel(cur))}
   function setTab(t){tab=t;$('tab-official').className=t==='official'?'on':'';$('tab-codriver').className=t==='codriver'?'on':'';
-    $('stages').hidden=t!=='official';$('cpday').hidden=t!=='codriver';$('prev').hidden=$('next').hidden=t!=='official';
-    $('dayname').textContent=t==='official'?(cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur))):${tq("Today's CODRIVER DAILY")};
+    $('stages').hidden=t!=='official';$('cpday').hidden=t!=='codriver';dayHead();
     try{history.replaceState(null,'',t==='codriver'?'#codriver':location.pathname)}catch(e){}
     if(t==='codriver')cpLoad()}
   $('tab-official').onclick=function(){setTab('official')};
   $('tab-codriver').onclick=function(){setTab('codriver')};
   get('/api/copilot').then(function(d){if(!d||!d.on)return;cpOn=true;$('dtabs').hidden=false;if(location.hash==='#codriver')setTab('codriver')}).catch(function(){});
   function cpLoad(){
-    Promise.all([get('/api/copilot'),get('/api/copilot/board')]).then(function(a){
+    var day=cur;   // (the day on screen: today's, or one before it)
+    Promise.all([get('/api/copilot?date='+day),get('/api/copilot/board?date='+day)]).then(function(a){
+      if(day!==cur)return;   // (another day asked for meanwhile)
       var d=a[0]||{},b=a[1]||{},box=$('cpday');box.innerHTML='';delete maps.cp;cpShown=false;
+      if(d.on===false||d.error){box.appendChild(el('p','empty',${tq('No stages for this day.')}));return}
       var s=el('section','stage');var plate=el('div','plate');plate.appendChild(el('span','ss',${tq('CODRIVER')}));
       var st=d.revealed&&d.stage?d.stage:(b.stage||null);
       if(st)plate.appendChild(el('span','where',[TD(st.rally),km(st.lengthM)].filter(Boolean).join('  ·  ')));
@@ -401,7 +407,10 @@ ${STAGE_MAP_JS()}
         s.appendChild(spec);
         var mb=el('div','map');s.appendChild(mb);
         get('/api/route?track='+encodeURIComponent(st.track)).then(function(r){if(!r||!r.route||!mb.isConnected)return;
-          maps.cp={m:drawMap(mb,r.route,EARTH[st.track],0),slot:'cp'};cpShown=true;cpPoll(true)}).catch(function(){});
+          // (on satellite imagery as the official stages: the corner kept clear for its button)
+          var g=EARTH[st.track];maps.cp={m:drawMap(mb,r.route,g,g?(window.innerWidth<=700?74:92):0),slot:'cp'};
+          satButton(mb,{track:st.track,route:r.route},false);
+          cpShown=day===today;cpPoll(true)}).catch(function(){});
       }else{
         var h=el('div','cphide');h.appendChild(el('div','q','?'));var w=el('div');
         w.appendChild(el('b',null,${tq('Hidden until you drive it')}));
@@ -427,9 +436,9 @@ ${STAGE_MAP_JS()}
   function cpPoll(force){if(tab!=='codriver'||!cpShown||document.hidden)return;if(force!==true&&cpLive++%3)return;
     get('/api/copilot/live').then(function(d){if(d&&d.drivers&&maps.cp)drawLive(maps.cp,{drivers:d.drivers},d.now)}).catch(function(){})}
   setInterval(cpPoll,1000);
-  setInterval(function(){if(tab==='codriver'&&!document.hidden)cpLoad()},60000);
-  $('prev').onclick=function(){cur=shift(cur,-1);load()};
-  $('next').onclick=function(){if(cur<today){cur=shift(cur,1);load()}};
+  setInterval(function(){if(tab==='codriver'&&cur===today&&!document.hidden)cpLoad()},60000);
+  $('prev').onclick=function(){cur=shift(cur,-1);load();if(tab==='codriver'){dayHead();cpLoad()}};
+  $('next').onclick=function(){if(cur<today){cur=shift(cur,1);load();if(tab==='codriver'){dayHead();cpLoad()}}};
   load();tick();setInterval(tick,1000);setInterval(pollLive,1000);setInterval(refresh,60000);
 })();
 </script>

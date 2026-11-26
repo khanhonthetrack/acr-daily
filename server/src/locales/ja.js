@@ -2449,5 +2449,7 @@ export default {
  "CODRIVER is off on this server": "このサーバーでは CODRIVER はオフです",
  "no CODRIVER today": "今日は CODRIVER がありません",
  "not from this site": "このサイトからではありません",
- "twitch token {0}": "twitch トークン {0}"
+ "twitch token {0}": "twitch トークン {0}",
+ "Your daily competitive portal": "毎日の競技ポータル",
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Assetto Corsa Rally の毎日の競技ポータル：デイリー、タイムトライアル、ランク戦ラリー、選手権、カップ。"
 };

@@ -2509,5 +2509,7 @@ export default {
  "CODRIVER is off on this server": "CODRIVER jest wyłączony na tym serwerze",
  "no CODRIVER today": "dziś nie ma CODRIVER",
  "not from this site": "nie z tej strony",
- "twitch token {0}": "token Twitcha: {0}"
+ "twitch token {0}": "token Twitcha: {0}",
+ "Your daily competitive portal": "Twój codzienny portal rywalizacji",
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "Twój codzienny portal rywalizacji w Assetto Corsa Rally: odcinki dnia, time triale, rajdy rankingowe, mistrzostwa i puchary."
 };

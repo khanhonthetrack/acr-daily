@@ -2449,5 +2449,7 @@ export default {
  "CODRIVER is off on this server": "a CODRIVER ki van kapcsolva ezen a szerveren",
  "no CODRIVER today": "ma nincs CODRIVER",
  "not from this site": "nem erről az oldalról",
- "twitch token {0}": "twitch token {0}"
+ "twitch token {0}": "twitch token {0}",
+ "Your daily competitive portal": "A napi versenyportálod",
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "A napi versenyportálod az Assetto Corsa Rallyhoz: napi szakaszok, időfutamok, rangsorolt ralik, bajnokságok és kupák."
 };

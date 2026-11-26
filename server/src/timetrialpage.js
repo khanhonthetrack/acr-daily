@@ -89,6 +89,9 @@ export function timeTrialPage(env, opts = {}) {
     also(t.also||[]);
     if(t.prev){var p=el('a',null,${tq('‹ Week before')});p.href='/tt?week='+t.prev;n.appendChild(p)}
     if(t.next){var x=el('a',null,t.next===t.current?${tq('This week ›')}:${tq('Week after ›')});x.href=t.next===t.current?'/tt':'/tt?week='+t.next;n.appendChild(x)}
+    // (a community one: the community time trials before and after it, as the official weeks)
+    if(t.commPrev){var cp=el('a',null,${tq('‹ Week before')});cp.href=t.commPrev;n.appendChild(cp)}
+    if(t.commNext){var cn=el('a',null,t.commNextOpen?${tq('This week ›')}:${tq('Week after ›')});cn.href=t.commNextOpen?'/tt?tab=community':t.commNext;n.appendChild(cn)}
     if(t.on===false){add(f,el('div','muted',t.startsAt?F(${tq('The time trial starts {0}.')},FDATE(t.startsAt,{wd:true})):${tq('The time trial is off on this server.')}));return}
     if(t.private){if(t.title){$('kick').textContent=t.title;document.title=t.title+' · ACR Daily'}
       if(t.listed){if(t.title)$('h1').textContent=t.title;
@@ -120,11 +123,23 @@ export function timeTrialPage(env, opts = {}) {
     var h=$('how');h.innerHTML='';[${tq('Each community time trial runs on its own dates, free, as many runs as you like.')},
       ${tq("Its stages show in the app's TIME TRIAL tab once the app is new enough (its page says from which version).")},
       ${tq('Everyone on a stage shows on its map live. Not rated.')}].forEach(function(x){h.appendChild(el('li',null,x))});
+    // the same top as the official week's (the user, 26 Nov 2026): closes in, dates, entry, and the week before
+    var f=$('facts'),n=$('weeknav');
+    if(t.commPrev){var pv=el('a',null,${tq('‹ Week before')});pv.href=t.commPrev;n.appendChild(pv)}
     if(!pages.length){box.appendChild(el('div','empty',${tq('No community time trial is open right now.')}));return}
+    var s0=Math.min.apply(null,pages.map(function(p){return p.startsAt})),e0=Math.max.apply(null,pages.map(function(p){return p.endsAt})),open=Date.now()<e0;
+    function fact(k,v){var d=el('div');add(d,el('span','k',k),add(el('b'),v));f.appendChild(d)}
+    fact(open?${tq('Closes in')}:${tq('Closed')},open?left(e0):when(e0));
+    fact(${tq('Dates')},FDATE(s0,{utc:true})+' – '+FDATE(e0-1,{utc:true}));
+    fact(${tq('Entry')},${tq('Free')});
+    if(pages.length===1){var go1=el('a',null,${tq('Its page ›')});go1.href=pages[0].page;n.appendChild(go1)}
     pages.forEach(function(p){var key='p-'+String(p.page||'').split('/').pop();
-      var hd=el('div','comm-h'),go=el('a',null,${tq('Its page ›')});go.href=p.page;
-      add(hd,el('h2',null,p.title||${tq('Community time trial')}),el('span',null,FDATE(p.startsAt,{utc:true})+' – '+FDATE(p.endsAt-1,{utc:true})),go);
-      var grid=el('div','tts');box.appendChild(hd);box.appendChild(grid);grid.appendChild(el('div','empty',${tq('Loading…')}));
+      var grid=el('div','tts');
+      if(pages.length>1){   // (several open at once: each under its own name and dates)
+        var hd=el('div','comm-h'),go=el('a',null,${tq('Its page ›')});go.href=p.page;
+        add(hd,el('h2',null,p.title||${tq('Community time trial')}),el('span',null,FDATE(p.startsAt,{utc:true})+' – '+FDATE(p.endsAt-1,{utc:true})),go);
+        box.appendChild(hd)}
+      box.appendChild(grid);grid.appendChild(el('div','empty',${tq('Loading…')}));
       api('/api/tt?week='+encodeURIComponent(key)).then(function(tp){grid.innerHTML='';var open=Date.now()<tp.endsAt;
         (tp.stages||[]).forEach(function(s){grid.appendChild(stage(tp,s,open))})},function(e){grid.innerHTML='';grid.appendChild(el('div','empty',e.message))})})}
   // the listed private pages open now (the main page only): their stages, dates and a link to their own page

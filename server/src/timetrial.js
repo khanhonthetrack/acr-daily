@@ -150,6 +150,21 @@ async function listedOpen(env, now) {
   return [...pages.values()];
 }
 
+/** The community (listed) time trials either side of one running from startsAt to endsAt, as the official weeks go
+ *  one to the next (the user, 26 Nov 2026: "community tt should have the same format as the normal tt"): {commPrev:
+ *  the page of the last one closed by its start, commNext: the first one opened since its close, not later than now
+ *  (a coming one's stages stay unseen), commNextOpen: that one is open now}. */
+async function listedAround(env, startsAt, endsAt, now) {
+  const [p, n] = await env.DB.batch([
+    env.DB.prepare('SELECT page FROM tt_private WHERE listed = 1 AND ends_at <= ? ORDER BY ends_at DESC LIMIT 1').bind(startsAt),
+    env.DB.prepare(`SELECT page, MAX(ends_at) AS ends_at FROM tt_private WHERE listed = 1 AND starts_at >= ? AND starts_at <= ?
+      GROUP BY page ORDER BY MIN(starts_at) LIMIT 1`).bind(endsAt, now),
+  ]);
+  const prev = p.results[0], next = n.results[0];
+  return { commPrev: prev ? privatePage(prev.page) : null, commNext: next ? privatePage(next.page) : null,
+    commNextOpen: !!(next && next.ends_at > now) };
+}
+
 /** The private stages open now (or closed less than TT.lateMs ago: the app's last runs still come in) that an app of
  *  this version sees: the ones without a min_app, or with one it is not older than (deps.olderThan). No version (not
  *  the app: a browser): none. */
@@ -708,8 +723,11 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
     if (path === '/api/tt') {
       const rows = await privateStages(env, qWeek);
       if (!rows.length) return err('no such time trial', 404);
+      const listed = rows.some((r) => r.listed);
+      const startsAt = Math.min(...rows.map((r) => r.starts_at)), endsAt = Math.max(...rows.map((r) => r.ends_at));
       return json({ on: true, private: true, week: qWeek, page: privatePage(qWeek), title: rows[0].title || null,
-        listed: rows.some((r) => r.listed), minApp: rows[0].min_app || null, startsAt: Math.min(...rows.map((r) => r.starts_at)), endsAt: Math.max(...rows.map((r) => r.ends_at)),
+        listed, minApp: rows[0].min_app || null, startsAt, endsAt,
+        ...(listed ? await listedAround(env, startsAt, endsAt, now) : {}),   // (a community one: the ones before and after)
         credits: false, signedIn: !!me, stages: await privateStagesOut(env, rows, me, url.searchParams.get('lite') === '1', deps) });
     }
     if (path === '/api/tt/board') {
@@ -755,9 +773,12 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
     // ones open now are pointed to, `also`)
     const priv = week === cur ? await privateStagesOut(env, await privateOpenFor(env, deps.appVersion(req, null), now, deps), me, lite, deps) : [];
     const also = week === cur ? await listedOpen(env, now) : [];
+    // (the COMMUNITY tab: the community one before the open ones, as the official week before; none open: the last one)
+    const around = week !== cur ? {} : also.length ? await listedAround(env, Math.min(...also.map((a) => a.startsAt)), now, now)
+      : await listedAround(env, now, now, now);
     return json({ on: true, week, isoWeek: isoWeek(week), startsAt: weekStart(week), endsAt: weekStart(week) + WEEK, ...nav,
       credits: creditsOn(env, week), signedIn: !!me, stages, ...(priv.length ? { private: priv } : {}),
-      ...(also.length ? { also } : {}) });
+      ...(also.length ? { also } : {}), ...(around.commPrev ? { commPrev: around.commPrev } : {}) });
   }
   if (path === '/api/tt/board' && !post) {
     const week = url.searchParams.get('week') || cur, slot = +(url.searchParams.get('slot') || 1);

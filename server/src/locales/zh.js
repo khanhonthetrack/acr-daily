@@ -2449,5 +2449,7 @@ export default {
  "CODRIVER is off on this server": "此服务器已关闭 CODRIVER",
  "no CODRIVER today": "今天没有 CODRIVER",
  "not from this site": "不是来自本网站",
- "twitch token {0}": "twitch token {0}"
+ "twitch token {0}": "twitch token {0}",
+ "Your daily competitive portal": "你的每日竞技平台",
+ "Your daily competitive portal for Assetto Corsa Rally: dailies, time trials, ranked rallies, championships and cups.": "你的 Assetto Corsa Rally 每日竞技平台：每日赛段、计时赛、排位拉力、锦标赛和杯赛。"
 };
