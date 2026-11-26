@@ -338,8 +338,25 @@ def run_claude(prompt, schema, tools, allowed=None, model=None, cwd=None, max_tu
     cmd[0] = shutil.which('claude') or 'claude'          # (npm's claude.cmd on Windows)
     r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding='utf-8', cwd=cwd, env=claude_env(), timeout=3600)
     if r.returncode != 0:
-        raise RuntimeError('claude failed (%d): %s %s' % (r.returncode, r.stderr[-2000:], r.stdout[-2000:]))
+        raise ClaudeError(claude_failure(r.returncode, r.stdout, r.stderr))
     return parse_claude_output(r.stdout)
+
+
+class ClaudeError(RuntimeError):
+    """Claude could not run at all (login, usage limit, model name): the rest of the run would fail the same way."""
+
+
+def claude_failure(code, stdout, stderr):
+    """The reason in Claude's own words: its JSON's "result" (e.g. "Invalid API key"), else the output's end."""
+    try:
+        data = json.loads(stdout)
+        if isinstance(data, list):
+            data = [d for d in data if d.get('type') == 'result'][-1]
+        if data.get('result'):
+            return 'Claude could not run: %s' % data['result']
+    except (ValueError, IndexError, AttributeError):
+        pass
+    return 'Claude could not run (exit %d): %s %s' % (code, (stderr or '')[-800:], (stdout or '')[-800:])
 
 
 def parse_claude_output(stdout):
@@ -514,12 +531,18 @@ def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, m
             if not needs_reading(msgs, bot_id, now_ms):
                 continue
             did.append(handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry))
+        except ClaudeError as e:    # (the same for every thread: say it once and stop)
+            log(str(e))
+            return did + [{'error': str(e)[:1000]}]
         except Exception as e:      # noqa: BLE001  (one bad thread must not stop the others)
             log('thread %s failed: %r' % (tid, e))
             did.append({'thread': tid, 'error': repr(e)[:300]})
     if chat:
         try:
             did += chat_scan(dc, gh, bot_id, forum['id'], now_ms=now_ms, since_ms=chat_since_ms, runner=runner, model=model, dry=dry)
+        except ClaudeError as e:
+            log(str(e))
+            did.append({'chat': 'error', 'error': str(e)[:1000]})
         except Exception as e:      # noqa: BLE001
             log('reading the other channels failed: %r' % e)
             did.append({'chat': 'error', 'error': repr(e)[:300]})

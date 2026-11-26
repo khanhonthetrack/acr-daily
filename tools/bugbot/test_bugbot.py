@@ -216,6 +216,23 @@ class Intake(unittest.TestCase):
         self.assertEqual(bb.thread_markers(old['body']), ['1', th['id']])
         self.assertIn('known already', dc.posts[0][1])
 
+    def test_claude_down_says_why_once_and_stops(self):
+        out = json.dumps({'type': 'result', 'is_error': True, 'duration_api_ms': 0, 'result': 'Invalid API key · Please run /login'})
+        self.assertEqual(bb.claude_failure(1, out, ''), 'Claude could not run: Invalid API key · Please run /login')
+        threads, calls = {}, []
+        for k in range(3):
+            th = {'id': sid(NOW - 3600000 - k * 60000), 'name': 'b%d' % k}
+            m = msg(ALICE, 60 + k, 'x')
+            m['id'] = th['id']
+            threads[th['id']] = (th, [m])
+
+        def down(**kw):
+            calls.append(1)
+            raise bb.ClaudeError('Claude could not run: Invalid API key')
+        did = self.run_intake(FakeDiscord(threads), FakeGitHub(), down)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(did, [{'error': 'Claude could not run: Invalid API key'}])
+
     def test_not_a_bug(self):
         th = {'id': sid(NOW - 3600000), 'name': 'hi'}
         m = msg(BOB, 60, 'how do I drive?')
