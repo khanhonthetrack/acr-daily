@@ -1,6 +1,6 @@
 """HOME in the game (ingamekit.py says how a page is made): a photo tile for each part of ACR Daily, the big ones over
-the small ones (the user, 22 Nov 2026: EVENTS and RANKED on top; ONLINE RALLIES, REPLAY (PROFILE's place from 26 Nov
-2026), WATCH and COMMUNITY under them). Each tile says what it is, what is on now and its badge (the window's tiles' words where it has them:
+the small ones (the user, 22 Nov 2026: EVENTS and RANKED on top; under them, from 26 Nov 2026: ONLINE RALLIES,
+CODRIVER, REPLAY and COMMUNITY; PROFILE and WATCH in the header). Each tile says what it is, what is on now and its badge (the window's tiles' words where it has them:
 homeui._home_spec); a click goes to that tab."""
 from . import liverally
 from .i18n import _
@@ -10,7 +10,9 @@ TAB = 'home'
 GAP = 20
 BIG_H, SMALL_H = 500, 350              # (the page's height filled: 200 were left empty at its foot, 22 Nov 2026)
 BIG = ('events', 'live')
-SMALL = ('comp', 'replay', 'watch', 'community')   # (REPLAY in PROFILE's place, the user 26 Nov 2026: PROFILE in the header)
+# (the user, 26 Nov 2026: REPLAY in PROFILE's place, PROFILE in the header; then CODRIVER where WATCH was, REPLAY
+# after it, WATCH in the header)
+SMALL = ('comp', 'copilot', 'replay', 'community')
 
 
 def opened(ig):
@@ -62,6 +64,10 @@ def spec(ig, key):
                                      (_('%d credits') % credits) if credits is not None else '') if x)
         return {'title': _('PROFILE'), 'photo': 'portugal', 'badge': None,
                 'lines': [(_('Your page, flag, team and achievements'), 'sub')] + ([(who, 'info')] if who else [])}
+    if key == 'copilot':                         # CODRIVER (ig_copilot.py: EVENTS' third sub-tab; a driver and his co-driver)
+        # (no stage named: CODRIVER's is a "?" until driven)
+        return {'title': _('CODRIVER'), 'photo': 'codriver', 'badge': None,
+                'lines': [(_('A daily for two: one drives, one reads the notes'), 'sub')]}
     if key == 'replay':                          # (replays.py: every run kept; a TV helicopter over the car)
         from . import replays
         try:

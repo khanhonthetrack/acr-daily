@@ -14,7 +14,8 @@ from test_app import tk_root  # noqa: E402
 PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community', 'london')     # (london: ACR DAILY London's card)
 # (WRC Generations' stages on the COMMUNITY page: their country's, 19 Nov 2026; Greece and Sweden use the rallies')
 PARTS += ('spain', 'corsica', 'italy', 'kenya', 'mexico', 'germany', 'portugal')
-PARTS += ('replay',)                     # (the REPLAY tile: a TV helicopter over the car, 26 Nov 2026)
+PARTS += ('replay', 'codriver')          # (26 Nov 2026: the REPLAY tile, a TV helicopter over the car; the CODRIVER
+                                         # tile, a driver and his co-driver)
 # (Oxmod's Thierache stages: in-game screenshots of his stages, credited to him, 25 Nov 2026)
 SCREENSHOTS = ('thierache', 'chemin-erables')
 PARTS += SCREENSHOTS

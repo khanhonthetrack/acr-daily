@@ -301,10 +301,16 @@ class Home(unittest.TestCase):
         ig.app.credits = {'balance': 50}
         node = ig_home.page(ig)
         self.assertEqual(check(node), [])
-        for key in ('events', 'comp', 'replay', 'watch', 'community'):   # (REPLAY in PROFILE's place, 26 Nov 2026)
+        # (26 Nov 2026: CODRIVER and REPLAY in the places of WATCH and PROFILE, both in the header)
+        for key in ('events', 'comp', 'copilot', 'replay', 'community'):
             self.assertIn('home.go:%s' % key, str(node))
+        self.assertNotIn('home.go:watch', str(node))
         self.assertIn('Every run kept', str(node))
-        self.assertIn('1 LIVE', str(node))           # (Bob on the daily's stage)
+        self.assertIn('CODRIVER', str(node))
+        s = str(node)                                # (in this order, left to right)
+        self.assertLess(s.index('home.go:comp'), s.index('home.go:copilot'))
+        self.assertLess(s.index('home.go:copilot'), s.index('home.go:replay'))
+        self.assertLess(s.index('home.go:replay'), s.index('home.go:community'))
 
 
 class EventsTab(unittest.TestCase):
