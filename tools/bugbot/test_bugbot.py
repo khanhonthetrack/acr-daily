@@ -55,6 +55,10 @@ class FakeGitHub:
     def __init__(self, issues=None):
         self.list = issues or []
         self.comments_ = []
+        self.fixes = []
+
+    def start_fix(self, n):
+        self.fixes.append(n)
 
     def issues(self, label='from-discord', state='all'):
         return [i for i in self.list if state == 'all' or i['state'] == state]
@@ -135,9 +139,29 @@ class Helpers(unittest.TestCase):
 
 
 class Intake(unittest.TestCase):
-    def run_intake(self, dc, gh, runner):
+    def run_intake(self, dc, gh, runner, autofix=0):
         with tempfile.TemporaryDirectory() as d:
-            return bb.intake(dc, gh, now_ms=NOW, runner=runner, workdir=d)
+            return bb.intake(dc, gh, now_ms=NOW, runner=runner, workdir=d, autofix=autofix)
+
+    def test_autofix_new_clear_bugs_up_to_the_limit(self):
+        threads = {}
+        for k in range(3):
+            th = {'id': sid(NOW - 3600000 - k * 60000), 'name': 'bug %d' % k}
+            m = msg(ALICE, 60 + k, 'broken %d' % k)
+            m['id'] = th['id']
+            threads[th['id']] = (th, [m])
+        dc, gh = FakeDiscord(threads), FakeGitHub()
+        did = self.run_intake(dc, gh, triage(), autofix=2)
+        self.assertEqual(len(gh.fixes), 2)
+        self.assertEqual(sum(1 for d in did if str(d.get('fix', '')).startswith('not started')), 1)
+
+    def test_no_autofix_for_features_or_missing_details(self):
+        th = {'id': sid(NOW - 3600000), 'name': 'wish'}
+        m = msg(ALICE, 60, 'add rain')
+        m['id'] = th['id']
+        dc, gh = FakeDiscord({th['id']: (th, [m])}), FakeGitHub()
+        self.run_intake(dc, gh, triage(kind='feature'), autofix=3)
+        self.assertEqual(gh.fixes, [])
 
     def test_logs_a_clear_report(self):
         th = {'id': sid(NOW - 3600000), 'name': 'Timer broken'}

@@ -1,4 +1,5 @@
-# The bug bot, steps 2 and 3: an issue labelled `ai-fix` (only people with write access can label) ->
+# The bug bot, steps 2 and 3: started by bugbot-intake for each new, clear bug (workflow_dispatch), or by hand with
+# the `ai-fix` label on any open issue (only people with write access can label) ->
 #   fix     Claude edits a checkout (no GitHub write token anywhere near it) and runs the unit tests;
 #   pr      the edits become a draft PR "Fixes #N" on bugbot/issue-N (changes to .github/ or tools/bugbot/ refused);
 #   test    the app's and server's unit tests on Windows, as the release build runs them;
@@ -9,9 +10,14 @@ name: bugbot-fix
 on:
   issues:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to fix'
+        required: true
 
 concurrency:
-  group: bugbot-fix-${{ github.event.issue.number }}
+  group: bugbot-fix-${{ github.event.issue.number || inputs.issue }}
   cancel-in-progress: true
 
 permissions:
@@ -19,7 +25,9 @@ permissions:
 
 jobs:
   fix:
-    if: github.event.label.name == 'ai-fix' && github.event.issue.state == 'open'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'ai-fix' && github.event.issue.state == 'open')
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
@@ -52,9 +60,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}          # (read-only here; bugbot.py keeps it from Claude)
           GITHUB_REPOSITORY: ${{ github.repository }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          BUGBOT_MODEL: ${{ vars.BUGBOT_MODEL }}
+          BUGBOT_MODEL: ${{ vars.BUGBOT_MODEL || 'claude-opus-5-5' }}
           APPDATA: ${{ runner.temp }}/appdata        # (the app's tests never touch a real settings folder)
-        run: python tools/bugbot/bugbot.py fix --issue ${{ github.event.issue.number }} --out .bugbot/fix.json
+        run: python tools/bugbot/bugbot.py fix --issue ${{ github.event.issue.number || inputs.issue }} --out .bugbot/fix.json
 
       - name: Pack the change
         shell: bash
@@ -84,7 +92,7 @@ jobs:
       branch: ${{ steps.pr.outputs.branch }}
     env:
       GH_TOKEN: ${{ github.token }}
-      N: ${{ github.event.issue.number }}
+      N: ${{ github.event.issue.number || inputs.issue }}
     steps:
       - uses: actions/checkout@v7
 
@@ -103,7 +111,7 @@ jobs:
             gh issue comment "$N" --body "The bug bot made no fix.
 
           $why"
-            gh issue edit "$N" --remove-label ai-fix
+            gh issue edit "$N" --remove-label ai-fix || true
             exit 0
           fi
           branch="bugbot/issue-$N"
@@ -175,7 +183,7 @@ jobs:
       issues: read
       pull-requests: write
     env:
-      N: ${{ github.event.issue.number }}
+      N: ${{ github.event.issue.number || inputs.issue }}
       PR: ${{ needs.pr.outputs.pr }}
     steps:
       - uses: actions/checkout@v7
@@ -198,7 +206,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          BUGBOT_MODEL: ${{ vars.BUGBOT_MODEL }}
+          BUGBOT_MODEL: ${{ vars.BUGBOT_MODEL || 'claude-opus-5-5' }}
         run: |
           npm install -g @anthropic-ai/claude-code@^2.1
           git diff origin/main...HEAD > .bugbot/pr.diff

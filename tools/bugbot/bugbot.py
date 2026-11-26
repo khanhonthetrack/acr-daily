@@ -244,6 +244,11 @@ class GitHub:
     def add_labels(self, n, labels):
         return self.call('POST', '/issues/%d/labels' % n, {'labels': labels})
 
+    def start_fix(self, n, ref='main'):
+        """Starts bugbot-fix.yml for issue n. (Issues and labels made with the workflow token start no workflows;
+        a workflow_dispatch does.)"""
+        return self.call('POST', '/actions/workflows/bugbot-fix.yml/dispatches', {'ref': ref, 'inputs': {'issue': str(n)}})
+
     def ensure_labels(self):
         for name, (color, desc) in LABELS.items():
             try:
@@ -429,7 +434,8 @@ REPLY_NOT_BUG = ('This doesn\'t look like a bug report, so I haven\'t logged it.
                  'what you did, what you expected and what happened.')
 
 
-def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, model=None, dry=False):
+def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, model=None, dry=False, autofix=0):
+    """autofix: how many new bugs of this run go straight to an AI fix (0: none, only the ai-fix label starts one)."""
     now_ms = now_ms or int(time.time() * 1000)
     bot_id = dc.me()['id']
     forum = dc.forum(forum_id=forum_id)
@@ -455,6 +461,18 @@ def intake(dc, gh, now_ms=None, runner=None, workdir='.bugbot', forum_id=None, m
         except Exception as e:      # noqa: BLE001  (one bad thread must not stop the others)
             log('thread %s failed: %r' % (tid, e))
             did.append({'thread': tid, 'error': repr(e)[:300]})
+    started = 0
+    for d in did:                   # new, clear bugs -> an AI fix each, up to `autofix` a run (the Claude plan's usage)
+        if d.get('fixable') and not dry:
+            if started >= autofix:
+                d['fix'] = 'not started (limit %d a run): add the ai-fix label' % autofix
+                continue
+            try:
+                gh.start_fix(d['issue'])
+                d['fix'] = 'started'
+                started += 1
+            except HttpError as e:
+                d['fix'] = 'could not start: %s' % e.status
     return did
 
 
@@ -496,7 +514,8 @@ def handle_new(dc, gh, th, msgs, bot_id, runner, workdir, model, dry):
         return {'thread': tid, 'did': 'would log', 'title': title, 'labels': labels}
     issue = gh.create_issue(title, issue_body(t, th, dc.guild_id, msgs, needs_info), labels)
     dc.post(tid, reply_logged(issue['number'], issue['html_url'], title))
-    return {'thread': tid, 'did': 'logged #%d' % issue['number']}
+    return {'thread': tid, 'did': 'logged #%d' % issue['number'], 'issue': issue['number'],
+            'fixable': t['kind'] == 'bug' and not needs_info}
 
 
 def forward_new(dc, gh, issue, th, bot_id, dry):
@@ -681,7 +700,8 @@ def main(argv=None):
         gh().ensure_labels()
         out({'labels': list(LABELS)})
     elif a.command == 'intake':
-        out(intake(dc(), gh(), forum_id=env.get('BUGBOT_FORUM_ID') or None, model=env.get('BUGBOT_TRIAGE_MODEL') or model, dry=a.dry))
+        out(intake(dc(), gh(), forum_id=env.get('BUGBOT_FORUM_ID') or None, model=env.get('BUGBOT_TRIAGE_MODEL') or model, dry=a.dry,
+                   autofix=int(env.get('BUGBOT_AUTOFIX') or 0)))
     elif a.command == 'setup-forum':
         out(setup_forum(dc(), forum_id=env.get('BUGBOT_FORUM_ID') or None))
     elif a.command == 'notify':

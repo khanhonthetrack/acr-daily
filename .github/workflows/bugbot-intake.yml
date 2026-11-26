@@ -1,5 +1,6 @@
 # The bug bot, step 1: Discord #bug-reports -> GitHub issues (tools/bugbot/README.md).
-# Every 4 hours: new forum posts are read by Claude (read-only), logged as issues or asked for missing details;
+# Every 4 hours: new forum posts are read by Claude (read-only), logged as issues or asked for missing details
+# (each new, clear bug then starts bugbot-fix.yml, up to BUGBOT_AUTOFIX a run);
 # later messages in a logged thread are copied to its issue. By hand: "setup-forum" writes the forum's guidelines.
 name: bugbot-intake
 
@@ -17,6 +18,7 @@ on:
 permissions:
   contents: read
   issues: write
+  actions: write     # starts bugbot-fix.yml for each new bug
 
 concurrency:
   group: bugbot-intake
@@ -31,6 +33,7 @@ jobs:
       DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID }}
       BUGBOT_FORUM_ID: ${{ vars.BUGBOT_FORUM_ID }}
       BUGBOT_TRIAGE_MODEL: ${{ vars.BUGBOT_TRIAGE_MODEL || 'claude-sonnet-5-5' }}
+      BUGBOT_AUTOFIX: ${{ vars.BUGBOT_AUTOFIX || '3' }}   # new bugs fixed automatically per run (0 = only by the ai-fix label)
       GITHUB_TOKEN: ${{ github.token }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     steps:
