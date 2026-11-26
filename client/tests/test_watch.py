@@ -200,6 +200,67 @@ class Road(unittest.TestCase):
         self.assertIsNone(w.running_place(None))
 
 
+class EventOnly(unittest.TestCase):
+    """The cars WATCH shows are the event's, as the "WATCH · n LIVE" count has them (the website's list for the
+    event): the user, 26 Nov 2026, "tied only to the events, not anything else"."""
+    NOW = 1000.0
+
+    def watching(self, ds, live=None, board=None, live_at=NOW):
+        a = app_with(ds)
+        d = a.dailies[2]
+        if live is not None:
+            d['live'], d['live_at'] = live, live_at
+        if board is not None:
+            d['board'] = {'entries': board}
+        w = watch.Watch(a)
+        w.start('daily', 2)
+        return w
+
+    def ids(self, w, at=None):
+        with mock.patch('acr_daily.watch.time.monotonic', return_value=self.NOW if at is None else at):
+            return [d.id for d in w.drivers()]
+
+    @staticmethod
+    def drv(did, x, born=0.0, standing=False):
+        d = Driver(did, x, 9000 + x)
+        d.born, d.standing = born, standing
+        return d
+
+    def test_a_car_the_list_does_not_name_is_not_shown(self):
+        ds = [self.drv(1, 500), self.drv(2, 300)]
+        w = self.watching(ds, live=[{'steamId': 's1', 'state': 'live', 'name': 'Ann'}])
+        self.assertEqual(self.ids(w), [1])
+
+    def test_no_list_yet_the_relays_room_alone(self):
+        ds = [self.drv(1, 500), self.drv(2, 300)]
+        self.assertEqual(self.ids(self.watching(ds)), [1, 2])                       # (not fetched)
+        w = self.watching(ds, live=[{'steamId': 's1', 'state': 'live'}], live_at=self.NOW - watch.LIST_STALE_S - 1)
+        self.assertEqual(self.ids(w), [1, 2])                                       # (too old to go by)
+
+    def test_a_run_just_begun_is_given_a_moment(self):
+        ds = [self.drv(1, 500, born=self.NOW - 5), self.drv(2, 300, born=self.NOW - 5)]
+        w = self.watching(ds, live=[{'steamId': 's1', 'state': 'live'}])
+        self.assertEqual(self.ids(w), [1, 2])                                       # (the website may not name them yet)
+        self.assertEqual(self.ids(w, at=self.NOW + watch.GRACE_S + 1), [1])         # (then it must)
+
+    def test_standing_cars_and_those_with_a_result_stay(self):
+        ds = [self.drv(1, 500), self.drv(2, 300, standing=True), self.drv(3, 100)]
+        w = self.watching(ds, live=[{'steamId': 's1', 'state': 'live'}], board=[{'steamId': 's3', 'totalMs': 99000}])
+        self.assertEqual(self.ids(w, at=self.NOW + 100), [1, 3, 2])                  # (2: at the start line, the room's)
+
+    def test_the_same_set_in_the_tower_and_the_count(self):
+        ds = [self.drv(1, 500), self.drv(2, 300)]
+        ds[0].name = 'Ann'
+        live = [{'steamId': 's1', 'state': 'live', 'name': 'Ann'}, {'steamId': 's9', 'state': 'live', 'name': 'Far',
+                                                                    'progress': 0.2, 'totalMs': 5000}]
+        w = self.watching(ds, live=live)
+        with mock.patch('acr_daily.watch.time.monotonic', return_value=self.NOW):
+            names = {r['name'] for r in w.rows(self.NOW)}
+        # (the relay's Ann, and Far from the list with no car: never the one the list doesn't name)
+        self.assertEqual(names, {'Ann', 'Far'})
+        self.assertEqual(len([x for x in live if x['state'] == 'live']), 2)
+
+
 class Broadcast(unittest.TestCase):
     def ig(self, drivers):
         ig = mock.Mock()

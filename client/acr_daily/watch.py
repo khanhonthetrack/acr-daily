@@ -29,6 +29,8 @@ GRAPHICS_NAMES = {'full': _('FULL'), 'clean': _('CLEAN'), 'off': _('OFF')}
 FALLBACK_S = 3.0                  # the followed driver gone from the relay this long: the next one
 STANDING_NEXT_S = 12.0            # the followed car standing (its finish played back: 5 s late) this long: one driving
 ROUTE_AHEAD_M, ROUTE_STEP_M = 520.0, 10.0  # the road ahead of the followed car the mod is told (its TV cameras)
+GRACE_S = 15.0                    # a driver just heard: the website's list may not name them yet (in_event)
+LIST_STALE_S = 60.0               # the website's live list older than this is not known (in_event: the relay's room alone)
 AUTO_DRIVER_S = 40.0              # AUTO driver: another driver at most this often
 # the spectator menu's lines (Up / Down between them, Left / Right change them, Select / Back close it)
 MENU = ('driver', 'camera', 'auto_driver', 'graphics', 'splits')
@@ -122,11 +124,48 @@ class Watch:
         # car (a Skoda Fabia on a Delta S4 daily, 24 Nov 2026) was followed, timed against the day's board. (Not for a
         # CODRIVER crew: the co-driver follows their own driver, whatever the car.)
         if not self.copilot():
-            out = [d for d in out if self.fits(d.car)]
+            now = time.monotonic()
+            out = [d for d in out if self.fits(d.car) and self.in_event(d, now)]
         rows = [(self.where(d), d) for d in out]
         # (the cars driving first, furthest on first; then the ones standing: at the start, or after their finish)
         rows.sort(key=lambda x: (bool(getattr(x[1], 'standing', False)), -(x[0]['progress'] if x[0] else -1)))
         return [d for _w, d in rows]
+
+    def event_ids(self, now=None):
+        """Who is in the watched event, as the server has them: (Steam ids, lowercase names) of the drivers on its live
+        list (the "WATCH · n LIVE" count's) and of those with a result on its board; None while that list is not known
+        (not fetched yet, or older than LIST_STALE_S: the relay's room alone then)."""
+        h = self.held()
+        live = h.get('live')
+        now = time.monotonic() if now is None else now
+        if live is None or not h.get('live_at') or now - h['live_at'] > LIST_STALE_S:
+            return None
+        sids, names = set(), set()
+        listed = [x for x in live if isinstance(x, dict) and x.get('state', 'live') == 'live']
+        listed += [x for x in (h.get('board') or {}).get('entries') or () if isinstance(x, dict)]
+        for x in listed:
+            if x.get('steamId'):
+                sids.add(str(x['steamId']))
+            if x.get('name'):
+                names.add(str(x['name']).strip().lower())
+        return sids, names
+
+    def in_event(self, d, now=None):
+        """Is this relay driver one of the watched event's? The relay's room is the event's (eventroom.py), but an app
+        from before it, or a run that doesn't count (no stake on the wager daily), shares it without being in the event:
+        a car driving that the server's list does not name is not shown (the user, 26 Nov 2026: the WATCH number and the
+        cars shown are the event's alone, "not anything else"). A car standing, at the start or after the finish, is
+        the room's; a run just begun is given GRACE_S for the website's list to name it."""
+        if getattr(d, 'standing', False):
+            return True
+        now = time.monotonic() if now is None else now
+        who = self.event_ids(now)
+        if who is None:
+            return True
+        sid = str(getattr(d, 'sid', '') or '')
+        if (sid and sid in who[0]) or (not sid and (getattr(d, 'name', '') or '').strip().lower() in who[1]):
+            return True
+        return now - getattr(d, 'born', now) < GRACE_S
 
     def fits(self, car):
         """A car the watched stage is driven in: the daily's / time trial's own, one of an event's; a driver whose app

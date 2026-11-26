@@ -207,6 +207,7 @@ class LiveDriver:
         self.trace = gc.GhostTrace({'samples': []})
         self.start_wall = None       # their stage clock's 0 on this PC's clock (the earliest seen: delays only add)
         self.seen = time.monotonic()
+        self.born = self.seen        # when this run was first heard (WATCH gives the website's list a moment to name them)
         self._late = collections.deque(maxlen=LATE_KEEP)   # how late their newest sample was, as each batch came
         self.play_ms, self._play_at = None, None           # where their playback is on their clock, and when
         self.fin_ms = None           # their stage clock as it stopped at the finish (their samples' clock runs on after it)
