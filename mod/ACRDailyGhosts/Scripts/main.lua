@@ -1527,6 +1527,11 @@ local function notes_follow(pc, me, actor)
 end
 
 function watch_off(pc, me)
+    if W.hidden then                                     -- (your own car back in sight: see watch_tick)
+        local h = W.hidden
+        W.hidden, W.hidden_addr = nil, nil
+        pcall(function() if h:IsValid() then h:SetActorHiddenInGame(false) end end)
+    end
     if NOTES.on then pcall(notes_follow, pc, me, nil) end
     if W.drv_car and W.drv_car.driver_hidden then
         pcall(driver_visible, W.drv_car, true)
@@ -1934,6 +1939,16 @@ function watch_tick(pc, me, t)
         crumb("watch: driver figure")
         pcall(driver_visible, c, not no_driver)
         c.driver_hidden, W.drv_car = no_driver, c
+    end
+    -- your own car, the one WATCH set up and left standing on the start line, out of sight while another is followed:
+    -- it overlapped the car followed there (two cars in one place, a livery of one over the other's: the Discord report
+    -- of 26 Nov 2026). Back in sight in watch_off. (Its paint is still read from it for the livery: hidden meshes keep it.)
+    if me and me:IsValid() then
+        local okad, addr = pcall(function() return me:GetAddress() end)
+        if okad and W.hidden_addr ~= addr and pcall(function() me:SetActorHiddenInGame(true) end) then
+            W.hidden, W.hidden_addr = me, addr
+            log("watch: your own car out of sight")
+        end
     end
     -- the view on it: once, and again now and then (a game's own camera change may take it back)
     if not W.on or t - W.set_t > 1.0 then

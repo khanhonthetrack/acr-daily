@@ -1117,7 +1117,7 @@ class LeaguesUI:
                                                                                                   action == 'resume' else
                                                                                                   (ev.get('entry') or {}).get('done', 0) + 1)
         done = (ev.get('entry') or {}).get('done', 0)
-        back = details if action == 'resume' else 0 if action == 'setup' else done
+        back = leagues.rally_from(ev, action, details, done)
         if (ev.get('entry') or {}).get('status') == 'running' and back < done:
             # the game took its rally back (quit away from a service park, a crash): the counted stages again
             path += ' ' + self._again_text(back, done)

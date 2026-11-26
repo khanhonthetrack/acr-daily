@@ -104,6 +104,37 @@ class Following(unittest.TestCase):
             self.assertEqual(w.followed().id, 1)
 
 
+class Livery(unittest.TestCase):
+    """The game paints only the car you sit in and the mod copies that paint onto the car followed: right only for the
+    same model (a 131 Abarth followed from a GTA's seat came out with the doors of one, the bonnets of the other:
+    a Discord report, 26 Nov 2026)."""
+    CLASSES = {'Alfa Romeo Giulia GTA Junior 1300': 'BC_GTA', 'Fiat 131 Abarth Rally': 'BC_131',
+               'Fiat 131 Abarth': 'BC_131', 'Mystery Car': None}
+
+    def w(self, own):
+        w = watch.Watch(app_with([]))
+        w.start('daily', 2)
+        w.own_car = own
+        return w
+
+    def test_only_on_the_same_model(self):
+        fol = Driver(1, 100, 9000)
+        fol.car = 'Fiat 131 Abarth Rally'
+        cls = self.CLASSES.get
+        self.assertIsNone(self.w('Alfa Romeo Giulia GTA Junior 1300').livery_for(fol, 'alitalia', cls))
+        self.assertEqual(self.w('Fiat 131 Abarth').livery_for(fol, 'alitalia', cls), 'alitalia')   # (the same model)
+        self.assertIsNone(self.w('Fiat 131 Abarth').livery_for(fol, None, cls))
+        self.assertIsNone(self.w('Fiat 131 Abarth').livery_for(None, 'alitalia', cls))
+
+    def test_unknown_classes(self):
+        fol = Driver(1, 100, 9000)
+        cls = self.CLASSES.get
+        fol.car = 'Mystery Car'
+        self.assertEqual(self.w('Mystery Car').livery_for(fol, 'x', cls), 'x')       # (neither known: as before)
+        self.assertEqual(self.w(None).livery_for(fol, 'x', cls), 'x')                # (own car not told: as before)
+        self.assertIsNone(self.w('Fiat 131 Abarth').livery_for(fol, 'x', cls))       # (only theirs unknown: not painted)
+
+
 class Keys(unittest.TestCase):
     def test_the_spectator_menu(self):
         ds = [Driver(1, 100, 9000), Driver(2, 500, 52000)]

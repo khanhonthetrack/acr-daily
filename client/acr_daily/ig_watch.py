@@ -740,7 +740,14 @@ def overlay(ig):
                    txt(_('REPLAY') if getattr(w, 'replay', None) is not None else _('LIVE COVERAGE'), 11, 'bold', SOFT,
                        sp=160)),
                va='b', al='l')
-    corner = col(menu, sp(h=14) if menu else None, mark, va='b')
+    # the keys, small under the mark (the user's players could not find how to change the driver or the camera, 26 Nov
+    # 2026: "is it possible to switch to another driver directly from the live view?"). Not for a COPILOT's co-driver
+    # (his keys are the notes'); the spectator menu says its own when open.
+    hint = None
+    if menu is None and not w.copilot():
+        hint = txt(_('LEFT / RIGHT: replay 10 s  ·  ENTER: menu') if getattr(w, 'replay', None) is not None else
+                   _('LEFT / RIGHT: driver  ·  UP / DOWN: camera  ·  ENTER: menu'), 12, 'semi', SOFT, pad=[0, 6, 0, 0])
+    corner = col(menu, sp(h=14) if menu else None, mark, hint, va='b')
     if fol is not None:
         dash = w and fol.dash_at(now)
         car_id = (w.ch() or {}).get('carId')
@@ -782,6 +789,7 @@ def _go(ig, setup, ch, begin):
     """WATCH's stage set up in the running game (begin: WATCH on, on that stage), the game on to the Service Park."""
     a = ig.app
     begin()
+    a.watch.own_car = ch.get('car') or ch.get('carId')     # (the car the game is set up with: your own while watching)
 
     def ok():
         a.sub_l.configure(text=_('At the Service Park: START STAGE, then you watch from the start line.'))

@@ -58,6 +58,7 @@ class Watch:
         """kind 'daily' / 'tt' (slot: its slot), or 'event' (a championship's, a cup's, a 1V1's stage: slot its stage
         number, event its own dict, event_held()). prefer: the Steam id of the driver to follow first (WATCH's list)."""
         self.on, self.kind, self.slot = True, kind, slot
+        self.own_car = None                   # (the car the game was set up with, ig_watch._go: livery_for)
         self.event = event if kind == 'event' else None
         self.prefer = prefer
         self.target, self.cam, self.since, self._lost_at = None, 0, time.monotonic(), None
@@ -298,6 +299,22 @@ class Watch:
 
     def cam_name(self):
         return CAMS[self.cam]
+
+    def livery_for(self, fol, name, class_of):
+        """The followed driver's livery `name` as the mod may paint it: the game paints only the car the player sits in
+        (your own, which WATCH set up) and the mod copies that paint onto the car followed, mesh by mesh. That is right
+        only when both are the same model; with another one (a 131 Abarth followed from a GTA's seat, a Discord report of
+        26 Nov 2026) the doors of one and the bonnet of the other came out on the ghost. -> `name`, or None (the car
+        followed in its own paint). class_of: ghostcars.car_class. A car's class not known on either side: as before."""
+        if not name or fol is None:
+            return None
+        own = getattr(self, 'own_car', None)
+        if not own:
+            return name
+        mine, theirs = class_of(own), class_of(getattr(fol, 'car', None))
+        if mine is None and theirs is None:
+            return name
+        return name if mine == theirs else None
 
     def ghost_id(self):
         """The followed driver's car as the mod knows it ('L<id>': ghostui), or None."""

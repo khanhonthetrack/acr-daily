@@ -755,6 +755,7 @@ class GhostOverlay:
                 lines.append('wdash %d %.2f %d %d' % (rpm, dash.get('gas') or 0.0, dash.get('gear') or 1, seq))
             # (in their own livery: the mod paints it on, main.lua livery_tick; one not here fetched first)
             name = liveries_ui.ready(self.app, fol) if fol is not None else None
+            name = w.livery_for(fol, name, gc.car_class)     # (only on a car of the model you sit in: watch.livery_for)
             lines.append('wlivery %d %s' % (seq, name or '-'))
             rate = getattr(fol, 'rate_now', None) if fol is not None else None
             if rate is not None:                        # (a REPLAY: played faster, slower or paused; main.lua play_clock)

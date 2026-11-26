@@ -694,6 +694,20 @@ def rules_back(b, ev):
     return out if out != b else None
 
 
+def rally_from(ev, action, details, done):
+    """The stage (index) the rally in the game starts from once plan()'s action is done, for the entry that has `done`
+    stages counted: 'resume' goes on where the game is (`details`), a set-up starts the leg the entry is on, at that
+    leg's first stage (not SS1: an event across places or days is several rallies in the game, each from its own first
+    stage; a driver told "drive SS1 to SS5 again" for a rally that begins at SS6 asked 26 Nov 2026), anything else is
+    where the entry is. Fewer than `done`: those stages are driven again, for nothing."""
+    if action == 'resume':
+        return details
+    if action in ('setup', 'reset', 'next-leg'):
+        leg = details if action == 'next-leg' else leg_of(ev, done)
+        return min(done, legs(ev)[leg][0])
+    return done
+
+
 def apply_plan(ev, car, action, details, b):
     """-> the new save for plan()'s action (not written), or None when there is nothing to write ('resume').
     'park-other' and 'park-own' only park; call plan() again after them. Raises Gone when the rally put back is not

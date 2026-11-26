@@ -65,6 +65,29 @@ class Legs(unittest.TestCase):
             self.assertIsNone(leagues.recover(ev, 'none', None))     # (a new day: a fresh car)
 
 
+class RallyFrom(unittest.TestCase):
+    """The words "the game took your rally back to SS1: drive SS1 to SS5 again" (leagueui._again_text) said where a
+    rally starts at its leg's first stage (Rally di Sanremo 1986 after a crash past SS5, 26 Nov 2026)."""
+
+    def test_a_leg_starting_where_the_entry_is_says_nothing_to_drive_again(self):
+        ev = event()
+        for done in (2, 4):                                   # (the entry is at a leg's first stage)
+            self.assertEqual(leagues.rally_from(ev, 'setup', None, done), done)
+        self.assertEqual(leagues.rally_from(ev, 'next-leg', 2, 2), 2)
+
+    def test_in_the_middle_of_a_leg_the_stages_before_are_driven_again(self):
+        ev = event()
+        self.assertEqual(leagues.rally_from(ev, 'setup', None, 3), 2)    # (SS3 counted, SS4's leg set up from SS3)
+        self.assertEqual(leagues.rally_from(ev, 'setup', None, 1), 0)
+
+    def test_a_start_and_the_other_actions(self):
+        ev = event()
+        self.assertEqual(leagues.rally_from(ev, 'setup', None, 0), 0)
+        self.assertEqual(leagues.rally_from(ev, 'reset', None, 0), 0)
+        self.assertEqual(leagues.rally_from(ev, 'resume', 3, 4), 3)      # (the game's own: fewer than the entry has)
+        self.assertEqual(leagues.rally_from(ev, 'unpark', None, 4), 4)
+
+
 class Tyres(unittest.TestCase):
     def test_one_surface_or_the_games_own(self):
         ev = event()
