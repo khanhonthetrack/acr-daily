@@ -90,6 +90,10 @@ DISCORD_URL = "https://discord.gg/6kq6h6FVGb"
 # wrangler secret put TWITCH_CLIENT_SECRET
 TWITCH_CHANNEL = "acrdaily"
 TWITCH_CLIENT_ID = "iwkgfzezx259vj13rg2c1oxn8dk7nu"
+# The Discord post when the channel goes live (src/twitchdiscord.js, by the bot): the channel it goes in (found by
+# name, never made) and who it pings: "" nobody, "everyone", "here", or a role's id.
+TWITCH_DISCORD_CHANNEL = "stream"
+TWITCH_DISCORD_PING = ""
 # The dailies overlay's commentator (src/commentary.js writes, src/speech.js speaks): Claude Haiku writes each line
 # (secret ANTHROPIC_API_KEY), an Azure AI Speech voice says it (secret AZURE_SPEECH_KEY; its resource's region here, e.g.
 # "westeurope"). Either missing: no commentator, the overlay's HIGHLIGHTS go on.

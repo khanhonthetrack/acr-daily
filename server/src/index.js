@@ -82,6 +82,7 @@ import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
 import { twitchStatus } from './twitch.js';
+import { syncStream } from './twitchdiscord.js';
 import { adminSupporterAdd, adminSupporterRemove, adminSupporters, bmcWebhook, currentSupporters } from './supporters.js';
 import { dailiesCommentary, lineById } from './commentary.js';
 import { speech, speechOn } from './speech.js';
@@ -656,6 +657,14 @@ async function discordInteraction(req, env, ctx) {
   if (after) ctx.waitUntil(after().then((r) => { if (r && /^not/.test(String(r.scheduled || r.card))) console.error('discord event', r); })
     .catch((e) => console.error('discord event', e)));
   return new Response(JSON.stringify(response), { headers: { 'Content-Type': 'application/json' } });
+}
+
+/** #stream on Discord: ACR Daily live on Twitch, posted once per stream (src/twitchdiscord.js). */
+async function discordStream(env, now = Date.now()) {
+  const status = await twitchStatus(env);
+  return syncStream({ status, api: faqApi(botToken(env), env.DISCORD_GUILD_ID), now,
+    channelName: env.TWITCH_DISCORD_CHANNEL || 'stream', ping: env.TWITCH_DISCORD_PING || '',
+    store: { get: (key) => discordGet(env, key), set: (key, id, hash, note) => discordSet(env, key, id, hash, note) } });
 }
 
 /** #changelog on Discord: each version out (LATEST_VERSION and older) posted once, oldest first, by the FAQ's bot
@@ -1408,7 +1417,7 @@ async function adminCall(req, env, path) {
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
-      faq: await discordFaq(env), commands: await discordCommands(env), queued: await discordQueued(env, when), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when),
+      faq: await discordFaq(env), commands: await discordCommands(env), queued: await discordQueued(env, when), changelog: await discordChangelog(env), stream: await discordStream(env, when), cups: await cupDiscordTick(env, when),
       teamCups: await teamCupDiscordTick(env, when) });
   }
   // the admin panel's DNF review (src/adminpage.js, the user 24 Nov 2026: "I can see the DNF and dictate if I can remove
@@ -2140,6 +2149,9 @@ export default {
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {
       for (const [k, v] of Object.entries(r)) if (/^(error|refused)/.test(String(v))) console.error('discord events', k, v);
     }).catch((e) => console.error('discord events', e)));
+    // #stream: ACR Daily gone live on Twitch (src/twitchdiscord.js; Twitch's answer cached a minute)
+    ctx.waitUntil(discordStream(env, t).then((r) => { if (r && r.error) console.error('discord stream', r.error); })
+      .catch((e) => console.error('discord stream', e)));
     // the FAQ changes only with a deploy: looked at every 10 minutes, not every run
     if (at.getUTCMinutes() % 10 === 5) {
       ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
