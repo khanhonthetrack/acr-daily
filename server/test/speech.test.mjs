@@ -70,13 +70,13 @@ test('Claude\'s line found again by its id (only an id of the right shape)', asy
 
 test('a line too long for the voice ends on a whole sentence, never mid-sentence', () => {
   const s1 = 'Welcome to ACR Daily! Stage one in Sweden is led by uzuramcrae at four twelve point one five eight, SyakeBiscuit just one point three four five seconds behind.';
-  const long = `${s1} Stage two is a blizzard, and the times there are anyone's guess as the snow keeps falling and the drivers keep pushing, flat out, every one of them!`;
-  assert.ok(long.length > 300);
+  const long = `${s1} Stage two is a blizzard, and the times there are anyone's guess as the snow keeps falling and the drivers keep pushing, flat out, every one of them, right to the line!`;
+  assert.ok(long.length > 320);
   assert.equal(trimSpoken(long), s1);
   assert.equal(trimSpoken('Short and sweet!'), 'Short and sweet!');
   const one = `What a run ${'and on and on '.repeat(30)}`;
   const t = trimSpoken(one);
-  assert.ok(t.length <= 300, t);
+  assert.ok(t.length <= 320, t);
   assert.match(t, /^What a run .* on!$/);       // (one overlong sentence: cut at a word, ended with "!")
 });
 

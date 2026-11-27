@@ -78,6 +78,22 @@ test('asked once per happening, at most every 15 s; what happened in between goe
   assert.deepEqual(sent.stages[0].board, [{ pos: 1, name: 'Kalle', time: '4:11.002', gap: null }]);
 });
 
+test('Claude is told who the drivers named are: their country and their team (plain, no $ styling)', async () => {
+  const w = world(), client = fakeClaude(), cache = fakeCache();
+  w.boards[1] = [
+    { steamId: 's1', name: 'Kalle', status: 'finished', totalMs: 251002, country: 'fi', team: { tag: '$f00FLY', name: '$f00Flying $fffFinns' } },
+    { steamId: 's2', name: 'Mia', status: 'finished', totalMs: 252002, country: 'PL', team: null },
+    { steamId: 's3', name: 'Nobody', status: 'finished', totalMs: 253002 }];
+  w.live[1] = [{ steamId: 's4', name: 'Tom', state: 'live', progress: 0.2, totalMs: 40000, country: 'gb', team: { tag: 'RTR', name: null } }];
+  await run(w, { client, cache, now: 1_000_000 });
+  const sent = JSON.parse(client.calls[0].messages[0].content);
+  assert.deepEqual(sent.drivers, [
+    { name: 'Kalle', from: 'Finland', team: 'Flying Finns' },
+    { name: 'Mia', from: 'Poland' },
+    { name: 'Tom', from: 'United Kingdom', team: 'RTR' }]);
+  assert.match(client.calls[0].system, /FUNNY/);
+});
+
 test('another model set in COMMENTARY_MODEL: it is used, with the API\'s fallback where the model has one', async () => {
   const w = world(), client = fakeClaude();
   await dailiesCommentary({ ANTHROPIC_API_KEY: 'k', COMMENTARY_MODEL: 'claude-opus-5-5' }, w.ask, { client, cache: fakeCache(), now: 0 });
