@@ -75,13 +75,23 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
-    // WATCH: your own car out of sight, the livery only on the same model, the keys on screen; CONTINUE after a crash on
-    // a rally across places or days (9141f0c); not released: its test builds (0.2.2.X) show it under their own number
-    version: '0.2.3', date: '2026-11-26', title: N_("WATCH clean-up, CONTINUE after a crash"), photo: 'alsace',
+    // everything since 0.2.2 the app brings: REPLAYS (40bd8d2..1bff980), the whole car carried (a851847, 82b69d4,
+    // 2a22ef9), HOME (bea6bb4), WATCH (9141f0c, 0430987, PR 100, 699e27c), the tile (0f9f619), CODRIVER's words
+    // (a18b549, 699e27c), the supporters bar (2fb17af..acae0e0); its test builds (0.2.2.X) show it under their own number
+    version: '0.2.3', date: '2026-11-27', title: N_("Replays, your whole car, CODRIVER in your language"), photo: 'alsace',
     changes: [
+      NEW(N_("REPLAYS: every run is kept as a replay. Watch yours from the REPLAY tile in the game, or share its link.")),
+      FIX(N_("A DNF from a lost connection, a frozen game or a result that never arrived is taken back by itself: your replay shows the run was driven.")),
+      BETTER(N_("Your whole car goes on to the next stage as you left it: dents, panels, tyres, windscreen cracks and the repair screen.")),
+      NEW(N_("CODRIVER: the pacenotes come in your language, in the words co-drivers there use.")),
+      FIX(N_("CODRIVER: you can talk to your partner in the lobby already, not only once the stage starts.")),
+      BETTER(N_("WATCH shows only the event's own cars, each driver's flag by their name, and its keys on screen: Left / Right driver, Up / Down camera.")),
       FIX(N_("WATCH: your own car no longer stands in the way of the car you follow, and its livery is no longer mixed with the one you watch.")),
-      BETTER(N_("WATCH shows its keys: Left / Right for the driver, Up / Down for the camera, Enter for the menu.")),
+      FIX(N_("WATCH from the cockpit or the passenger seat: the wheels stay under the car.")),
+      BETTER(N_("HOME in the game: ONLINE RALLIES, CODRIVER, REPLAY and COMMUNITY under EVENTS and RANKED.")),
+      FIX(N_("The ACR DAILY tile stays on the menu after SEARCH LOBBIES.")),
       FIX(N_("CONTINUE after a crash on a rally across several places or days no longer says to drive the first stages again. It starts at the stage you are on.")),
+      NEW(N_("The launcher thanks the drivers who support ACR DAILY on Buy Me a Coffee. Apps too old to run update themselves.")),
     ],
   },
   {
