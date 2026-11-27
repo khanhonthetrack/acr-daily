@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { fakeD1 } from './faked1.mjs';
-import { bmcWebhook, currentSupporters, shownName, signatureOk } from '../src/supporters.js';
+import { adminSupporterAdd, adminSupporterRemove, adminSupporters, bmcWebhook, currentSupporters, shownName, signatureOk } from '../src/supporters.js';
 
 const SECRET = 'whsec_test';
 const NOW = 1795000000000;
@@ -68,4 +68,23 @@ test('names: hidden or empty is Someone, kept short', () => {
   assert.equal(shownName(null), 'Someone');
   assert.equal(shownName('  Alex\n  B '), 'Alex B');
   assert.equal(shownName('x'.repeat(80)).length, 32);
+});
+
+test('the admin puts past supporters in by hand: a coffee for 30 days from its date, a member until taken off', async () => {
+  const { env } = fakeD1({});
+  const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+  assert.equal((await adminSupporterAdd(env, { name: 'Old Friend', kind: 'coffee', coffees: 5, date: day(NOW - 10 * 86400000) }, NOW)).ok, true);
+  assert.equal((await adminSupporterAdd(env, { name: 'Long Ago', kind: 'coffee', date: day(NOW - 60 * 86400000) }, NOW)).ok, true);
+  const m = await adminSupporterAdd(env, { name: 'Loyal', kind: 'member', level: 'Pit crew' }, NOW);
+  assert.equal(m.ok, true);
+  assert.deepEqual(await names(env), ['Loyal', 'Old Friend']);
+  const all = (await adminSupporters(env, NOW)).supporters;
+  assert.equal(all.length, 3);
+  assert.deepEqual(all.map((s) => [s.name, s.shown, s.byHand]), [['Loyal', true, true], ['Old Friend', true, true], ['Long Ago', false, true]]);
+  assert.equal((await adminSupporterRemove(env, m.id)).ok, true);
+  assert.deepEqual(await names(env), ['Old Friend']);
+  assert.match((await adminSupporterRemove(env, m.id)).error, /^admin:/);
+  assert.match((await adminSupporterAdd(env, { name: '', kind: 'coffee' }, NOW)).error, /^admin:/);
+  assert.match((await adminSupporterAdd(env, { name: 'X', kind: 'gold' }, NOW)).error, /^admin:/);
+  assert.match((await adminSupporterAdd(env, { name: 'X', kind: 'coffee', date: day(NOW + 5 * 86400000) }, NOW)).error, /^admin:/);
 });

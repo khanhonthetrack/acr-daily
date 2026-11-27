@@ -93,3 +93,43 @@ export async function currentSupporters(env, now = Date.now()) {
   return { url: BMC_URL, supporters: results.map((r) => ({ name: r.name, kind: r.kind, coffees: r.coffees || undefined,
     level: r.level || undefined })) };
 }
+
+// ------------------------------------------------------------------ the admin's (src/adminpage.js, Supporters)
+// The webhook never sends what came before it was set up: the admin puts past supporters in by hand (the user, 27 Nov
+// 2026), and can take any row off. Kinds by hand: coffee (shown ONE_TIME_DAYS from its date) or member (until taken off).
+
+/** GET /api/admin/supporters: every row, newest first, with whether the app shows it now. */
+export async function adminSupporters(env, now = Date.now()) {
+  const since = Math.floor(now / 1000) - ONE_TIME_DAYS * 86400;
+  const { results } = await env.DB.prepare(`SELECT id, kind, name, coffees, level, active, at FROM supporters
+    ORDER BY at DESC LIMIT 200`).all();
+  return { supporters: results.map((r) => ({ id: r.id, kind: r.kind, name: r.name, coffees: r.coffees || null, level: r.level || null,
+    at: r.at * 1000, byHand: r.id.startsWith('manual:'),
+    shown: (r.kind === 'member' || r.kind === 'monthly') ? r.active === 1 : r.at >= since })) };
+}
+
+/** POST /api/admin/supporters {name, kind: coffee | member, coffees?, level?, date?: YYYY-MM-DD (coffee: given that day)}. */
+export async function adminSupporterAdd(env, b, now = Date.now()) {
+  const name = shownName(b?.name);
+  if (name === 'Someone' && !String(b?.name || '').trim()) return { error: 'admin: a name to show (or "Someone")' };
+  const kind = b?.kind === 'member' ? 'member' : b?.kind === 'coffee' ? 'coffee' : null;
+  if (!kind) return { error: 'admin: kind is coffee or member' };
+  let at = Math.floor(now / 1000);
+  if (b?.date) {
+    const t = Date.parse(String(b.date) + 'T12:00:00Z');
+    if (!Number.isFinite(t) || t > now + 86400000) return { error: 'admin: the date as YYYY-MM-DD, not ahead' };
+    at = Math.floor(t / 1000);
+  }
+  const coffees = Math.max(0, Math.min(1000, Math.floor(+b?.coffees || 0))) || null;
+  const level = kind === 'member' ? String(b?.level || '').trim().slice(0, 40) || null : null;
+  const id = `manual:${crypto.randomUUID().slice(0, 8)}`;
+  await env.DB.prepare(`INSERT INTO supporters (id, kind, name, coffees, level, active, at, updated) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`)
+    .bind(id, kind, name, coffees, level, at, now).run();
+  return { ok: true, id, name };
+}
+
+/** POST /api/admin/supporters/<id>/remove: off the list for good (a webhook's row comes back only with a new event). */
+export async function adminSupporterRemove(env, id) {
+  const r = await env.DB.prepare('DELETE FROM supporters WHERE id = ?').bind(String(id)).run();
+  return r.meta.changes ? { ok: true } : { error: 'admin: no such supporter' };
+}

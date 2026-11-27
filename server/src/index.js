@@ -82,7 +82,7 @@ import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
 import { twitchStatus } from './twitch.js';
-import { bmcWebhook, currentSupporters } from './supporters.js';
+import { adminSupporterAdd, adminSupporterRemove, adminSupporters, bmcWebhook, currentSupporters } from './supporters.js';
 import { dailiesCommentary, lineById } from './commentary.js';
 import { speech, speechOn } from './speech.js';
 import { SERIES_IMAGES } from './seriesimages.js';
@@ -1319,7 +1319,7 @@ function replayDeps(req, env, url) {
 }
 
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear|reinstate|reviewed)|tt\/runs\/\d+\/reject)$/;
+const KEEPS_CACHE = /^\/api\/admin\/(supporters(\/.+\/remove)?|discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear|reinstate|reviewed)|tt\/runs\/\d+\/reject)$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1411,6 +1411,17 @@ async function adminCall(req, env, path) {
   // the time or not"): the dailies' DNFs with a stage clock (the game lost the result: reinstate or keep), the times the
   // app stood in with (keep or take off), the championships' DNFs (a look: their event and the driver's report)
   if (path === '/api/admin/replays' && req.method === 'GET') return json({ replays: await adminReplays(env, Date.now()) });
+  // the supporters' list by hand (src/supporters.js: the ones before Buy Me a Coffee's webhook was set up)
+  if (path === '/api/admin/supporters' && req.method === 'GET') return json(await adminSupporters(env));
+  if (path === '/api/admin/supporters' && req.method === 'POST') {
+    const r = await adminSupporterAdd(env, body);
+    return r.error ? err(r.error) : json(r);
+  }
+  const rs = path.match(/^\/api\/admin\/supporters\/(.{1,80})\/remove$/);
+  if (rs && req.method === 'POST') {
+    const r = await adminSupporterRemove(env, decodeURIComponent(rs[1]));
+    return r.error ? err(r.error, 404) : json(r);
+  }
   const ra = path.match(/^\/api\/admin\/replays\/([a-z0-9]{10})\/accept$/);   // (one in review: its DNF taken back)
   if (ra && req.method === 'POST') return adminAccept(env, ra[1], body, Date.now(), replayDeps(req, env, new URL(req.url)));
   if (path === '/api/admin/dnfs' && req.method === 'GET') {

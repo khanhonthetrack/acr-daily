@@ -89,6 +89,7 @@ input:focus{outline:1px solid var(--fg2)}
     <section id="p-reports" hidden></section>
     <section id="p-comments" hidden></section>
     <section id="p-tools" hidden></section>
+    <section id="p-supporters" hidden></section>
     <section id="p-messages" hidden></section>
     <section id="p-drivers" hidden></section>
     <section id="p-teams" hidden></section>
@@ -122,7 +123,7 @@ $('keyform').onsubmit=function(ev){ev.preventDefault();var k=$('key').value.trim
 $('signout').onclick=function(){forget('')};
 
 var TABS=[['dnfs','DNFs & lost times'],['runs','Reported runs'],['reports','Bug reports'],['comments','Comments'],['messages','Reported messages'],
-  ['liveries','Liveries'],['drivers','Drivers'],['teams','Teams'],['banned','Banned'],['tools','Tools']],LV=null;
+  ['liveries','Liveries'],['drivers','Drivers'],['teams','Teams'],['banned','Banned'],['supporters','Supporters'],['tools','Tools']],LV=null,SP=null;
 function tabs(){var n=$('tabs');n.innerHTML='';TABS.forEach(function(t){var b=el('button',t[0]===TAB?'on':null,t[1]);b.type='button';
   var c=t[0]==='runs'?R&&R.runs.length:t[0]==='messages'?R&&R.messages.length:t[0]==='liveries'?LV&&LV.pending.length+LV.flagged.length:
     t[0]==='dnfs'?D&&(D.lost.length+D.appTime.length):t[0]==='reports'?RP&&RP.filter(function(r){return r.status==='new'}).length:0;var s=el('span','n',c||'');s.hidden=!c;b.appendChild(s);
@@ -130,7 +131,7 @@ function tabs(){var n=$('tabs');n.innerHTML='';TABS.forEach(function(t){var b=el
 function show(){tabs();TABS.forEach(function(t){$('p-'+t[0]).hidden=t[0]!==TAB})}
 function start(){$('keyform').hidden=true;$('app').hidden=false;$('signout').hidden=false;drivers();tools();load()}
 function load(){return api('/api/admin/review').then(function(r){R=r;runs();messages();teams();banned();show();
-  return Promise.all([loadLiveries(),loadDnfs(),loadReports(),loadComments()])},function(e){if(e.message!=='refused')say(e.message,true)})}
+  return Promise.all([loadLiveries(),loadDnfs(),loadReports(),loadComments(),loadSupporters()])},function(e){if(e.message!=='refused')say(e.message,true)})}
 
 // ---- DNFs and lost times (the user, 24 Nov 2026: "I can see the DNF and dictate if I can remove the time or not")
 var DAYS=14;
@@ -214,6 +215,27 @@ function comments(){var p=$('p-comments');p.innerHTML='';add(p,el('h2',null,'Com
   CM.forEach(function(c){var it=el('div','item');add(it,add(el('div','top'),add(el('span','t'),drv(c)),el('span','s',[c.on,c.event,when(c.updated),c.hidden?'HIDDEN':''].filter(Boolean).join(' · '))),el('div','body',c.text));
     var a=el('div','acts');a.appendChild(c.hidden?button('Show it again','go',function(b){act(b,'/api/admin/comments/'+c.id,{action:'show'},'Shown.').then(loadComments)}):
       button('Hide','bad',function(b){act(b,'/api/admin/comments/'+c.id,{action:'hide'},'Hidden.').then(loadComments)}));it.appendChild(a);p.appendChild(it)})}
+
+// ---- supporters (src/supporters.js): the launcher's thank-you card. Buy Me a Coffee's webhook adds new ones by itself;
+// the ones from before it was set up go in by hand here (the user, 27 Nov 2026)
+function loadSupporters(){return api('/api/admin/supporters').then(function(j){SP=j.supporters||[];supporters();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function supporters(){var p=$('p-supporters');p.innerHTML='';
+  add(p,el('h2',null,'Supporters'),el('p','lead','Who the launcher thanks. New ones come from Buy Me a Coffee by themselves once its webhook is set up; '+
+    'put earlier ones in here. A coffee shows for 30 days from its date, a member until you take them off. The app asks every few minutes.'));
+  var it=el('div','item'),row=el('div','row'),nm=el('input'),kind=el('select'),cf=el('input'),dt=el('input');
+  nm.placeholder='name as shown (or Someone)';nm.style.width='240px';
+  [['coffee','one-time coffee'],['member','member / monthly']].forEach(function(k){var o=el('option',null,k[1]);o.value=k[0];kind.appendChild(o)});
+  cf.placeholder='coffees';cf.style.width='90px';dt.type='date';dt.title='a coffee: the day it was given (blank: today)';
+  add(row,nm,kind,cf,dt,button('Add','go',function(b){var body={name:nm.value.trim(),kind:kind.value};if(!body.name){say('A name first.',true);return}
+    if(cf.value.trim())body.coffees=Math.round(Number(cf.value));if(dt.value)body.date=dt.value;
+    act(b,'/api/admin/supporters',body,'Added: '+body.name+'.').then(function(){nm.value='';cf.value='';dt.value='';loadSupporters()})}));
+  it.appendChild(row);p.appendChild(it);
+  if(!SP||!SP.length){p.appendChild(el('div','empty','Nobody on the list yet.'));return}
+  SP.forEach(function(s){var it=el('div','item');
+    add(it,add(el('div','top'),el('span','t',s.name),el('span','s',[s.kind,s.coffees?s.coffees+' coffee'+(s.coffees===1?'':'s'):null,s.level,when(s.at),s.byHand?'by hand':'Buy Me a Coffee'].filter(Boolean).join(' · '))));
+    add(it,add(el('div','chips'),el('span','chip'+(s.shown?'':' flag'),s.shown?'shown in the app':'not shown now')));
+    var a=el('div','acts');a.appendChild(button('Take off','bad',function(b){if(confirm('Take '+s.name+' off the list?'))
+      act(b,'/api/admin/supporters/'+encodeURIComponent(s.id)+'/remove',{},s.name+' taken off.').then(loadSupporters)}));it.appendChild(a);p.appendChild(it)})}
 
 // ---- tools: the admin.py commands that change one thing, by number
 function tools(){var p=$('p-tools');p.innerHTML='';
