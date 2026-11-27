@@ -261,6 +261,11 @@ class Api:
     def version(self):
         return self._req('GET', '/api/version')
 
+    def supporters(self):
+        """The current supporters on Buy Me a Coffee (server/src/supporters.js): {url, supporters: [{name, kind,
+        coffees?, level?}]}, for the launcher's thank-you bar (supporters.py)."""
+        return self._req('GET', '/api/supporters', timeout=8)
+
     def changelog(self, version, since=None):
         """What's new in a version (server/src/changelog.js): {version, date, title, photo, changes, kinds}; 404 for
         none. since: the version whose what's new was seen last ('0': any), for earlier: the versions out since then,

@@ -15,7 +15,7 @@ from .i18n import _
 BG, PANEL, LINE2 = '#0A0A0B', '#141417', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, GOOD = '#E30613', '#30D158'
-SIZE = (520, 610)
+SIZE = (520, 630)               # (with the supporters' bar along the bottom: supporters.py)
 PIC_H = 198                     # (the ACR DAILY banner, 1640 x 624, at the launcher's width)
 EVERY_MS = 1500
 
@@ -63,6 +63,7 @@ class Launcher:
         if not self._loop:
             self._loop = True
             self._refresh()
+        self.bar.roll()                                     # (it stops while the launcher is put away)
 
     def hide(self):
         """The whole window back, its size as it was (a desktop-only thing from the in-game pages)."""
@@ -145,8 +146,12 @@ class Launcher:
             tk.Label(line, text=str(k), bg=ACC, fg=WHITE, font=(cond, 10), width=2).pack(side='left')
             tk.Label(line, text=words, bg=BG, fg=SOFT, font=(font, 10), anchor='w').pack(side='left', padx=(8, 0))
 
+        # the supporters on Buy Me a Coffee rolling by, with SUPPORT (supporters.py), along the very bottom
+        from .supporters import SupportBar
+        self.bar = SupportBar(f, a, font, cond, is_on=lambda: self.on)
+        self.bar.f.pack(side='bottom', fill='x')
         low = tk.Frame(f, bg=BG)
-        low.pack(side='bottom', fill='x', padx=28, pady=(0, 22))
+        low.pack(side='bottom', fill='x', padx=28, pady=(0, 16))
         self._button(low, _("WHAT'S NEW"), self.whats_new).pack(side='left')
         self._button(low, _('COMMUNITY'), self.open_community).pack(side='left', padx=(8, 0))
         self.upd = self._button(low, '', self.update, primary=True)

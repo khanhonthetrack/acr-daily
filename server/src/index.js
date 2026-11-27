@@ -82,6 +82,7 @@ import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
 import { SPECIALS } from './liverallies.js';
 import { twitchStatus } from './twitch.js';
+import { bmcWebhook, currentSupporters } from './supporters.js';
 import { dailiesCommentary, lineById } from './commentary.js';
 import { speech, speechOn } from './speech.js';
 import { SERIES_IMAGES } from './seriesimages.js';
@@ -1711,6 +1712,12 @@ async function route(req, env, ctx, L) {
       if (!me) return err('sign in with Steam first', 401);
       if (me.banned) return err('this account is banned', 403);
       return json(await liveTicket(env, me));
+    }
+    // Buy Me a Coffee's webhook and the current supporters (src/supporters.js): the app's thank-you bar
+    if (path === '/api/bmc/webhook' && req.method === 'POST') return bmcWebhook(req, env);
+    if (path === '/api/supporters' && req.method === 'GET') {
+      return new Response(JSON.stringify(await currentSupporters(env)), { headers: { 'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' } });
     }
     if (path === '/api/twitch' && req.method === 'GET') {   // ACR Daily live on Twitch now (src/twitch.js): the strip
       return new Response(JSON.stringify(await twitchStatus(env)), { headers: { 'Content-Type': 'application/json',
