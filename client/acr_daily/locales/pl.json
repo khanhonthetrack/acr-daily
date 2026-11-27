@@ -123,7 +123,7 @@
  "+%d credits for finishing it.": "+%d kredytów za ukończenie.",
  "Not on the board: %s": "Nie ma w tabeli: %s",
  "DNF: %s": "DNF: %s",
- "SPLIT %d / %d": "POMIAR %d / %d",
+ "SPLIT %d / %d": "MIĘDZYCZAS %d / %d",
  "FINISH (provisional)": "META (wstępnie)",
  "·   stages close in %d:%02d": "·   odcinki zamykają się za %d:%02d",
  "%d runs waiting to send": [
@@ -1580,7 +1580,7 @@
  "COMMENT": "KOMENTARZ",
  "DRIVE TT%d ›  restarts the game": "JEDŹ TT%d ›  uruchamia grę ponownie",
  "Next: TT%d · %s": "Następny: TT%d · %s",
- "SPLIT · %d%%": "POMIAR · %d%%",
+ "SPLIT · %d%%": "MIĘDZYCZAS · %d%%",
  "Doesn't count · only Rally Weekend counts": "Nie liczy się · liczy się tylko Rally Weekend",
  "Doesn't count ·": "Nie liczy się ·",
  "Driven already · this run doesn't count": "Już przejechany · ten przejazd się nie liczy",

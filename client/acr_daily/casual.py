@@ -117,6 +117,9 @@ class Casual(Copilot):
     def _fetch_lobby(self, lobby_id):
         return self.app.api.casual_lobby(lobby_id)
 
+    def _lobby_link(self, l):
+        pass                                           # (CASUAL's own, in _take_lobby below)
+
     def _take_lobby(self, l):
         super()._take_lobby(l)
         if l and l.get('state') in ('open', 'started') and not self.solo():

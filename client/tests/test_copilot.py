@@ -325,6 +325,36 @@ class Crew(unittest.TestCase):
         self.assertEqual(cp.cursor, 0)
         self.assertFalse(cp.key('select'))
 
+    def test_the_voice_is_on_in_the_lobby_once_the_partner_is_in(self):
+        """The user, 27 Nov 2026: no microphone in the CODRIVER daily lobby (CASUAL had one)."""
+        a = app_stub()
+        cp = copilot.Copilot(a)
+        made = []
+
+        class FakeCrew:
+            def __init__(self, *args, **kw):
+                self.peers, self.closed = args[4], False
+                made.append(self)
+
+            def sync(self, peers):
+                self.peers = peers
+
+            def signals(self, s):
+                pass
+
+            def close(self):
+                self.closed = True
+        with mock.patch('acr_daily.crew.Crew', FakeCrew):
+            cp._take_lobby(lobby(guest=None))
+            self.assertIsNone(cp.crew, 'alone: nobody to talk to')
+            cp._take_lobby(lobby())
+            self.assertIsNotNone(cp.crew, 'the partner in: the voice on in the lobby')
+            self.assertEqual(made[0].peers, [('2', 1)])
+            cp._take_lobby(lobby())
+            self.assertEqual(len(made), 1, 'once a lobby')
+            cp._take_lobby(lobby(guest=None))
+            self.assertTrue(made[0].closed and cp.crew is None, 'the partner left: closed')
+
     def test_an_old_start_is_not_set_up_again_by_itself(self):
         a = app_stub()
         cp = copilot.Copilot(a)

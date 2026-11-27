@@ -555,19 +555,36 @@ local function place_wheels(c, g, t)
     local target = 0
     if n >= 3 and math.abs(sum / n) < LIFT_MAX then target = sum / n end
     c.lift = (c.lift or 0) + (target - (c.lift or 0)) * math.min(1, dt * 6)
+    c.wd = c.wd or {}
+    for i = 1, 4 do                                            -- (each wheel up / down from where it rests, cm)
+        c.wd[i] = offs[i] and math.max(-SUSP_CM, math.min(SUSP_CM, offs[i] - c.lift)) or 0
+    end
+    local body = c.lift ~= 0 and {g[1], g[2], g[3] + c.lift, g[4], g[5], g[6]} or g
+    wheels_under(c, body)
+    return body
+end
+
+-- The wheels and their suspension (world transforms, in the animation) put under the body where it is drawn: `body`
+-- (the car's root as drawn, lifted onto the ground). Again for WATCH's inside shots, which draw the body on a steadier
+-- copy of its pose: the wheels left on the other one slid about outside the car, seen from the cockpit and the
+-- passenger seat (the user, 27 Nov 2026).
+function wheels_under(c, body)
+    local ai = c.anim
+    if not (c.wheels and ai and ai:IsValid()) then return end
+    local ax, ay, az, q = rotation(body[4], body[5], body[6])
     local wt, st = ai.WheelTransforms, ai.SuspensionTransforms
-    local qs = qmul(q, qaxis(0, 0, 1, c.steer))                -- (front: turned about the car's up)
+    local qs = qmul(q, qaxis(0, 0, 1, c.steer or 0))           -- (front: turned about the car's up)
     for i = 1, 4 do
-        local p = at[i]
-        local d = offs[i] and math.max(-SUSP_CM, math.min(SUSP_CM, offs[i] - c.lift)) or 0
-        p = {X = p.X, Y = p.Y, Z = p.Z + c.lift + d}
+        local l = c.wheels[i]
+        local d = (c.wd and c.wd[i]) or 0
+        local p = {X = body[1] + ax[1] * l[1] + ay[1] * l[2] + az[1] * l[3],
+                   Y = body[2] + ax[2] * l[1] + ay[2] * l[2] + az[2] * l[3],
+                   Z = body[3] + ax[3] * l[1] + ay[3] * l[2] + az[3] * l[3] + d}
         local turn = i <= 2 and qs or q
         local w, s = wt[i], st[i]
-        w.Translation, w.Rotation = p, qmul(turn, qaxis(1, 0, 0, c.spin))   -- (rolling about its axle: the car's X)
+        w.Translation, w.Rotation = p, qmul(turn, qaxis(1, 0, 0, c.spin or 0))   -- (rolling about its axle: the car's X)
         s.Translation, s.Rotation = p, turn
     end
-    if c.lift ~= 0 then return {g[1], g[2], g[3] + c.lift, g[4], g[5], g[6]} end
-    return g
 end
 
 local function transform(g)
@@ -1923,6 +1940,7 @@ function watch_tick(pc, me, t)
             c.actor:K2_SetActorLocationAndRotation({X = q[1], Y = q[2], Z = q[3]}, {Pitch = q[4], Yaw = q[5], Roll = q[6]},
                                                    false, {}, false)
         end)
+        pcall(wheels_under, c, c.shown)                     -- (the wheels and suspension with it: not left on the raw pose)
         local l, r = comp:K2_GetComponentLocation(), comp:K2_GetComponentRotation()
         loc, rot = {l.X, l.Y, l.Z}, {Pitch = r.Pitch, Yaw = r.Yaw, Roll = r.Roll}
         if s.name == "seat" then

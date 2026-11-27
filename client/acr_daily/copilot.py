@@ -331,6 +331,7 @@ class Copilot:
             return
         if l.get('notes') is not None and l.get('notes') != self.notes:
             self.notes = l['notes']
+        self._lobby_link(l)
         self._signals_in(l)
         if l.get('state') == 'started' and self.started_id != l.get('id'):
             # (the start seen here, the lobby open a moment ago: set up at once; else by its age, the PC's clock against the
@@ -339,6 +340,16 @@ class Copilot:
             fresh = seen_open or time.time() * 1000 - (l.get('started') or 0) < RESUME_S * 1000
             if fresh:
                 self.go()
+
+    def _lobby_link(self, l):
+        """The voice in the lobby already, as CASUAL has it (the user, 27 Nov 2026: 'no microphone in the CODRIVER daily
+        lobby'): the link made once the partner is in, closed when they leave before the start."""
+        if self.peers():
+            self.start_link()
+            if self.crew is not None:
+                self.crew.sync(self.peers())
+        elif self.crew is not None and l.get('state') == 'open':
+            self.stop_link()                           # (the partner left the lobby: nobody to talk to)
 
     def host_left(self, l):
         """The lobby over because its driver went (a DNF 'the driver left', or closed before the start), seen by the
