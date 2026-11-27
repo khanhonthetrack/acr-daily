@@ -2052,5 +2052,7 @@
  "ACR Daily runs on your Steam account: your times on the boards, your profile, credits, leagues, 1V1s and cups. Steam confirms it is you on its own page, in the Steam app (or your browser): one click if you are signed in there. ACR Daily never sees your password.": "Az ACR Daily a Steam-fiókodra épül: az idejeid a táblázatokban, a profilod, a kreditek, a ligák, az 1V1-ek és a kupák. A Steam a saját oldalán erősíti meg, hogy te vagy az, a Steam appban (vagy a böngésződben): egy kattintás, ha ott be vagy jelentkezve. Az ACR Daily sosem látja a jelszavadat.",
  "THANK YOU TO OUR SUPPORTERS": "KÖSZÖNJÜK TÁMOGATÓINKNAK",
  "SUPPORT": "TÁMOGATÁS",
- "ACR DAILY is free. Like it? Buy us a coffee.": "Az ACR DAILY ingyenes. Tetszik? Hívj meg egy kávéra."
+ "ACR DAILY is free. Like it? Buy us a coffee.": "Az ACR DAILY ingyenes. Tetszik? Hívj meg egy kávéra.",
+ "Updating to %s": "Frissítés: %s",
+ "This version is too old for ACR DAILY: it updates by itself.": "Ez a verzió túl régi az ACR DAILY-hez: magától frissül."
 }

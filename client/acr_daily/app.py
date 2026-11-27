@@ -2591,11 +2591,18 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         def ver(x):
             return tuple(int(p) for p in str(x).split('.') if p.isdigit())
         offer = None
+        forced = False
         try:
             v = self.api.version()
             if ver(v.get('latest', '0')) > ver(__version__) and v.get('url'):
                 url = v['url'] if v['url'].startswith('http') else self.api.base + v['url']
                 offer = {'version': v['latest'], 'url': url}
+                # below the oldest version the server takes (from its day on, UTC): updated at once, no click (the
+                # user, 26 Nov 2026); a test build counts by its first three parts (0.2.2.5 is 0.2.2)
+                low = v.get('min')
+                since = v.get('minFrom')
+                today = time.strftime('%Y-%m-%d', time.gmtime())
+                forced = bool(low) and ver(__version__)[:3] < ver(low) and (not since or str(since) <= today)
         except ApiError:
             pass
         if updater.is_test_build(__version__):
@@ -2606,6 +2613,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if t and ver(t[0]) > ver(__version__) and (offer is None or ver(t[0]) > ver(offer['version'])):
                 offer = {'version': t[0], 'url': t[1]}
         if offer:
+            if forced:
+                offer['forced'] = True
             self.update_info = offer
 
     def _driving(self):
@@ -2706,10 +2715,37 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     'once it is in.'))
         return None
 
+    def _game_open_cached(self):
+        """saveslot.game_running(), asked at most every 5 s (the tick runs many times a second)."""
+        now = time.monotonic()
+        if now - getattr(self, '_game_open_at', -1e9) >= 5.0:
+            self._game_open_at = now
+            try:
+                self._game_open = saveslot.game_running()
+            except Exception:
+                self._game_open = False
+        return self._game_open
+
     def _render_update(self):
         info = self.update_info
         if not info:
             return
+        # too old for the server: updated at once, no click, its screen over the app until the new one starts
+        # (updatescreen.py). Never while a run is on, nor with the game open (the app's window would come up over the
+        # full-screen game: that crashed the game with frame generation on, 24 Nov 2026): then once the game is closed.
+        if info.get('forced') and updater.can_self_update():
+            if not self.update_busy and not self._driving() and not getattr(self, '_forced_tried', False) and \
+                    not self._game_open_cached():
+                self._forced_tried = True                  # (once: a failed one leaves the UPDATE bar, as before)
+                from . import updatescreen
+                self._update_screen = updatescreen.show(self, info['version'])
+                self.do_update()
+            scr = getattr(self, '_update_screen', None)
+            if scr is not None:
+                scr.set(self.update_busy)
+                if not self.update_busy:                   # (failed: its message box says why)
+                    scr.close()
+                    self._update_screen = None
         if not self.upd.winfo_ismapped():
             self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
         if self.update_busy:

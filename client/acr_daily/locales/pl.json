@@ -2140,5 +2140,7 @@
  "ACR Daily runs on your Steam account: your times on the boards, your profile, credits, leagues, 1V1s and cups. Steam confirms it is you on its own page, in the Steam app (or your browser): one click if you are signed in there. ACR Daily never sees your password.": "ACR Daily działa na twoim koncie Steam: twoje czasy w tabelach, profil, kredyty, ligi, 1V1 i puchary. Steam potwierdza, że to ty, na własnej stronie, w aplikacji Steam (lub w przeglądarce): jedno kliknięcie, jeśli jesteś tam zalogowany. ACR Daily nigdy nie widzi twojego hasła.",
  "THANK YOU TO OUR SUPPORTERS": "DZIĘKUJEMY NASZYM WSPIERAJĄCYM",
  "SUPPORT": "WESPRZYJ",
- "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILY jest darmowe. Podoba ci się? Postaw nam kawę."
+ "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILY jest darmowe. Podoba ci się? Postaw nam kawę.",
+ "Updating to %s": "Aktualizacja do %s",
+ "This version is too old for ACR DAILY: it updates by itself.": "Ta wersja jest za stara dla ACR DAILY: aktualizuje się sama."
 }

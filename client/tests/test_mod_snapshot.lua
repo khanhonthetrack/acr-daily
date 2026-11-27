@@ -117,4 +117,17 @@ check(math.abs(fresh.Windshields.Windshields[1].BakedCracksIntensities.X - 0.6) 
 local t_new = {ProviderState = {Tires = {tyre("Soft_0", 1.0)}}}
 S.write(t_new, S.TYRES, back.tyres, {set = 0, skipped = 0})
 check(math.abs(t_new.ProviderState.Tires[1].Damage.Wear.Normalized - 0.33) < 1e-6, "tyre back from JSON")
+
+-- a part's state from its life points, as the game set them on a Service Park (27 Nov 2026): the engine's and the
+-- bodywork's thresholds as the game has them (single precision)
+local ENGINE = {1.0, 0.99000000953674, 0.85000002384186, 0.34999999403954, 0.050000000745058}
+local BODY = {1.0, 0.99000000953674, 0.89999997615814, 0.34999999403954}
+check(D._state_of(35, 100, ENGINE) == 3, "engine 35: 3")
+check(D._state_of(25, 100, ENGINE) == 3, "radiator-like 25: 3")
+check(D._state_of(4, 100, ENGINE) == 4, "engine 4: 4")
+check(D._state_of(40, 100, BODY) == 2, "bodywork 40: 2")
+check(D._state_of(60, 100, BODY) == 2, "60: 2")
+check(D._state_of(100, 100, ENGINE) == 0, "intact: 0")
+check(D._state_of(99.6, 100, ENGINE) == 0, "99.6: 0")
+check(D._state_of(98, 100, ENGINE) == 1, "98: 1")
 print("ok")

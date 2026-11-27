@@ -2052,5 +2052,7 @@
  "ACR Daily runs on your Steam account: your times on the boards, your profile, credits, leagues, 1V1s and cups. Steam confirms it is you on its own page, in the Steam app (or your browser): one click if you are signed in there. ACR Daily never sees your password.": "ACR Daily はあなたの Steam アカウントで動きます: ボード上のタイム、プロフィール、クレジット、リーグ、1V1、カップ。本人確認は Steam 自身のページ、Steam アプリ (またはブラウザ) で行います: そこでサインイン済みならワンクリックです。ACR Daily があなたのパスワードを見ることはありません。",
  "THANK YOU TO OUR SUPPORTERS": "サポーターの皆さん、ありがとう",
  "SUPPORT": "支援する",
- "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILYは無料です。気に入ったらコーヒーをおごってください。"
+ "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILYは無料です。気に入ったらコーヒーをおごってください。",
+ "Updating to %s": "%s に更新中",
+ "This version is too old for ACR DAILY: it updates by itself.": "このバージョンは ACR DAILY には古すぎるため、自動で更新されます。"
 }

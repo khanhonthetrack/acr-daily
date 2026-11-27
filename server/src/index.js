@@ -1815,8 +1815,11 @@ async function route(req, env, ctx, L) {
       const site = siteDownloadUrl(env);
       const [sha256, siteSha] = await Promise.all([releaseSha256(env, ctx),
         site === downloadUrl(env) ? null : releaseSha256(env, ctx, site)]);
+      // min / minFrom: the oldest app the server takes from that day (MIN_APP_VERSION / MIN_APP_FROM): an app below it
+      // updates itself at once (client app.check_update)
       return json({ latest: latestVersion(env), url: downloadUrl(env), sha256, download: site,
-                    downloadSha256: site === downloadUrl(env) ? sha256 : siteSha, release: releasePage(env) });
+                    downloadSha256: site === downloadUrl(env) ? sha256 : siteSha, release: releasePage(env),
+                    min: env.MIN_APP_VERSION || null, minFrom: env.MIN_APP_FROM || null });
     }
     // old links to the download on this server go to the current GitHub release
     if ((path === '/download/ACR-Daily.exe' || path === '/download/ACR-Daily.exe.sha256') && /^https:/.test(downloadUrl(env))) {

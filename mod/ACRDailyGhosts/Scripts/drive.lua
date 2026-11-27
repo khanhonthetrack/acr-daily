@@ -291,6 +291,32 @@ end
 
 local load_whole                  -- (below, "the whole car at the finish line": the game's own snapshot load)
 
+-- A part's state (its damage level: what the Service Park's repair screen shows, "Normal condition", "Light damage",
+-- "Heavy damage"..., and what its repairs cost) from its life points, as the game sets it: the part's own list of
+-- states (OverriddenData.States, each with a threshold, a fraction of its full life) and its State = the place
+-- (0-based) of the last one whose threshold its life fraction is at or below, compared in single precision. Checked in
+-- the game 27 Nov 2026 on a Service Park reached the game's own way: Engine 35 -> 3, Radiator 25 -> 3, Bodywork 40 ->
+-- 2, suspension 50 -> 2, windscreen 60 -> 2, 100 and 99.6 -> 0, all 27 parts. Written alone, life points left every
+-- state at 0 and the repair screen said "Normal condition" everywhere (the user, 26 Nov 2026).
+local function f32(x) return string.unpack("<f", string.pack("<f", x)) end
+local function state_of(life, full, thresholds)
+    local frac = f32(life / (full > 0 and full or 100))
+    local s = 0
+    for i, t in ipairs(thresholds) do
+        if frac <= f32(t) then s = i - 1 end
+    end
+    return s
+end
+D._state_of = state_of                                   -- (tests: test_mod_snapshot.lua)
+
+local function set_state(p)
+    local od = p.OverriddenData
+    local list, ts = od.States, {}
+    for i = 1, #list do ts[i] = list[i].Threshold end
+    if #ts == 0 then error("no states") end
+    p.State = state_of(p.LifePoints, od.LifePoints, ts)
+end
+
 local function restore_damage(t)
     local d = car_damage
     if not d then return end
@@ -367,25 +393,21 @@ local function restore_damage(t)
     for k, v in pairs(parts or {}) do
         if type(k) == "string" and type(v) == "number" then want[k:lower()] = math.max(0, math.min(100, v)) end
     end
-    local set, missed = 0, 0
+    local set, missed, staged = 0, 0, 0
     comp.NamedParts:ForEach(function(k, v)
         local id = k:get():ToString():lower()            -- (the same part's name differs in case between levels)
         local lp = want[id] or 100
         local p = v:get()
         local ok = pcall(function() p.LifePoints = lp + 0.0 end)
         if ok and math.abs(p.LifePoints - lp) < 0.05 then set = set + 1 else missed = missed + 1 end
+        if pcall(set_state, p) then staged = staged + 1 end
         want[id] = nil
     end)
     for _ in pairs(want) do missed = missed + 1 end
-    -- the states, from the life points: the repairs plans made again, the selected one applied if empty
-    local repaired, states = 0, "set"
-    local okr = pcall(function()
-        local r = pc.PlayerCarRepairs
-        r:GenerateRepairsPlans()
-        pcall(function() r.SelectedRepairsPlan.SelectedRepairs:ForEach(function() repaired = repaired + 1 end) end)
-        if repaired == 0 then r:ApplySelectedRepairsPlan() else states = "kept" end
-    end)
-    if not okr then states = "failed" end
+    -- the repairs plans made again from the states (the Service Park's repair screen and its costs)
+    local states = string.format("%d", staged)
+    local okr = pcall(function() pc.PlayerCarRepairs:GenerateRepairsPlans() end)
+    if not okr then states = states .. " plans failed" end
     car_damage = nil
     log("DRIVE %s: the car as it finished put on (%s): whole car %s; %d parts%s; states %s", tostring(d.n),
         at_park and "Service Park" or "start line", whole, set, missed > 0 and (", " .. missed .. " not") or "", states)
@@ -729,6 +751,7 @@ local function capture(f)
     -- the game's own snapshot calls, made at the finish line (the frame after it): ServerSnapshotStored is called from
     -- inside each, and on_stored keeps what it gets
     f.pending = false
+    f.stamp = os.time()                                  -- (the file's "at" and the whole copy's: load_whole matches them)
     local pc = UEHelpers.GetPlayerController()
     f.capturing = true
     pcall(function() pc.CarRace:ClientStoreSnapshot() end)
@@ -743,11 +766,12 @@ local function capture(f)
     for _ in pairs(f.tyres and f.tyres.ProviderState and f.tyres.ProviderState.Tires and f.tyres.ProviderState.Tires.by or {}) do
         nt = nt + 1
     end
-    log("finish: the car kept as it crossed the line (%s, %d tyres)", f.car and "car" or "NO car", nt)
+    log("finish: the car kept as it crossed the line (%s, %d tyres; whole copy %s)", f.car and "car" or "NO car", nt,
+        tostring(f.held))
     if f.car then                                        -- (on disk for the app: FINISH_FILE above)
         local ok, e = pcall(function()
             local h = assert(io.open(FINISH_FILE .. ".tmp", "w"))
-            h:write(to_json({v = 1, at = os.time(), world = f.world, car = f.car, tyres = f.tyres, lights = f.lights}))
+            h:write(to_json({v = 1, at = f.stamp, world = f.world, car = f.car, tyres = f.tyres, lights = f.lights}))
             h:close()
             os.remove(FINISH_FILE)
             assert(os.rename(FINISH_FILE .. ".tmp", FINISH_FILE))
@@ -762,12 +786,53 @@ end
 -- stage's start line the car takes it at once (dents, panels off, scratches, wear); at a Service Park the park's car
 -- takes the body, and the game stores it when the stage starts, so the stage's car has it all, lights too. Not kept:
 -- the windscreens' cracks themselves (their history has no fields the game shows: their life points are kept, as every
--- part's) and each part's property bag. -> "car <fields> tyres <fields>"
+-- part's) and each part's property bag: those come with the whole copy below, while the game hasn't been closed since.
+-- -> "car <fields | whole> tyres <fields>"
+-- The whole car also kept as the game keeps it, while the game runs: a native copy of the car's snapshot struct in an
+-- object of the game's own snapshot class (SnapshotDataCarRace.Data), held by the engine (GameEngine.GameSingleton, a
+-- property the game leaves empty: so the engine's garbage collection keeps it through every level change). The copy is
+-- the game's own (its C++ copy of the struct), so it has what Lua can't read: the windscreens' cracks (each crack's
+-- data has no fields the game shows) and every part's property bag. Probed 26 Nov 2026: copied at the line, kept
+-- through the menu, loaded on a new rally's car: the same cracks. A game started again has only the file (no cracks).
+local HOLD_NAME = "AcrDailyFinishCar"
+local function holder(make)
+    local eng = FindFirstOf("GameEngine")
+    if not (eng and eng:IsValid()) then error("no GameEngine") end
+    local h = eng.GameSingleton
+    if h and h:IsValid() then
+        if h:GetFName():ToString() ~= HOLD_NAME then error("the engine's GameSingleton is in use") end
+        return h
+    end
+    if not make then return nil end
+    h = StaticConstructObject(StaticFindObject("/Script/acr.SnapshotDataCarRace"), eng, FName(HOLD_NAME))
+    eng.GameSingleton = h
+    return h
+end
+
+local function hold_whole(s, stamp)
+    local h = holder(true)
+    h.Data = s                                           -- (the struct copied by the engine: all of it)
+    _G.ACRDAILY_HELD_AT = stamp
+end
+
 local LOAD = nil                  -- {data = {car, tyres, lights}, said = {}} while load_whole runs
 load_whole = function(pc, whole)
     whole = norm(whole)
     LOAD = {data = whole, said = {}}
-    local ok1, e1 = pcall(function() pc.CarRace:ClientStoreSnapshot() end)
+    -- the native copy when it is this very car (the same finish: its stamp), else the fields from the file
+    if whole.at ~= nil and rawget(_G, "ACRDAILY_HELD_AT") == whole.at then
+        local okh, eh = pcall(function()
+            local h = holder(false)
+            if not h then error("none") end
+            pc.CarRace:ClientLoadSnapshot(h.Data)
+        end)
+        LOAD.said.car = okh and "whole" or nil
+        if not okh then log("finish: the whole copy not loaded: %s", tostring(eh)) end
+    end
+    local ok1, e1 = true, nil
+    if not LOAD.said.car then
+        ok1, e1 = pcall(function() pc.CarRace:ClientStoreSnapshot() end)
+    end
     if type(whole.tyres) == "table" then
         pcall(function() pc.PlayerTiresSetup:ClientStoreSnapshot() end)
     end
@@ -780,6 +845,7 @@ end
 local function on_load(which, self, s)
     -- (inside load_whole's store call: the game's struct, the kept car written in, loaded back)
     local whole = LOAD.data
+    if which == "car" and LOAD.said.car then return end  -- (loaded whole already)
     local data = which == "car" and whole.car or whole.tyres
     if type(data) ~= "table" then return end
     local st = {set = 0, skipped = 0}
@@ -818,6 +884,8 @@ local function on_stored(which, self, param)
     local s = param:get()
     if f.capturing then
         if which == "car" then
+            local okh, eh = pcall(hold_whole, s, f.stamp)
+            f.held = okh and "kept" or ("not kept: " .. tostring(eh))
             f.car = snap_read(s, SNAP_CAR)
             local names = {}
             pcall(function()
