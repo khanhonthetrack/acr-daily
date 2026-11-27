@@ -144,7 +144,15 @@ function replaysPart(p){add(p,el('h2',null,'Replays sent (last 30 days)'),el('p'
   D.replays.forEach(function(r){var it=el('div','item');var a=el('a',null,'watch ›');a.href='/r/'+r.code;
     add(it,add(el('div','top'),add(el('span','t'),drv({steamId:r.steamId,name:r.name})),el('span','s',r.code+' · '+(r.ref||r.kind)+' · '+r.track+' · '+when(r.created)),a));
     var ch=el('div','chips');add(ch,el('span','chip'+(r.verdict==='clean'?'':' flag'),r.verdict),el('span','chip',r.why),r.action?el('span','chip',r.action):null);
-    ((r.report||{}).notes||[]).forEach(function(n){ch.appendChild(el('span','chip flag',n))});it.appendChild(ch);p.appendChild(it)})}
+    ((r.report||{}).notes||[]).forEach(function(n){ch.appendChild(el('span','chip flag',n))});it.appendChild(ch);
+    // (left in review, its DNF still there: taken back in one click, the user 27 Nov 2026; the penalty only when the
+    // replay doesn't know it: blank, a daily counts 10 s a respawn)
+    var act_=r.action||'';if((r.why==='dnf'||r.why==='missing')&&!/^(DNF taken back|Result put in|SS\\d)/.test(act_)){var a=el('div','acts'),pen=el('input');
+      pen.placeholder='penalty s (blank: the replay\\'s, or 10 s a respawn)';pen.style.width='300px';
+      add(a,pen,button('Accept: take the DNF back','go',function(b){var v=pen.value.trim(),body={};if(v){var s=Number(v.replace(',','.'));if(!(s>=0)){say('The penalty: seconds, 0 or more.',true);return}body.penaltyMs=Math.round(s*1000)}
+        if(confirm('Take back '+(r.name||'the driver')+'\\'s DNF on '+(r.ref||r.kind)+' with the finish in replay '+r.code+' ('+ms(r.finMs)+(body.penaltyMs!=null?' + '+ms(body.penaltyMs):'')+')?'))
+          act(b,'/api/admin/replays/'+r.code+'/accept',body,'Taken back.')}));it.appendChild(a)}
+    p.appendChild(it)})}
 function stageOf(r){return r.date+' · SS'+r.slot+' · '+(r.track||'')+(r.car?' · '+r.car:'')}
 function dnfs(){var p=$('p-dnfs');p.innerHTML='';
   var pick=el('select');[7,14,30,60].forEach(function(n){var o=el('option',null,'last '+n+' days');o.value=n;o.selected=n===DAYS;pick.appendChild(o)});

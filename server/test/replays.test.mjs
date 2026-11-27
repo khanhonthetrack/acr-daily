@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { canon, chainNext, chainStart, checkRoad, digestHex, readFile, replaysApi, verifyReplay, wanted } from '../src/replays.js';
+import { adminAccept, canon, chainNext, chainStart, checkRoad, digestHex, readFile, replaysApi, verifyReplay, wanted } from '../src/replays.js';
 import { leaguesApi, replayStageTime } from '../src/leaguesapi.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -339,6 +339,32 @@ test('the finish on the server very late (the app closed with the connection dow
   assert.equal(up.body.auto, false);
   assert.equal(up.body.action, 'sent to review');
   assert.match(up.body.report.notes.join(), /reached the server 60 min late/);
+  // the admin watches it and accepts: the DNF taken back in one click, the driver told; a second click refused
+  const seen = [];
+  const d = deps(env, { reinstate: okReinstate(seen) });
+  const acc = await adminAccept(env, up.body.code, { penaltyMs: 5000 }, NOW + fin + 5000000, d);
+  assert.equal(acc.status, 200, await acc.clone().text());
+  assert.match((await acc.json()).action, /^DNF taken back: /);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0][1], 5000);
+  assert.match(db.prepare('SELECT action FROM replay_files WHERE code = ?').get(up.body.code).action, /accepted by the admin/);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE to_id = ? AND kind = 'replay'").get(BEN).n, 1);
+  assert.equal((await adminAccept(env, up.body.code, {}, NOW + fin + 5100000, d)).status, 409);
+  assert.equal((await adminAccept(env, 'zzzzzzzzzz', {}, NOW + fin + 5100000, d)).status, 404);
+});
+
+test('CHECK MY DNFs: the server asked further back than its own 3 days', async () => {
+  const { env, db } = world();
+  const key = await keyPair();
+  const rows = drive();
+  const fin = rows[rows.length - 1][0];
+  const head = { driver: { steamId: BEN }, track: 'Test Road', car: 'Car', kind: 'daily', ref: '2026-11-26/1', status: 'finished', finMs: fin, resets: 0, penaltyMs: 0 };
+  const { rid } = await followed(env, BEN, key, head, rows);
+  dailyDnf(db, 'the game closed before saving its official result', fin, NOW + fin + 60000);
+  const later = NOW + 10 * 86400000;
+  assert.deepEqual((await call(env, '/api/replays/wanted', BEN, null, later)).body.wanted, []);
+  assert.deepEqual((await call(env, '/api/replays/wanted?days=30', BEN, null, later)).body.wanted, [{ rid, ref: '2026-11-26/1', why: 'dnf' }]);
+  assert.deepEqual((await call(env, '/api/replays/wanted?days=999', BEN, null, NOW + 40 * 86400000)).body.wanted, []);
 });
 
 test('the game frozen at the finish line before the app saw its finish: the road says it, taken back', async () => {

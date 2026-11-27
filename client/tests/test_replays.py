@@ -577,3 +577,36 @@ class LostFinishes(Base):
         with mock.patch.object(leagues, 'pending', lambda: [{'kind': 'stage', 'eventId': 7, 'no': 1}]):
             self.assertTrue(ui._result_on_its_way('event:7:1'))
             self.assertFalse(ui._result_on_its_way('event:7:2'))
+
+
+class CheckMyDnfs(Base):
+    """CHECK MY DNFS (27 Nov 2026): the server asked 30 days back, each DNF's replay sent, the outcome said in words."""
+
+    def test_asked_30_days_back_and_said(self):
+        from acr_daily import replayui
+        ui = replayui.ReplayUI()
+        ui.s = {'token': 't', 'steamId': '1', 'replays': {}}
+        ui.root = N(after=lambda ms, fn, *a: fn(*a))
+        asked = []
+        ui.api = N(replays_wanted=lambda days=None: asked.append(days) or [
+            {'rid': 'a' * 16, 'ref': '2026-11-20/1', 'why': 'dnf'}, {'rid': 'b' * 16, 'ref': '2026-11-21/1', 'why': 'dnf'},
+            {'rid': 'c' * 16, 'ref': '2026-11-22/1', 'why': 'dnf'}])
+        answers = {'A': {'action': 'DNF taken back: 4:01.200, P3'}, 'B': {'action': 'sent to review'}}
+        ui.replay_send = lambda name, why=None: answers[name]
+        said = []
+        with mock.patch.object(replays, 'catch_up', lambda *a, **k: 0), \
+                mock.patch.object(replayui, 'find_local', lambda w: {'a': 'A', 'b': 'B'}.get(w['rid'][0])), \
+                mock.patch.object(replayui.threading, 'Thread', lambda target, daemon: N(start=target)):
+            ui.replay_check(said.append)
+        self.assertEqual(asked, [30])
+        self.assertIn('Taken back: DNF taken back: 4:01.200, P3.', said[0])
+        self.assertIn('1 sent to the admin or the stewards', said[0])
+        self.assertIn('1 with no replay on this PC', said[0])
+        self.assertFalse(ui._replay_polling)
+
+    def test_nothing_and_no_server(self):
+        from acr_daily import replayui
+        self.assertIn('No DNF to take back', replayui.check_words([]))
+        self.assertIn('could not be reached', replayui.check_words(None))
+        self.assertTrue(replayui.took_back('Result put in from the replay: 3:00.000'))
+        self.assertFalse(replayui.took_back('sent to review'))

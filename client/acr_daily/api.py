@@ -229,8 +229,10 @@ class Api:
         """Where the server is with a followed run: {have (commits), fin, uploaded, open}."""
         return self._req('GET', '/api/replays/run/%s' % rid, auth=True, timeout=10)
 
-    def replays_wanted(self):
-        return self._req('GET', '/api/replays/wanted', auth=True, timeout=10).get('wanted') or []
+    def replays_wanted(self, days=None):
+        """What the server wants back; days: further back than its own 3 (CHECK MY DNFs: up to 30)."""
+        q = '?days=%d' % int(days) if days else ''
+        return self._req('GET', '/api/replays/wanted' + q, auth=True, timeout=10).get('wanted') or []
 
     def replay_none(self, request_id):
         """A steward's request answered: no replay of that stage on this PC."""

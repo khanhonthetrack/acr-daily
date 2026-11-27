@@ -446,7 +446,9 @@ export async function replaysApi(req, env, path, url, me, now, deps) {
 
   if (path === '/api/replays/wanted' && !post) {
     const no = need(); if (no) return no;
-    return json({ wanted: await wanted(env, me.steam_id, now) });
+    // (?days=: further back, the app's CHECK MY DNFs: up to the 30 days the server keeps a run followed)
+    const days = Math.max(1, Math.min(30, Math.round(+url.searchParams.get('days')) || REPLAY.wantedDays));
+    return json({ wanted: await wanted(env, me.steam_id, now, days) });
   }
 
   let m = path.match(/^\/api\/replays\/requests\/(\d+)\/none$/);
@@ -558,8 +560,8 @@ async function situation(env, run, sid, now) {
 
 /** What the server wants from this driver's app: the replays that take a DNF back or stand in for a result that never
  *  came (situation), and the stewards' requests. */
-export async function wanted(env, sid, now) {
-  const since = now - REPLAY.wantedDays * DAY;
+export async function wanted(env, sid, now, days = REPLAY.wantedDays) {
+  const since = now - days * DAY;
   const [runs, reqs] = await env.DB.batch([
     env.DB.prepare(`SELECT * FROM replay_runs WHERE steam_id = ? AND begin_ms > ? AND uploaded IS NULL ORDER BY begin_ms LIMIT 20`).bind(sid, since),
     env.DB.prepare(`SELECT id, event_id, stage_no FROM replay_requests WHERE steam_id = ? AND state = 'open' ORDER BY id`).bind(sid),
@@ -591,49 +593,17 @@ async function upload(env, me, doc, bytes, wantPublic, now, deps) {
   const code = rand(10);
   let action = null, why = 'share';
   const notes = [];
-  // the game's penalty at the finish (the mod read it there, on the results screen too); unknown: a daily counts 10 s
-  // a respawn (src/apptime.js), an event's stewards set it if there were respawns
-  const pen = Number.isInteger(h.penaltyMs) ? h.penaltyMs : null;
-  // the car as it crossed the line (life points per part, x damageScale in the file: ints only in what is signed)
-  const damage = h.damage && typeof h.damage === 'object' && !Array.isArray(h.damage)
-    ? Object.fromEntries(Object.entries(h.damage).map(([k, x]) => [k, Number(x) / (Number(h.damageScale) || 1)])) : null;
-  if (s && run.kind === 'daily') {
+  if (s) {
     why = s.why;
-    action = await takeBack(env, me, v, now, async () => {
-      let id = s.target.id;
-      if (s.why === 'missing') {                        // (no result from the app: a DNF row of its own, taken back at once)
-        const att = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
-          .bind(me.steam_id, s.target.date, s.target.slot).first();
-        const sch = await env.DB.prepare('SELECT car FROM schedule WHERE date = ? AND slot = ?').bind(s.target.date, s.target.slot).first();
-        const ins = await env.DB.prepare(`INSERT INTO runs (date, slot, steam_id, track, car, status, reason, clock_ms, resets, total_ms, flags,
-            app_version, created, started_at) VALUES (?, ?, ?, ?, ?, 'dnf', ?, ?, ?, NULL, '[]', ?, ?, ?)`)
-          .bind(s.target.date, s.target.slot, me.steam_id, run.track, sch ? sch.car : run.car,
-            'no official result from the game (no result came from the app: its replay stands in)', v.finMs, h.resets | 0,
-            String(h.appVersion || '').slice(0, 20), now, att ? att.started : run.begin_ms - (run.begin_clock || 0)).run();
-        id = ins.meta.last_row_id;
-      } else if (Math.abs((s.target.clock_ms || 0) - v.finMs) > 1500) {
-        return { error: 'its finish is not the DNF\'s clock' };
-      }
-      const res = await deps.reinstate(id, pen == null ? undefined : pen);
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok) return { error: out.error || 'not taken back' };
-      await env.DB.prepare(`UPDATE runs SET flags = json_insert(COALESCE(flags, '[]'), '$[#]', ?) WHERE id = ?`)
-        .bind(`reinstated by replay ${code}`, id).run();
-      return { ok: true, text: `${s.why === 'missing' ? 'Result put in from the replay' : 'DNF taken back'}: ${fmt(out.totalMs)}${out.rank ? `, P${out.rank}` : ''}` };
-    });
-  } else if (s && run.kind === 'event') {
-    why = s.why;
-    const p = pen != null ? pen : ((h.resets || 0) > 0 ? null : 0);
-    if (p == null) notes.push('the game\'s penalty at the finish is not known (respawns): the stewards set the time');
-    action = p == null ? 'sent to the stewards' : await takeBack(env, me, v, now, () => deps.stageTime(s.target.id, me.steam_id, s.target.no,
-      v.finMs, p, `finish shown by the driver's replay /r/${code}`, now, damage).then((r) => (r.error ? r
-      : { ok: true, text: `SS${s.target.no + 1}: ${fmt(v.finMs + p)}, the rally goes on` })));
+    const got = await applyProof(env, me, run, s, h, v.finMs, code, now, deps, (fn) => takeBack(env, me, v, now, fn));
+    action = got.action;
+    notes.push(...got.notes);
   }
   // a steward asked for it
   const reqs = h.ref ? (await env.DB.prepare(`SELECT id, by, stage_no, event_id FROM replay_requests WHERE steam_id = ? AND state = 'open'
       AND 'event:' || event_id || ':' || stage_no = ?`).bind(me.steam_id, String(h.ref)).all()).results : [];
   if (reqs.length && why === 'share') why = 'steward';
-  const took = /^(DNF taken back|Result put in|SS\d)/.test(action || '');
+  const took = TOOK.test(action || '');
   const from = await publicFrom(env, String(h.kind || ''), h.ref);
   const pub = wantPublic && from <= now ? 1 : 0;
   if (wantPublic && !pub) notes.push('public once the stage no longer counts');
@@ -644,8 +614,8 @@ async function upload(env, me, doc, bytes, wantPublic, now, deps) {
         why, public, action, data, size, created, expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(code, rid, me.steam_id, String(h.kind || 'practice').slice(0, 20), h.ref ? String(h.ref).slice(0, 60) : null,
         String(h.track || '').slice(0, 120), String(h.car || '').slice(0, 120), String(h.status || 'ended').slice(0, 20),
-        v.finMs, pen, v.verdict, JSON.stringify(report), v.digest, why === 'missing' ? 'dnf' : why, pub, action,
-        bytes, bytes.length, now, now + keepDays * DAY),
+        v.finMs, Number.isInteger(h.penaltyMs) ? h.penaltyMs : null, v.verdict, JSON.stringify(report), v.digest,
+        why === 'missing' ? 'dnf' : why, pub, action, bytes, bytes.length, now, now + keepDays * DAY),
     env.DB.prepare('DELETE FROM replay_files WHERE expires < ?').bind(now),
     // (a driver's oldest shared ones past perDriver)
     env.DB.prepare(`DELETE FROM replay_files WHERE steam_id = ? AND why = 'share' AND code NOT IN
@@ -670,6 +640,90 @@ async function upload(env, me, doc, bytes, wantPublic, now, deps) {
   await env.DB.batch(stmts);
   const stamp = { code, verdict: v.verdict, at: now, mac: await stampOf(env, code, v.digest, v.verdict) };
   return json({ code, verdict: v.verdict, auto: v.auto, report, action, why, public: !!pub, stamp, url: `${deps.site || ''}/r/${code}` });
+}
+
+const TOOK = /^(DNF taken back|Result put in|SS\d)/;     // (an action that put the run back)
+
+/** What a proof does (the driver's upload; the admin's accept): a daily's DNF taken back (as the admin's reinstate) or
+ *  its missing result put in; an event's stage given its time (as a steward's). back(fn): whether fn may run (the
+ *  upload: takeBack's checks; the admin: always). penaltyMs: the admin's, for a stage whose penalty is not known.
+ *  -> {action, notes} */
+async function applyProof(env, me, run, s, h, finMs, code, now, deps, back, penaltyMs = null) {
+  const notes = [];
+  let action = null;
+  // the game's penalty at the finish (the mod read it there, on the results screen too); unknown: a daily counts 10 s
+  // a respawn (src/apptime.js), an event's stewards set it if there were respawns
+  const pen = penaltyMs != null ? penaltyMs : Number.isInteger(h.penaltyMs) ? h.penaltyMs : null;
+  // the car as it crossed the line (life points per part, x damageScale in the file: ints only in what is signed)
+  const damage = h.damage && typeof h.damage === 'object' && !Array.isArray(h.damage)
+    ? Object.fromEntries(Object.entries(h.damage).map(([k, x]) => [k, Number(x) / (Number(h.damageScale) || 1)])) : null;
+  if (run.kind === 'daily') {
+    action = await back(async () => {
+      let id = s.target.id;
+      if (s.why === 'missing') {                        // (no result from the app: a DNF row of its own, taken back at once)
+        const att = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
+          .bind(me.steam_id, s.target.date, s.target.slot).first();
+        const sch = await env.DB.prepare('SELECT car FROM schedule WHERE date = ? AND slot = ?').bind(s.target.date, s.target.slot).first();
+        const ins = await env.DB.prepare(`INSERT INTO runs (date, slot, steam_id, track, car, status, reason, clock_ms, resets, total_ms, flags,
+            app_version, created, started_at) VALUES (?, ?, ?, ?, ?, 'dnf', ?, ?, ?, NULL, '[]', ?, ?, ?)`)
+          .bind(s.target.date, s.target.slot, me.steam_id, run.track, sch ? sch.car : run.car,
+            'no official result from the game (no result came from the app: its replay stands in)', finMs, h.resets | 0,
+            String(h.appVersion || '').slice(0, 20), now, att ? att.started : run.begin_ms - (run.begin_clock || 0)).run();
+        id = ins.meta.last_row_id;
+      } else if (Math.abs((s.target.clock_ms || 0) - finMs) > 1500) {
+        return { error: 'its finish is not the DNF\'s clock' };
+      }
+      const res = await deps.reinstate(id, pen == null ? undefined : pen);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: out.error || 'not taken back' };
+      await env.DB.prepare(`UPDATE runs SET flags = json_insert(COALESCE(flags, '[]'), '$[#]', ?) WHERE id = ?`)
+        .bind(`reinstated by replay ${code}`, id).run();
+      return { ok: true, text: `${s.why === 'missing' ? 'Result put in from the replay' : 'DNF taken back'}: ${fmt(out.totalMs)}${out.rank ? `, P${out.rank}` : ''}` };
+    });
+  } else if (run.kind === 'event') {
+    const p = pen != null ? pen : ((h.resets || 0) > 0 ? null : 0);
+    if (p == null) notes.push('the game\'s penalty at the finish is not known (respawns): the stewards set the time');
+    action = p == null ? 'sent to the stewards' : await back(() => deps.stageTime(s.target.id, me.steam_id, s.target.no,
+      finMs, p, `finish shown by the driver's replay /r/${code}`, now, damage).then((r) => (r.error ? r
+      : { ok: true, text: `SS${s.target.no + 1}: ${fmt(finMs + p)}, the rally goes on` })));
+  }
+  return { action, notes };
+}
+
+/** The admin's accept (the user, 27 Nov 2026: one click for a replay left in review): its DNF taken back as the upload
+ *  would have, without the checks' verdict or the weekly cap. body: {penaltyMs} the game's penalty when the replay
+ *  doesn't know it (respawns); blank: a daily counts 10 s a respawn, an event's stage needs it. */
+export async function adminAccept(env, code, body, now, deps) {
+  const { json, err } = deps;
+  const row = await env.DB.prepare(`SELECT f.code, f.rid, f.steam_id, f.data, f.fin_ms, f.action, f.ref, p.name FROM replay_files f
+      LEFT JOIN players p ON p.steam_id = f.steam_id WHERE f.code = ?`).bind(code).first();
+  if (!row) return err('admin: no such replay', 404);
+  if (TOOK.test(row.action || '')) return err(`admin: already taken back (${row.action})`, 409);
+  const run = row.rid ? await env.DB.prepare('SELECT * FROM replay_runs WHERE rid = ?').bind(row.rid).first() : null;
+  if (!run) return err('admin: the server did not follow this run: put the time in by hand', 409);
+  const s = await situation(env, run, row.steam_id, now);
+  if (!s) return err('admin: nothing to take back now (the DNF is gone, already back, or kept as a DNF)', 409);
+  let pen = null;
+  if (body && body.penaltyMs != null && body.penaltyMs !== '') {
+    pen = Math.round(Number(body.penaltyMs));
+    if (!(pen >= 0 && pen <= 3600000)) return err('admin: the penalty in ms, 0 to 3600000');
+  }
+  const got = await readFile(new Uint8Array(row.data));
+  if (got.error) return err(`admin: the file can't be read (${got.error})`, 422);
+  const h = got.doc.head;
+  if (run.kind === 'event' && pen == null && !Number.isInteger(h.penaltyMs) && (h.resets || 0) > 0) {
+    return err('admin: the game\'s penalty is not known (respawns): give it', 409);
+  }
+  const { action } = await applyProof(env, { steam_id: row.steam_id, name: row.name }, run, s, h, row.fin_ms, row.code, now, deps,
+    async (fn) => { const r = await fn(); return r && r.ok ? r.text : `admin: not taken back (${(r && r.error) || '?'})`; }, pen);
+  if (!TOOK.test(action || '')) return err(action || 'admin: not taken back', 409);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE replay_files SET action = ? WHERE code = ?').bind(`${action} (accepted by the admin)`, row.code),
+    env.DB.prepare('UPDATE replay_runs SET uploaded = ? WHERE rid = ?').bind(row.code, run.rid),
+    noticeStmt(env, row.steam_id, 'replay', `Your replay was checked and proved the finish the game lost. ${action}. /r/${row.code}`,
+      row.ref || null, now),
+  ]);
+  return json({ ok: true, action });
 }
 
 /** A DNF taken back by a replay (fn does it): its checks clean and its finish on the server in time (verifyReplay's

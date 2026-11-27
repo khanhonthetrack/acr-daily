@@ -90,7 +90,9 @@ def page(ig):
                box(edit(tab_id(TAB, 'code'), m.get('code', ''), _('a replay\'s code'), sz=17), bg=PANEL2, p=[10, 6, 10, 6],
                    r=2, ol=LINE2, va='c'),
                sp(8), quiet(tab_id(TAB, 'open_code'), _('OPEN A CODE'), va='c'), sp(8),
-               quiet(tab_id(TAB, 'folder'), _('OPEN FOLDER'), va='c'), pad=[0, 0, 0, 12])
+               quiet(tab_id(TAB, 'folder'), _('OPEN FOLDER'), va='c'), sp(8),
+               quiet(tab_id(TAB, 'check'), _('CHECKING…') if m.get('busy') == 'check' else _('CHECK MY DNFS'), va='c'),
+               pad=[0, 0, 0, 12])
     asks = [ask_row(w) for w in (getattr(a, 'replay_asks', None) or [])]
     note = getattr(a, 'replay_note', '') or m.get('note') or ''
     off = None if on else box(txt(_('Replays are off: SETTINGS > Replays turns them on.'), 17, 'semi', WHITE),
@@ -256,6 +258,8 @@ def click(ig, action, arg):
             ig.note(d)
     elif action == 'open_code':
         open_code(ig, (m.get('code') or '').strip().lower())
+    elif action == 'check':
+        check(ig)
     elif action in ('ask_send', 'ask_no'):
         w = next((x for x in (getattr(a, 'replay_asks', None) or []) if str(x.get('requestId')) == str(arg)), None)
         if w is not None:
@@ -317,6 +321,22 @@ def upload(ig, sel, public):
             return
         a.replay_send(sel['file'], public=public, done=done)
     threading.Thread(target=go, daemon=True).start()
+
+
+def check(ig):
+    """CHECK MY DNFS: the DNFs of the last 30 days a replay on this PC takes back, sent now (the app does it by itself
+    after each run, for 3 days: this for after a crash, or older ones)."""
+    a = ig.app
+    m = ig.mem(TAB)
+    if m.get('busy') or not hasattr(a, 'replay_check'):
+        return
+    m['busy'], m['note'] = 'check', _('Checking your DNFs of the last 30 days…')
+    a.replay_note = ''
+
+    def done(words):
+        m['busy'], m['rows'], m['note'] = None, None, words
+        a.replay_note = ''                           # (each replay's own word: the summary says them all)
+    a.replay_check(done)
 
 
 def open_code(ig, code):

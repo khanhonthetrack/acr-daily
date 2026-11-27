@@ -72,7 +72,7 @@ import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
 import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner, replayStageTime } from './leaguesapi.js';
-import { adminReplays, replaysApi } from './replays.js';
+import { adminAccept, adminReplays, replaysApi } from './replays.js';
 import { replayPage } from './replaypage.js';
 import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
@@ -1411,6 +1411,8 @@ async function adminCall(req, env, path) {
   // the time or not"): the dailies' DNFs with a stage clock (the game lost the result: reinstate or keep), the times the
   // app stood in with (keep or take off), the championships' DNFs (a look: their event and the driver's report)
   if (path === '/api/admin/replays' && req.method === 'GET') return json({ replays: await adminReplays(env, Date.now()) });
+  const ra = path.match(/^\/api\/admin\/replays\/([a-z0-9]{10})\/accept$/);   // (one in review: its DNF taken back)
+  if (ra && req.method === 'POST') return adminAccept(env, ra[1], body, Date.now(), replayDeps(req, env, new URL(req.url)));
   if (path === '/api/admin/dnfs' && req.method === 'GET') {
     const days = Math.min(Math.max(Number(new URL(req.url).searchParams.get('days')) || 14, 1), 60);
     const since = dayOf(Date.now() - days * 86400000), sinceMs = Date.now() - days * 86400000;

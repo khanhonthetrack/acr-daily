@@ -6,7 +6,7 @@ import threading
 import time
 
 from . import __version__, replays, waiting
-from .i18n import _
+from .i18n import _, n_
 
 POLL_S = 600.0                    # the server asked what it wants this often
 AFTER_RUN_S = (40.0, 150.0, 400.0)  # ... and this long after a counted run ended (its DNF, if any, is in by then)
@@ -78,7 +78,9 @@ class ReplayUI:
         self._replay_polling = True
         threading.Thread(target=self._replay_poll_bg, daemon=True).start()
 
-    def _replay_poll_bg(self):
+    def _replay_poll_bg(self, days=None):
+        """-> what was done with each DNF the server would take back: [(wanted, its answer, or None: no replay of it on
+        this PC / not sent)], or None (the server not reached)."""
         try:
             # (first what the server missed: commits of runs driven while the connection was down, sent from their files,
             # then what it wants: a DNF's proof needs its finish on the server)
@@ -89,10 +91,10 @@ class ReplayUI:
             except Exception:
                 pass
             try:
-                want = self.api.replays_wanted()
+                want = self.api.replays_wanted(days)
             except Exception:
-                return
-            asks = []
+                return None
+            asks, done = [], []
             for w in want:
                 if w.get('why') == 'missing' and self._result_on_its_way(w.get('ref')):
                     continue                     # (its own result still queued here: that one, not the replay)
@@ -107,11 +109,29 @@ class ReplayUI:
                     if replays.opts(self.s)['send'] == 'ask':
                         asks.append(dict(w, file=name))
                         continue
-                if name:
-                    self.replay_send(name, why=w.get('why'))
+                ans = self.replay_send(name, why=w.get('why')) if name else None
+                if w.get('why') != 'steward':
+                    done.append((w, ans))
             self.replay_asks = asks
+            return done
         finally:
             self._replay_polling = False
+
+    def replay_check(self, done):
+        """CHECK MY DNFs (the user, 27 Nov 2026): the server asked now, and 30 days back (its own asks: 3), for the DNFs a
+        replay on this PC takes back; done(words) on the app's thread: what came of it."""
+        if self._replay_polling:
+            self.root.after(0, lambda: done(_('Checking already…')))
+            return
+        if not self.s.get('token'):
+            self.root.after(0, lambda: done(_('Sign in to ACR DAILY to check your DNFs.')))
+            return
+        self._replay_polling = True
+
+        def go():
+            got = self._replay_poll_bg(days=30)
+            self.root.after(0, lambda: done(check_words(got)))
+        threading.Thread(target=go, daemon=True).start()
 
     def replay_send(self, name, public=False, why=None, done=None):
         """A kept replay uploaded (in this thread: call it from one of its own). -> the server's answer, or None. Its
@@ -143,7 +163,7 @@ class ReplayUI:
             pass
         act = a.get('action') or ''
         waiting.note('replays: %s sent (%s): %s %s' % (name, why or 'by hand', a.get('verdict'), act))
-        if act.startswith('DNF taken back') or act.startswith('SS'):
+        if took_back(act):
             self.replay_note = _('Your replay proved the finish: %s') % act
 
             def told():
@@ -207,6 +227,32 @@ class ReplayUI:
     def _replay_close(self):
         if self.replays is not None:
             self.replays.finish()
+
+
+def took_back(action):
+    """The server's word on a replay sent: did it put the run back (a daily's DNF, its missing result, a rally's stage)?"""
+    return str(action or '').startswith(('DNF taken back', 'Result put in', 'SS'))
+
+
+def check_words(got):
+    """CHECK MY DNFs' outcome in words: got as _replay_poll_bg returns it."""
+    if got is None:
+        return _('The server could not be reached. Try again in a moment.')
+    if not got:
+        return _('No DNF to take back: none of your runs of the last 30 days lost its finish.')
+    back = [a.get('action') for _w, a in got if a and took_back(a.get('action'))]
+    review = [a for _w, a in got if a and not took_back(a.get('action'))]
+    none = [w for w, a in got if not a]
+    out = []
+    if back:
+        out.append(_('Taken back: %s.') % '; '.join(back))
+    if review:
+        out.append(n_('%d sent to the admin or the stewards to look at.', '%d sent to the admin or the stewards to look at.',
+                      len(review)) % len(review))
+    if none:
+        out.append(n_('%d with no replay on this PC to prove it.', '%d with no replay on this PC to prove it.',
+                      len(none)) % len(none))
+    return ' '.join(out)
 
 
 def find_local(w):
