@@ -767,6 +767,10 @@ class GhostOverlay:
             rate = getattr(fol, 'rate_now', None) if fol is not None else None
             if rate is not None:                        # (a REPLAY: played faster, slower or paused; main.lua play_clock)
                 lines.append('wrate %.3f %d' % (rate(), seq))
+            look_now = getattr(fol, 'look_now', None) if fol is not None else None
+            look = look_now(now) if look_now is not None else None
+            if look is not None:                        # (a REPLAY: its car's dents and panels at its clock; main.lua LOOK)
+                lines.append('wlook %d %s' % (seq, look))
         lines.append('end %d' % seq)                 # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)

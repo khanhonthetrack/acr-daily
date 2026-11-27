@@ -170,6 +170,31 @@ def read_damage(path=None):
     return out
 
 
+LOOK_FILE = 'ingame-carlook.txt'     # your car's damage as its meshes draw it (main.lua LOOK.write)
+
+
+def read_look(path=None):
+    """Your car's damage as the game draws it now (dents, panels off, scratches: the mod's one line of words, "D ... P
+    ... Z ...") -> str, '' for a car as new, or None (no car of yours, no file, half written). Kept with the replay."""
+    import os
+    from . import settings
+    try:
+        with open(path or os.path.join(settings.DIR, LOOK_FILE), encoding='ascii', errors='replace') as f:
+            text = f.read(4000).strip()
+    except OSError:
+        return None
+    import re
+    m = re.match(r'^ACRLOOK (\d+) (.*) end (\d+)$', text.splitlines()[0].strip() if text else '')
+    if not m or m.group(1) != m.group(3):
+        return None
+    body = m.group(2)
+    if body == 'none':
+        return None
+    if not (body.startswith('D ') and ' P ' in body and ' Z' in body):
+        return None
+    return '' if re.sub(r'[DPZ\s]', '', body) == '' else body
+
+
 FINISH_CAR_FILE = 'ingame-finishcar.json'   # the whole car as it crossed the last finish line (drive.lua capture)
 FINISH_CAR_FRESH_S = 180                     # one older than this isn't the stage just finished
 

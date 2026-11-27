@@ -49,6 +49,7 @@ COMMIT_S = 10.0                # the chain's hash to the server this often while
 PART_S = 5.0                   # the rows so far on disk this often (an app closed mid-stage keeps them: recover())
 AFTER_S = 3.0                  # rows kept this long after the run's end (the car rolling past the finish line)
 HOLD_S = 0.3                   # the clock standing this long between two rows: its exact clock kept as a row
+LOOK_S = 0.5                   # the car's drawn damage looked at this often while driving (kept when it changes: doc 'looks')
 RETRY_S, RETRY_MAX_S = 5.0, 60.0  # the server's part tried again this often (doubling up to the max)
 RUN_HOURS = 4                  # ... for at most this long after the run's start (the server takes commits as long)
 PENALTY_S = 45.0               # the replay kept open this long after the end, the game's penalties read in meanwhile
@@ -369,11 +370,12 @@ class Recorder:
     api: the app's Api, s: the settings dict, me: () -> {steamId, name}; penalty: () -> (ms, dq) or None (the game's
     penalties, the mod); damage: () -> {part: life points} or None (the car as the mod read it at the finish line)."""
 
-    def __init__(self, s, api=None, me=None, app_version='', penalty=None, damage=None):
+    def __init__(self, s, api=None, me=None, app_version='', penalty=None, damage=None, look=None):
         self.s, self.api, self.me = s, api, me or (lambda: {})
         self.app_version = app_version
         self.penalty_fn = penalty
         self.damage_fn = damage
+        self.look_fn = look              # () -> the car's damage as drawn (ingamedrive.read_look), or None
         self.run = None
         self.saved = []                  # (file names saved this session, newest last: the app's notes)
         self.on_saved = None             # a function (name, doc) called on the main thread when one is kept
@@ -443,6 +445,15 @@ class Recorder:
                          'track': track, 'car': getattr(f, 'car', '') or '', 'kind': 'practice', 'ref': None,
                          'status': 'ended', 'rowMs': ROW_MS},
                 'rows': [], 'last': -ROW_MS, 'part_at': now, 'live': None, 'clock_seen': None}
+        if not r.get('ended') and self.look_fn is not None and now - r.get('look_at', -1e9) >= LOOK_S:
+            r['look_at'] = now                   # (the car's drawn damage, when it changes: the replay shows it)
+            try:
+                look = self.look_fn()
+            except Exception:
+                look = None
+            if isinstance(look, str) and look != r.get('look_last'):
+                r['look_last'] = look
+                r.setdefault('looks', []).append([int(f.clock_ms), look])
         if not (r.get('ended') and now - r['ended'] >= AFTER_S):
             if f.clock_ms >= r['last'] + ROW_MS:
                 r['rows'].append(row_of(f))
@@ -559,8 +570,8 @@ class Recorder:
         try:
             os.makedirs(folder(), exist_ok=True)
             with open(os.path.join(folder(), 'recording.part'), 'w', encoding='utf-8') as fh:
-                json.dump({'head': r['head'], 'rows': r['rows'], 'live': self._live_out(r)}, fh,
-                          separators=(',', ':'))
+                json.dump({'head': r['head'], 'rows': r['rows'], 'live': self._live_out(r), 'looks': r.get('looks') or []},
+                          fh, separators=(',', ':'))
         except OSError:
             pass
 
@@ -597,6 +608,8 @@ class Recorder:
         with self._chain_lock:
             doc = {'format': FORMAT, 'v': VERSION, 'head': clean_head(r['head']), 'cols': list(COLS),
                    'rows': list(r['rows']), 'live': self._live_out(r)}
+            if r.get('looks'):                   # (not signed: what the car looked like, not what it did)
+                doc['looks'] = [list(x) for x in r['looks']]
         return sign_doc(doc)
 
     def finish(self):
@@ -774,6 +787,8 @@ def recover(keep=KEEP_DEFAULT):
         head['reason'] = head.get('reason') or 'cut short: the app closed'
     doc = sign_doc({'format': FORMAT, 'v': VERSION, 'head': clean_head(head), 'cols': list(COLS),
                     'rows': part['rows'], 'live': part.get('live')})
+    if isinstance(part.get('looks'), list) and part['looks']:
+        doc['looks'] = part['looks']
     try:
         return save(doc, keep)
     except OSError:

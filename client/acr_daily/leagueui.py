@@ -1013,7 +1013,7 @@ class LeaguesUI:
             if leagues.carried(ev, done) and isinstance(d, dict) and d.get('no') == done - 1 and \
                     isinstance(d.get('parts'), dict):
                 setup['damage'] = dict(d['parts'])
-                whole = leagues.kept_car(ev['id'], done - 1)
+                whole = leagues.kept_car(ev['id'], done - 1, entry)
                 if whole is not None:
                     setup['whole'] = whole
                 waiting.note('%s: SS%d in a new place, the car as it finished SS%d (%s)' % (
@@ -1544,8 +1544,12 @@ class LeaguesUI:
         # the whole car at the line too (body, panels, scratches, lights, wear, tyres), kept on this PC: the next stage
         # set up again from here gets it all, not only the parts' life points (leagues.keep_car)
         whole = ingamedrive.read_finish_car()
-        if whole is not None and leagues.keep_car(ev['id'], k, whole):
-            waiting.note('league:%d:%d: the whole car at the finish kept' % (ev['id'], k))
+        if whole is not None:
+            if leagues.keep_car(ev['id'], k, whole):
+                waiting.note('league:%d:%d: the whole car at the finish kept' % (ev['id'], k))
+            z = leagues.pack_car(whole)                 # (and to the server with the stage: any PC can go on with it)
+            if z:
+                r['carState'] = z
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
                            'watch': saveslot.SaveWatch()}
@@ -1697,8 +1701,11 @@ class LeaguesUI:
                 'clockMs': r.get('clockMs'), 'resets': r.get('resets')}
         if isinstance(r.get('damage'), dict):      # (the car at the finish line: the server keeps it for the next stage)
             item['damage'] = r['damage']
+        if isinstance(r.get('carState'), str):     # (all of it: the server keeps the last one with the entry)
+            item['carState'] = r['carState']
         self._league_send(item)
-        settings.append_result(dict(r, challengeId='league:%d:%d' % (event_id, k), official={'timeMs': time_ms, 'penaltyMs': pen_ms},
+        kept = {x: y for x, y in r.items() if x != 'carState'}   # (results.jsonl: not 4 KB more each stage)
+        settings.append_result(dict(kept, challengeId='league:%d:%d' % (event_id, k), official={'timeMs': time_ms, 'penaltyMs': pen_ms},
                                     totalMs=time_ms + pen_ms))
         return time_ms, pen_ms
 
@@ -1732,6 +1739,8 @@ class LeaguesUI:
                 dnf = {'kind': 'dnf', 'eventId': x['eventId'], 'no': k, 'reason': out[1]}
                 if isinstance((x.get('result') or {}).get('damage'), dict):
                     dnf['damage'] = x['result']['damage']   # (kept for a DNF the stewards take back)
+                if isinstance((x.get('result') or {}).get('carState'), str):
+                    dnf['carState'] = x['result']['carState']
                 self._league_send(dnf)
                 self.sub_l.configure(text=_('%s: DNF on SS%d (%s).') % (name, k + 1, local(out[1])))
                 if x.get('lost'):
@@ -1819,7 +1828,8 @@ class LeaguesUI:
             self._league_rearm(run)
             self.sub_l.configure(text=_('Not started: %s') % local(reason))
             return
-        self._league_dnf_entry(run['ev'], reason, run['no'], damage=((run.get('wait') or {}).get('result') or {}).get('damage'))
+        res = (run.get('wait') or {}).get('result') or {}
+        self._league_dnf_entry(run['ev'], reason, run['no'], damage=res.get('damage'), car_state=res.get('carState'))
         self._notify(False, _('DNF'), '%s · SS%d: %s' % (run['ev']['name'], run['no'] + 1, local(reason)))
         ev = run['ev']                              # a comment on the stage it ended on (commentui.py)
         self.offer_comment('event:%d/%d' % (ev['id'], run['no']), '%s · SS%d · %s' % (ev['name'], run['no'] + 1, _('DNF')),
@@ -1844,12 +1854,14 @@ class LeaguesUI:
             ev['entry'] = dict(ev.get('entry') or {'done': 0, 'totalMs': 0}, status='dnf', reason=reason)
         self._render_leagues()
 
-    def _league_dnf_entry(self, ev, reason, no=None, damage=None):
+    def _league_dnf_entry(self, ev, reason, no=None, damage=None, car_state=None):
         e = ev['entry'] = ev.get('entry') or {'done': 0, 'totalMs': 0}
         e['status'], e['reason'] = 'dnf', reason
         item = {'kind': 'dnf', 'eventId': ev['id'], 'no': e.get('done', 0) if no is None else no, 'reason': reason}
         if isinstance(damage, dict):               # (the car where the stage ended: kept for a DNF taken back)
             item['damage'] = damage
+        if isinstance(car_state, str):             # (all of it)
+            item['carState'] = car_state
         self._league_send(item)
         self._render_leagues()
 
@@ -1881,7 +1893,8 @@ class LeaguesUI:
                     elif it['kind'] == 'missed':
                         r = self.api.league_missed(it['eventId'], it['no'], it['reason'])
                     else:
-                        r = self.api.league_dnf(it['eventId'], it['no'], it['reason'], damage=it.get('damage'))
+                        r = self.api.league_dnf(it['eventId'], it['no'], it['reason'], damage=it.get('damage'),
+                                                car_state=it.get('carState'))
                     if it['kind'] in ('start', 'begin', 'missed') and (r or {}).get('status') == 'dnf':   # a stage started again
                         _c().ui(self.root, self._league_server_dnf, it['eventId'], r.get('reason') or _('DNF'))
                     elif it['kind'] in ('start', 'begin') and isinstance((r or {}).get('slot'), dict):   # a ranked rally's start

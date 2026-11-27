@@ -231,7 +231,7 @@ def recover(ev, state, p):
     if leg_starts(ev, done) and not carried(ev, done):
         return None
     out = {'start': done, 'leg': leg_of(ev, done), 'damage': dict(d['parts'])}
-    whole = kept_car(ev['id'], done - 1)          # (the whole car at that line, kept on this PC: kept_car)
+    whole = kept_car(ev['id'], done - 1, e)       # (the whole car at that line: this PC's, else the server's)
     if whole is not None:
         out['whole'] = whole
     return out
@@ -272,12 +272,40 @@ def keep_car(event_id, no, whole):
         return False
 
 
-def kept_car(event_id, no):
-    """keep_car's car for the event's stage `no`, or None."""
+def kept_car(event_id, no, entry=None):
+    """keep_car's car for the event's stage `no`, or None. Not on this PC (another PC, a reinstall, the folder gone):
+    the server's copy, sent with the stage (entry 'carState' {no, z}: pack_car's)."""
     try:
         with open(_car_path(event_id, no), encoding='utf-8') as f:
             whole = json.load(f)
+        if isinstance(whole, dict) and isinstance(whole.get('car'), dict):
+            return whole
     except (OSError, ValueError, TypeError):
+        pass
+    cs = (entry or {}).get('carState')
+    if isinstance(cs, dict) and cs.get('no') == no:
+        return unpack_car(cs.get('z'))
+    return None
+
+
+def pack_car(whole):
+    """The whole car for the server: its JSON gzipped, base64 (~4 KB from ~12 KB). -> str, or None."""
+    import base64
+    import gzip
+    try:
+        return base64.b64encode(gzip.compress(json.dumps(whole, separators=(',', ':')).encode('utf-8'), 9)).decode('ascii')
+    except (TypeError, ValueError):
+        return None
+
+
+def unpack_car(z):
+    """pack_car's back -> the whole car, or None (not one)."""
+    import base64
+    import binascii
+    import gzip
+    try:
+        whole = json.loads(gzip.decompress(base64.b64decode(z, validate=True)).decode('utf-8'))
+    except (TypeError, ValueError, OSError, EOFError, binascii.Error):
         return None
     return whole if isinstance(whole, dict) and isinstance(whole.get('car'), dict) else None
 

@@ -22,7 +22,8 @@ class ReplayUI:
         from . import ingamedrive
         self.replays = replays.Recorder(self.s, self.api, me=lambda: {'steamId': self.s.get('steamId'), 'name': self.s.get('name')},
                                         app_version=__version__, penalty=self._live_penalty,
-                                        damage=ingamedrive.read_damage)   # (the car at the finish line: the mod's)
+                                        damage=ingamedrive.read_damage,   # (the car at the finish line: the mod's)
+                                        look=ingamedrive.read_look)       # (its dents as they come: the replay shows them)
         self.replays.on_saved = self._replay_saved
         self.replay_asks = []
         self._replay_polling = False

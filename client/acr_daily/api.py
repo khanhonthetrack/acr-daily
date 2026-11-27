@@ -648,10 +648,12 @@ class Api:
         'status', 'retired'}), or {'status': 'dnf', 'reason'} without it (server leaguesapi.js missed)."""
         return self._req('POST', '/api/events/%d/missed' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
-    def league_dnf(self, event_id, no, reason, damage=None):
+    def league_dnf(self, event_id, no, reason, damage=None, car_state=None):
         body = {'no': no, 'reason': reason}
         if isinstance(damage, dict):                 # (the car where it ended: kept for a DNF the stewards take back)
             body['damage'] = damage
+        if isinstance(car_state, str):               # (all of it: leagues.pack_car)
+            body['carState'] = car_state
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), body, auth=True)
 
     # ---------------------------------------------------------------- comments on runs (server src/comments.js)

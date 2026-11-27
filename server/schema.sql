@@ -286,6 +286,7 @@ CREATE TABLE IF NOT EXISTS league_entries (
   stage_at    INTEGER,                  -- when on_stage started, as the app sent it (ms): the same start sent again is no second one (0031)
   team_id     INTEGER,                  -- the league team they drove it for (league_teams.id, set as they start; 0032): points stay with it
   damage      TEXT,                     -- the car after the last counted stage, at its finish line: {no, parts} (0046)
+  car_state   TEXT,                     -- the whole car there (the mod's copy, gzip + base64): {no, z} (0053)
   PRIMARY KEY (event_id, steam_id)
 );
 

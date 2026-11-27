@@ -29,6 +29,9 @@ class ReplayDriver(livelink.LiveDriver):
             self.trace.ms.append(r[0])
         self.dash = collections.deque(((r[0], r[7] / 10.0, r[8], r[9], r[10] / 1000.0, r[11] / 1000.0, r[12] / 1000.0)
                                        for r in rows), maxlen=len(rows) + 1)
+        # the car's drawn damage as it came (doc 'looks': [clock ms, look]): the mod puts it on the replay's car
+        self.looks = sorted(([int(x[0]), str(x[1])] for x in (doc.get('looks') or [])
+                             if isinstance(x, (list, tuple)) and len(x) == 2), key=lambda x: x[0])
         self.rpm_top = max([r[9] for r in rows] + [6000])
         self.doc = doc
         self.sid = (h.get('driver') or {}).get('steamId')
@@ -92,6 +95,19 @@ class ReplayDriver(livelink.LiveDriver):
 
     def jump(self, d):
         self.seek(self.clock() + d * JUMP_MS)
+
+    def look_now(self, now=None):
+        """The car's damage as drawn at the replay's clock now: the last look at or before it ('' as new before the
+        first), or None for a replay recorded without them (the mod then leaves the car as it is)."""
+        if not self.looks:
+            return None
+        c = self.clock(now)
+        out = ''
+        for ms, look in self.looks:
+            if ms > c:
+                break
+            out = look
+        return out
 
     def rate_now(self):
         return 0.0 if self.paused else self.rate

@@ -52,6 +52,23 @@ test('the car at the finish line is kept with the stage, for the next one after 
   assert.equal(carDamage({ Engine: 50 }, -1), null);
 });
 
+test('the whole car at the finish line is kept on the entry too, one per entry, for any PC', async () => {
+  const { env, id } = world();
+  const Z1 = 'H4sIAAAAAAAAA6tWSkksSVSyUlAqS8wpTVWqBQBJ0Sg0EgAAAA==', Z2 = 'H4sIAAAAAAAAA6tWKkksSlSyUqoFADPSXR8NAAAA';
+  await call(env, `/api/events/${id}/start`, BEN, { car: 'Skoda Fabia RS Rally2', at: NOW - 600000 });
+  await call(env, `/api/events/${id}/stage`, BEN, { no: 0, timeMs: 250000, penaltyMs: 0, damage: { Engine: 40 }, carState: Z1 });
+  assert.deepEqual((await mine(env, id, BEN)).carState, { no: 0, z: Z1 });
+  await call(env, `/api/events/${id}/begin`, BEN, { no: 1, at: NOW - 300000 });
+  await call(env, `/api/events/${id}/stage`, BEN, { no: 1, timeMs: 150000, penaltyMs: 0, carState: Z2 });
+  assert.deepEqual((await mine(env, id, BEN)).carState, { no: 1, z: Z2 });                // (replaced: one per entry)
+  // not one: nothing kept, the last one dropped (it would be another stage's)
+  await call(env, `/api/events/${id}/begin`, BEN, { no: 2, at: NOW - 100000 });
+  await call(env, `/api/events/${id}/stage`, BEN, { no: 2, timeMs: 150000, penaltyMs: 0, carState: 'not base64!' });
+  const e = await mine(env, id, BEN);
+  assert.equal(e.status, 'finished');
+  assert.equal(e.carState, null);                       // (finished: no longer sent, and none kept)
+});
+
 test('the stewards take a DNF back, retire an entry, and set a stage\'s time; everyone sees each decision', async () => {
   const { env, id } = world();
   await call(env, `/api/events/${id}/start`, BEN, { car: 'Skoda Fabia RS Rally2', at: NOW - 600000 });

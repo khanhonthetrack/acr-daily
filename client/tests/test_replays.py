@@ -97,6 +97,21 @@ class Recording(Base):
         self.assertFalse(replays.check(doc)['signed'])
         self.assertTrue(os.path.exists(os.path.join(self.tmp, 'replay-key.json')))
 
+    def test_the_cars_damage_kept_as_it_came(self):
+        hit = 'D coll_front=0.40 P Root_BumperF Z 3=0.50'
+        looks = {'now': ''}
+        rec = replays.Recorder({}, look=lambda: looks['now'])
+        drive(rec, 0.0, 20000)
+        looks['now'] = hit                                     # (a crash 20 s in)
+        for c in range(20050, 30001, 50):
+            rec.feed(frame(c), c / 1000.0)
+        rec.outcome('finished', {'clockMs': 30000, 'resets': 0, 'totalMs': 30000})
+        rec.feed(None, 60.0)
+        doc = replays.read(replays.path_of(rec.saved[0]))
+        self.assertEqual([x[1] for x in doc['looks']], ['', hit])   # (only when it changes)
+        self.assertTrue(20000 <= doc['looks'][1][0] <= 21000)
+        self.assertTrue(replays.check(doc)['signed'])                  # (not in the signature: still signed)
+
     def test_a_restart_is_a_new_run_and_a_joined_run_is_not_kept(self):
         rec = replays.Recorder({})
         drive(rec, 0.0, 10000)
@@ -257,6 +272,38 @@ class Playback(Base):
         self.assertEqual(round(d.clock(99.0)), rows[-1][0])
         self.assertEqual(end[1], (0.0,) * 6)
         self.assertEqual(d.motion(100.0)[0], end[0])                 # (and still there)
+
+    def test_its_damage_as_it_came(self):
+        """The car's dents and panels as the game drew them while driving (doc 'looks'), put on the replay's car at the
+        replay's clock (the user, 27 Nov 2026: "make sure that replays also have the data so we can actually see
+        damage on replay")."""
+        from acr_daily import replayplay
+        rows = [[100 + i * 100, i * 100, 0, 0, 0, 0, 0, 360, 5, 5000, 1000, 0, 0, 0] for i in range(100)]
+        hit = 'D coll_front=0.40 P Root_BumperF Z 3=0.50'
+        d = replayplay.ReplayDriver({'head': {'car': 'Car'}, 'rows': rows, 'looks': [[100, ''], [5000, hit]]})
+        d.seek(2000)
+        self.assertEqual(d.look_now(), '')                            # (before the crash: as new)
+        d.seek(6000)
+        self.assertEqual(d.look_now(), hit)
+        d.seek(100)
+        self.assertEqual(d.look_now(), '')                            # (back to the start: as new again)
+        self.assertIsNone(replayplay.ReplayDriver({'head': {}, 'rows': rows}).look_now())   # (an older replay)
+
+    def test_the_mods_look_file(self):
+        from acr_daily import ingamedrive
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, 'ingame-carlook.txt')
+
+            def read(text):
+                with open(p, 'w', encoding='ascii') as fh:
+                    fh.write(text + ' ' * 50 + '\n')
+                return ingamedrive.read_look(p)
+            self.assertEqual(read('ACRLOOK 4 D coll_front=0.40 P Root_Hood,Root_Boot Z 3=0.50 end 4'),
+                             'D coll_front=0.40 P Root_Hood,Root_Boot Z 3=0.50')
+            self.assertEqual(read('ACRLOOK 5 D  P  Z  end 5'), '')       # (as new)
+            self.assertIsNone(read('ACRLOOK 6 none end 6'))             # (no car of yours)
+            self.assertIsNone(read('ACRLOOK 7 D  P  Z  end 6'))         # (half written)
 
     def test_it_waits_for_the_viewer_at_the_start_line(self):
         from acr_daily import replayplay

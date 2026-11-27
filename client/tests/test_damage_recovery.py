@@ -103,6 +103,19 @@ class WholeCar(unittest.TestCase):
         self.assertEqual(rec['whole'], self.WHOLE)
         self.assertEqual(rec['damage'], {'Engine': 40.0})           # (the server's parts as before)
 
+    def test_the_servers_copy_on_another_pc(self):
+        z = leagues.pack_car(self.WHOLE)
+        self.assertLess(len(z), 600)                                  # (gzip + base64: small)
+        self.assertEqual(leagues.unpack_car(z), self.WHOLE)
+        self.assertIsNone(leagues.unpack_car('not base64!'))
+        self.assertIsNone(leagues.unpack_car(leagues.pack_car({'v': 1})))   # (no car in it)
+        e = {'status': 'running', 'done': 2, 'damage': {'no': 1, 'parts': {'Engine': 40.0}},
+             'carState': {'no': 1, 'z': z}}
+        with mock.patch.object(leagues, 'is_parked', return_value=False):
+            self.assertEqual(leagues.recover(event(e), 'none', None)['whole'], self.WHOLE)   # (nothing on this PC)
+            e['carState'] = {'no': 0, 'z': z}                         # (another stage's: not used)
+            self.assertNotIn('whole', leagues.recover(event(e), 'none', None))
+
     def test_only_the_newest_are_kept(self):
         with mock.patch.object(leagues, 'CARS_KEPT', 3):
             for no in range(5):

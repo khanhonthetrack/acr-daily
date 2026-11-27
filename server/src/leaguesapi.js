@@ -114,6 +114,14 @@ export function carDamage(d, no) {
   }
   return JSON.stringify({ no, parts });
 }
+// The whole car at the finish line (the game mod's copy, gzip + base64 from the app, ~4 KB): kept on the entry with its
+// stage, one per entry (0053). -> the JSON kept, or null when there is none (or it isn't one)
+const CAR_STATE_MAX = 64000;
+export function carState(z, no) {
+  if (typeof z !== 'string' || !z || z.length > CAR_STATE_MAX || !/^[A-Za-z0-9+/]+={0,2}$/.test(z)) return null;
+  if (!(no >= 0 && no < 100)) return null;
+  return JSON.stringify({ no, z });
+}
 const safeJson = (s) => { try { return JSON.parse(s); } catch { return null; } };
 const lockedRally = (l, role) => l.kind === RALLY && !l.public && !role;
 // apps that list private rallies with a lock and ask for their code (client api.py sends it from 0.1.6): older ones
@@ -716,7 +724,9 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
         o.opponent = sd.other ? { steamId: null, name: sd.other.tag ? `[${sd.other.tag}] ${sd.other.name}` : sd.other.name } : null;
       } else if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started,
-        damage: entry.damage ? safeJson(entry.damage) : null } : null;
+        damage: entry.damage ? safeJson(entry.damage) : null,
+        // (the whole car, only while it can still be needed: the entry running, or out and its stewards able to take it back)
+        carState: entry.car_state && (entry.status === 'running' || entry.status === 'dnf') ? safeJson(entry.car_state) : null } : null;
       out.push(o);
     }
     return json(await withTeams(env, { now, events: out }));
@@ -1457,12 +1467,14 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const done = entry.done + 1;
     const status = done >= nStages ? 'finished' : 'running';
     const dmg = carDamage(b.damage, no2);                // (the car at the finish line: the next stage after a crash)
+    const whole = carState(b.carState, no2);             // (all of it, the mod's copy: kept too, replacing the last)
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO league_stage_times (event_id, steam_id, stage_no, time_ms, penalty_ms, splits, started, created)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, no2, timeMs, penMs, splits ? JSON.stringify(splits) : null,
         Number.isFinite(+b.startedAt) ? Math.round(+b.startedAt) : null, now),
       env.DB.prepare(`UPDATE league_entries SET done = ?, on_stage = NULL, total_ms = total_ms + ?, status = ?, updated = ?, app_version = ?,
-        damage = ? WHERE event_id = ? AND steam_id = ?`).bind(done, timeMs + penMs, status, now, v, dmg, ev.id, me.steam_id),
+        damage = ?, car_state = ? WHERE event_id = ? AND steam_id = ?`)
+        .bind(done, timeMs + penMs, status, now, v, dmg, whole, ev.id, me.steam_id),
     ]);
     return json({ done, status });
   }
@@ -1493,8 +1505,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const reason = text(b.reason, 120) || 'retired';
     // (the car as it finished the stage, when the app read it there: kept for a DNF the stewards take back)
     const dmg = carDamage(b.damage, Math.round(+b.no));
-    await env.DB.prepare(`UPDATE league_entries SET status = 'dnf', reason = ?, updated = ?, damage = COALESCE(?, damage)
-      WHERE event_id = ? AND steam_id = ?`).bind(reason, now, dmg, ev.id, me.steam_id).run();
+    const whole = carState(b.carState, Math.round(+b.no));
+    await env.DB.prepare(`UPDATE league_entries SET status = 'dnf', reason = ?, updated = ?, damage = COALESCE(?, damage),
+      car_state = COALESCE(?, car_state) WHERE event_id = ? AND steam_id = ?`).bind(reason, now, dmg, whole, ev.id, me.steam_id).run();
     return json({ status: 'dnf', reason });
   }
   return err('not found', 404);

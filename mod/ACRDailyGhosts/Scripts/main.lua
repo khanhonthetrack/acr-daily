@@ -187,6 +187,9 @@ local function read_ghosts(t)
         elseif w[1] == "wlivery" then                                   -- wlivery <seq> <livery name...> (WATCH)
             if w[2] ~= seq then return nil end
             names_now["\0wlivery"] = line:match("^wlivery %S+ (.+)$")
+        elseif w[1] == "wlook" then                                     -- wlook <seq> <look...> (a REPLAY: the car's damage now)
+            if w[2] ~= seq then return nil end
+            names_now["\0wlook"] = line:match("^wlook %S+ (.*)$") or ""
         elseif w[1] == "wrate" and #w >= 3 then                        -- wrate <rate> <seq> (a REPLAY played faster / slower / paused)
             if w[3] ~= seq then return nil end
             names_now["\0wrate"] = tonumber(w[2])
@@ -694,6 +697,78 @@ local function spawn(me, g)
     return a
 end
 
+-- A car's damage as its meshes draw it (probed 27 Nov 2026): its destruction anim instance's deformation controls (the
+-- dents: 15 on an i20, 0-1 each), its pieces' controls (a panel come off: bDetached) and its FX zones' damages
+-- (scratches, 34). Read from your car as you drive (ingame-carlook.txt: the app keeps it with the replay); written on a
+-- replay's car as its clock goes (the app's "wlook" line), the same numbers: a car the mod makes (no physics) takes them
+-- and keeps them. As one line of words: "D <control>=<0-1>... P <piece>,<piece>... Z <zone>=<0-1>..." (only what isn't
+-- as new; an empty look: a car as new).
+watch_look = nil
+local LOOK = {file = DIR .. "ingame-carlook.txt", every = 0.5, seq = 0, t = -1e9}   -- (one local: main's are at the limit)
+function LOOK.anim(actor)
+    -- (the destruction graph is linked into the car mesh's own anim instance, by the tag its CarDestruction names;
+    -- looked up once per car: the scan below goes through every object)
+    LOOK.cls = LOOK.cls or StaticFindObject("/Script/acr.CarDestructionAnimInstance")
+    local ok, ai = pcall(function()
+        local mesh = actor.DeformableCollider
+        local tag = actor.CarDestruction.LinkedAnimInstanceTag
+        return mesh:GetLinkedAnimGraphInstanceByTag(tag)
+    end)
+    if ok and ai and ai.IsValid and ai:IsValid() and LOOK.cls and ai:IsA(LOOK.cls) then return ai end
+    for _, x in ipairs(FindAllOf("CarDestructionAnimInstance") or {}) do
+        local oko, owner = pcall(function() return x:GetOwningActor() end)
+        if oko and owner and owner:IsValid() and owner:GetAddress() == actor:GetAddress() then return x end
+    end
+    return nil
+end
+function LOOK.read(actor, ai)
+    ai = ai or LOOK.anim(actor)
+    if not ai then return nil end
+    local d, p, z = {}, {}, {}
+    local dc, pc = ai.DeformationControls, ai.CarPieceControls
+    for j = 1, #dc do
+        local v = dc[j].DeformationPercentage
+        if v > 0.005 then d[#d + 1] = string.format("%s=%.2f", dc[j].ControlName:ToString(), v) end
+    end
+    for j = 1, #pc do
+        if pc[j].bDetached then p[#p + 1] = pc[j].ControlName:ToString() end
+    end
+    pcall(function()
+        local zs = actor.CarFX.ZonesData
+        for j = 1, #zs do
+            local v = zs[j].Damages
+            if v > 0.005 then z[#z + 1] = string.format("%d=%.2f", j, v) end
+        end
+    end)
+    return string.format("D %s P %s Z %s", table.concat(d, " "), table.concat(p, ","), table.concat(z, " "))
+end
+function LOOK.put(actor, look, ai)
+    ai = ai or LOOK.anim(actor)
+    if not ai then return false end
+    local d, p, z = {}, {}, {}
+    local ds, ps, zs = (look or ""):match("^D (.-) P (.-) Z (.*)$")
+    for k, v in (ds or ""):gmatch("(%S+)=([%d%.]+)") do d[k] = tonumber(v) end
+    for k in (ps or ""):gmatch("[^,%s]+") do p[k] = true end
+    for k, v in (zs or ""):gmatch("(%d+)=([%d%.]+)") do z[tonumber(k)] = tonumber(v) end
+    local dc, pc = ai.DeformationControls, ai.CarPieceControls
+    for j = 1, #dc do dc[j].DeformationPercentage = (d[dc[j].ControlName:ToString()] or 0) + 0.0 end
+    for j = 1, #pc do pc[j].bDetached = p[pc[j].ControlName:ToString()] == true end
+    pcall(function()
+        local zl = actor.CarFX.ZonesData
+        for j = 1, #zl do zl[j].Damages = (z[j] or 0) + 0.0 end
+    end)
+    return true
+end
+
+-- the replay's look on the car followed, as its clock goes (only when it changes); a car the look was put on goes back
+-- to new before it is kept for another driver (park)
+function LOOK.tick(c)
+    local look = watch_look
+    if look == nil or look == c.look then return end
+    if not c.look_ai or not c.look_ai:IsValid() then c.look_ai = LOOK.anim(c.actor) end
+    if c.look_ai and LOOK.put(c.actor, look, c.look_ai) then c.look = look end
+end
+
 -- Kept cars. Making a ghost costs the game about 45 ms (a hitch of a frame and a half at 30 frames a second, measured
 -- 2026-11-11); hiding one and showing it again, under 1 ms. So a ghost that goes (out of range, or the app stops
 -- telling) is hidden and kept for the next car of its model (POOL_MAX at most, POOL_KEEP_S each); and while your car
@@ -729,6 +804,10 @@ local function park(c, t)
         return
     end
     c.actor:SetActorHiddenInGame(true)
+    if c.look and c.look ~= "D  P  Z " then                -- (a replay's damage on it: as new for the next driver)
+        pcall(LOOK.put, c.actor, "", c.look_ai)
+    end
+    c.look = nil
     c.base, c.vel, c.err, c.shown, c.parked_t = nil, nil, nil, nil, t
     pool[c.cls] = pool[c.cls] or {}
     table.insert(pool[c.cls], c)
@@ -1149,6 +1228,33 @@ local function write_damage(me, t)
     dmg_f:seek("set", 0)
     dmg_f:write(line .. string.rep(" ", math.max(0, 1500 - #line)) .. "\n")
     dmg_f:flush()
+end
+
+-- Your car's damage as its meshes draw it (LOOK.read above), for the app's replay of the run (so a replay shows its
+-- dents and panels as they came): ingame-carlook.txt, written over in place every LOOK_S while it changes,
+--   ACRLOOK <seq> <look> end <seq>        ("ACRLOOK <seq> none end <seq>": no car of yours)
+function LOOK.write(me, t)
+    local L = LOOK
+    if t - L.t < L.every then return end
+    L.t = t
+    local look = nil
+    if me then
+        local at = me:GetAddress()
+        if L.of ~= at or not (L.ai and L.ai:IsValid()) then L.of, L.ai = at, L.anim(me) end
+        if L.ai then look = L.read(me, L.ai) end
+    end
+    look = look or "none"
+    if look == L.last and L.f then return end
+    L.last = look
+    if not L.f then
+        L.f = io.open(L.file, "w")
+        if not L.f then return end
+    end
+    L.seq = L.seq + 1
+    local line = string.format("ACRLOOK %d %s end %d", L.seq, look, L.seq)
+    L.f:seek("set", 0)
+    L.f:write(line .. string.rep(" ", math.max(0, 1500 - #line)) .. "\n")
+    L.f:flush()
 end
 
 local function write_camera(pc)
@@ -1902,6 +2008,8 @@ function watch_tick(pc, me, t)
     end)
     crumb("watch: livery")
     pcall(livery_tick, c, me, t)
+    crumb("watch: damage")
+    pcall(LOOK.tick, c)
     if frame % 15 == 0 then
         local inside = s.name == "cockpit" or s.name == "incar" or s.name == "seat"
         crumb("watch: pace notes")
@@ -1985,6 +2093,7 @@ local function tick()
         codriver_now = nil
     end
     pcall(write_damage, me, t)
+    if not watching then pcall(LOOK.write, me, t) end   -- (your own car only: WATCH moves other cars, not yours)
     local cam = write_camera(pc)
     _G.ACRDAILY_NAMES = nil                            -- (the names over the cars, for hud.lua: set again below)
     local seq, when, ghosts, warm_now, names_now = read_ghosts(t)
@@ -2001,6 +2110,8 @@ local function tick()
         ghost_names["\0wlivery"] = nil
         watch_rate = ghost_names["\0wrate"] or 1       -- (a REPLAY's speed; live drivers: always 1)
         ghost_names["\0wrate"] = nil
+        watch_look = ghost_names["\0wlook"]            -- (a REPLAY: its car's damage at its clock; nil: none said)
+        ghost_names["\0wlook"] = nil
         if not watching then watch_route = nil end
     end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
