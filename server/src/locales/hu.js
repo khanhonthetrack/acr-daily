@@ -2592,7 +2592,7 @@ export default {
  "Donate": "Támogatás",
  "Buy Me a Coffee or PayPal": "Buy Me a Coffee vagy PayPal",
  "Support ACR Daily": "Támogasd az ACR Dailyt",
- "ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!": "Az ACR Daily mindenkinek ingyenes. A támogatásod tartja életben a szervereket, és hozza az új szakaszokat, ralikat és funkciókat. Köszönjük!",
+ "Keep servers running and features coming.": "Tartsd életben a szervereket, és hozd az új funkciókat.",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Egy kávé egyszer, vagy havi tagság. A neved megjelenik az app köszönősávjában.",
  "Send any amount you like, straight from your PayPal account or a card.": "Küldj bármekkora összeget a PayPal-fiókodból vagy kártyával.",
  "Thank you": "Köszönjük",

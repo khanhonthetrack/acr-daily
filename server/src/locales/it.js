@@ -2622,7 +2622,7 @@ export default {
  "Donate": "Dona",
  "Buy Me a Coffee or PayPal": "Buy Me a Coffee o PayPal",
  "Support ACR Daily": "Sostieni ACR Daily",
- "ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!": "ACR Daily è gratis per tutti. Il tuo sostegno tiene accesi i server e porta nuove prove, rally e funzioni. Grazie!",
+ "Keep servers running and features coming.": "Tieni accesi i server e le novità in arrivo.",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Un caffè una volta, o un abbonamento ogni mese. Il tuo nome compare nella barra dei ringraziamenti dell'app.",
  "Send any amount you like, straight from your PayPal account or a card.": "Invia l'importo che vuoi, dal tuo conto PayPal o con una carta.",
  "Thank you": "Grazie",

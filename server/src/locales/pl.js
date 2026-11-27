@@ -2652,7 +2652,7 @@ export default {
  "Donate": "Wesprzyj",
  "Buy Me a Coffee or PayPal": "Buy Me a Coffee lub PayPal",
  "Support ACR Daily": "Wesprzyj ACR Daily",
- "ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!": "ACR Daily jest darmowe dla wszystkich. Twoje wsparcie utrzymuje serwery i przynosi nowe odcinki, rajdy i funkcje. Dziękujemy!",
+ "Keep servers running and features coming.": "Utrzymaj serwery w ruchu i nowe funkcje w drodze.",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Jednorazowa kawa albo członkostwo co miesiąc. Twoje imię pojawi się na pasku podziękowań w aplikacji.",
  "Send any amount you like, straight from your PayPal account or a card.": "Wyślij dowolną kwotę, prosto z konta PayPal lub kartą.",
  "Thank you": "Dziękujemy",

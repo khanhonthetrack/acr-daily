@@ -53,7 +53,7 @@ export function donatePage(env) {
   return shell(esc(t('Donate')) + ' · ACR Daily', `${CSS}
   <div class="don">
   <div class="top"><div class="kick">${HEART}${esc(t('Community'))}</div><h1>${esc(t('Support ACR Daily'))}</h1>
-  <p class="lead">${esc(t('ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!'))}</p></div>
+  <p class="lead">${esc(t('Keep servers running and features coming.'))}</p></div>
 
   <div class="ways">
     <div class="way" style="--w:#FFDD00">
