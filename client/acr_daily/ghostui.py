@@ -545,15 +545,18 @@ class GhostOverlay:
         self._n += 1
         check = self._n % SIGHT_EVERY == 0
         cars = []                                       # (id, pose, colour, name, in sight, their car)
+        countries = {}                                  # id -> two-letter country code (for the flag by their name)
         rates = {}                                      # id -> how the pose moves, per second (for the mod)
         status = []
         now = time.monotonic()
         sights = getattr(self, '_live_sight', {})
+        watch = getattr(getattr(self, 'app', None), 'watch', None)
         for d in others:                                # live: where they are right now
             m = d.motion(now)
             if m is None:
                 continue
-            pose, rates['L%d' % d.id] = m
+            cid = 'L%d' % d.id
+            pose, rates[cid] = m
             ahead = self._gap(d, f, now)
             if check and math.dist((f.x, f.y, f.z), pose[:3]) <= DRAW_OUT_M:   # (a label only near: sight only there)
                 path = []
@@ -561,7 +564,12 @@ class GhostOverlay:
                     at = d.trace.passed(f.x, f.z)
                     path = d.trace.path(at, d.clock_now(now) or at, 4.0)
                 sights[d.id] = gc.in_sight(cam.pos, pose[:3], path)
-            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, sights.get(d.id, True), (d.car, d.root)))
+            cars.append((cid, pose, LIVE_COL, d.name, sights.get(d.id, True), (d.car, d.root)))
+            country = getattr(d, 'country', None)
+            if not country and watch is not None and hasattr(watch, 'country_of'):
+                country = watch.country_of(d.name, getattr(d, 'sid', None))
+            if country:
+                countries[cid] = country
         self._live_sight = sights
         gaps = getattr(self, '_gaps', {})
         if len(gaps) > 2 * len(others) + 50:            # (drivers gone: their gaps not kept)
@@ -582,7 +590,8 @@ class GhostOverlay:
                     warm[cls] = min(MAX_REAL, warm.get(cls, 0) + 1)
             # ... and their names, for the game to draw over them (whether one is in sight: the stretch of road
             # between, gc.in_sight; "show through trees and hills" shows them all; near and in front: the mod's)
-            names = {cid: (label, colour, bool(seen or cfg.get('always'))) for cid, _p, colour, label, seen, _c in cars}
+            names = {cid: (label, colour, bool(seen or cfg.get('always')), self._flag_png(countries.get(cid)))
+                     for cid, _p, colour, label, seen, _c in cars}
             if self._watching():                    # (WATCH: no name over the car followed, the broadcast says who it
                 names.pop(self.app.watch.ghost_id(), None)   # is: the user, 21 Nov 2026)
             self._write_ingame(self._real_cars(f, cars, rates), now, warm, names)
@@ -597,24 +606,80 @@ class GhostOverlay:
                 continue
             dist = math.dist((f.x, f.y, f.z), pose[:3])
             if (seen or cfg.get('always')) and dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
-                drawn.append((dist, pose, colour, label))
+                drawn.append((dist, pose, colour, label, cid))
         if not ingame:                                  # (real cars: never a box, even while the game loads one;
                                                         # the mod not running, e.g. just installed: boxes meanwhile)
-            for dist, pose, colour, _label in sorted(drawn, key=lambda x: -x[0]):
+            for dist, pose, colour, _label, _cid in sorted(drawn, key=lambda x: -x[0]):
                 self._car(cam, pose, colour)            # far ones first: the nearest on top
         labels = []                                     # (the nearest car's label keeps its place; the others move up)
-        for dist, pose, colour, label in sorted(drawn, key=lambda x: x[0]):
+        for dist, pose, colour, label, cid in sorted(drawn, key=lambda x: x[0]):
             top = cam.project(gc.add(pose[:3], (0.0, 1.6, 0.0)))
             if top:
-                labels.append((top, colour, label))     # (the name only: no distance, no gap)
+                labels.append((top, colour, label, countries.get(cid)))     # (the name + flag: no distance, no gap)
         placed = []
-        for (x, y), colour, text in labels:
-            half = 4.2 * len(text)
+        fh, fw = self._name_flag_size()
+        gap = 5
+        for (x, y), colour, text, country in labels:
+            flag_img = self._flag_tk(country, fw, fh)
+            tw = self._name_width(text)
+            half = tw / 2.0 + ((fw + gap) / 2.0 if flag_img is not None else 0.0)
             while any(abs(x - px) < half + ph and abs(y - py) < 20 for px, py, ph in placed):
                 y -= 20
             placed.append((x, y, half))
-            self.c.create_text(x + 1, y + 1, text=text, fill=BG, font=(FONT_C, 14), anchor='s')
-            self.c.create_text(x, y, text=text, fill=colour, font=(FONT_C, 14), anchor='s')
+            tx = x + ((fw + gap) / 2.0 if flag_img is not None else 0.0)
+            if flag_img is not None:
+                self.c.create_image(tx - tw / 2.0 - gap, y, image=flag_img, anchor='se')
+            self.c.create_text(tx + 1, y + 1, text=text, fill=BG, font=(FONT_C, 14), anchor='s')
+            self.c.create_text(tx, y, text=text, fill=colour, font=(FONT_C, 14), anchor='s')
+
+    def _name_font_obj(self):
+        if hasattr(self, '_name_font'):
+            return self._name_font
+        try:
+            import tkinter.font as tkfont
+            f = tkfont.Font(root=getattr(self, 'win', None), family=FONT_C, size=14)
+        except Exception:
+            f = None
+        self._name_font = f
+        return f
+
+    def _name_flag_size(self):
+        """Flag height matching the nickname's height (ascent of FONT_C 14pt) and 3:2 width."""
+        f = self._name_font_obj()
+        try:
+            fh = max(12, int(f.metrics('ascent'))) if f is not None else 18
+        except Exception:
+            fh = 18
+        return fh, int(round(fh * 1.5))
+
+    def _name_width(self, text):
+        f = self._name_font_obj()
+        if f is not None:
+            try:
+                return float(f.measure(text))
+            except Exception:
+                pass
+        return 8.4 * len(text)
+
+    @staticmethod
+    def _flag_tk(country, w, h):
+        if not country:
+            return None
+        try:
+            from . import avatars
+            return avatars.flag(country, w, h)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _flag_png(country):
+        if not country:
+            return None
+        try:
+            from .ig_ranked import flag_png
+            return flag_png(country)
+        except Exception:
+            return None
 
     # ---- the ACR Daily mod in the game (mod/ACRDailyGhosts): real cars, and the game's own camera
 
@@ -726,6 +791,9 @@ class GhostOverlay:
             if n and ' '.join(str(n[0] or '').split()):
                 lines.append('name %s %d %d %s %s' % (cid, seq, 1 if n[2] else 0, str(n[1] or '#FFFFFF').lstrip('#') or 'FFFFFF',
                                                        ' '.join(str(n[0]).split())))
+                flag_path = n[3] if len(n) > 3 else None
+                if flag_path:
+                    lines.append('flag %s %d %s' % (cid, seq, flag_path))
         for cls, n in sorted((warm or {}).items()):     # (the drivers' models on the stage: the mod makes them ahead)
             lines.append('warm %s %d %d' % (cls, n, seq))
         w = getattr(getattr(self, 'app', None), 'watch', None)   # WATCH: the car the game's camera follows (watch.py)

@@ -150,6 +150,10 @@ local function read_ghosts(t)
             if w[3] ~= seq then return nil end
             local words = line:match("^name %S+ %S+ %S+ %S+ (.+)$")
             if words then names_now[w[2]] = {text = words, shown = w[4] == "1", colour = w[5]} end
+        elseif w[1] == "flag" then                                       -- flag <id> <seq> <path>
+            if w[3] ~= seq then return nil end
+            local path = line:match("^flag %S+ %S+ (.+)$")
+            if path then names_now["\0flag:" .. w[2]] = path end
         elseif w[1] == "path" and #w >= 10 then                          -- path <id> <seq> <dt ms> X Y Z P Yw R ...
             if w[3] ~= seq then return nil end
             local poses = {}
@@ -2090,7 +2094,7 @@ local function tick()
             local n = ghost_names[id]
             if n and n.shown and c.shown and not c.near then
                 list[#list + 1] = {x = c.shown[1], y = c.shown[2], z = c.shown[3] + NAME_UP, text = n.text,
-                                   colour = n.colour}
+                                   colour = n.colour, flag = ghost_names["\0flag:" .. id]}
             end
         end
         _G.ACRDAILY_NAMES = {cam = cam, list = list, t = t}

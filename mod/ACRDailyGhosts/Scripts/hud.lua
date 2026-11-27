@@ -465,15 +465,23 @@ end
 -- app sits over it and they show in VR too; placed with the game's own camera as the app's window placed them
 -- (ghostcars.camera_from_game), the nearest's kept in place and the others moved up out of its way
 local NAME_MAX, NAME_SIZE, NAME_ROW = 12, 20, 24
+local FLAG_H = NAME_SIZE
+local FLAG_W = math.floor(FLAG_H * 1.5 + 0.5)
+local FLAG_GAP = 6
 local function build_names(r)
     local S = {}
     for i = 1, NAME_MAX do
+        local box = K.hbox(r.tree)
+        local flag = K.image(r.tree, FLAG_W, FLAG_H)
+        flag.box:SetVisibility(K.COLLAPSED)
+        K.add(box, flag.box, {v = 2, pad = {0, 0, FLAG_GAP, 0}})
         local tb = text(r.tree, NAME_SIZE, "semi", WHITE, {justify = 1})
-        local slot = r.canvas:AddChildToCanvas(tb)
+        K.add(box, tb, {v = 2})
+        local slot = r.canvas:AddChildToCanvas(box)
         slot:SetAutoSize(true)
         slot:SetAlignment({X = 0.5, Y = 1.0})
-        tb:SetVisibility(K.COLLAPSED)
-        S[i] = {tb = tb, slot = slot}
+        box:SetVisibility(K.COLLAPSED)
+        S[i] = {box = box, flag = flag, flag_state = {}, tb = tb, slot = slot}
     end
     return S
 end
@@ -507,9 +515,10 @@ local function put_names(S, t)
     local placed = {}
     for i, s in ipairs(S) do
         local e = list[i]
-        K.show(c, "nm.on" .. i, s.tb, e ~= nil)
+        K.show(c, "nm.on" .. i, s.box, e ~= nil)
         if e then
-            local half = 0.28 * NAME_SIZE * (utf8.len(e.n.text) or #e.n.text)
+            local has_flag = K.picture(s.flag, s.flag_state, e.n.flag)
+            local half = 0.28 * NAME_SIZE * (utf8.len(e.n.text) or #e.n.text) + (has_flag and (FLAG_W + FLAG_GAP) / 2 or 0)
             local y = e.y
             local moved = true
             while moved do                             -- (out of the way of a nearer one's)
