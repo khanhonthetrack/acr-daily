@@ -1,10 +1,11 @@
 // /donate: support ACR Daily (the user, 27 Nov 2026: "a nice page of COMMUNITY called Donate", two buttons: Buy Me a
-// Coffee, as in the app, and PayPal, paypal.me/blugyke). Under them, the current supporters (GET /api/supporters,
-// src/supporters.js: the app's thank-you bar's list). In the leagues' look (src/leaguepages.js shell), in the reader's
+// Coffee, as in the app, and PayPal, paypal.me/blugyke). Under them, the app's thank-you bar (client/acr_daily/
+// supporters.py, the user: "take the one which is scrolling in the app"): the current supporters rolling by (GET
+// /api/supporters, src/supporters.js). In the leagues' look (src/leaguepages.js shell), in the reader's
 // language.
 
 import { shell } from './leaguepages.js';
-import { t, tq } from './i18n.js';
+import { t } from './i18n.js';
 
 export const BMC_LINK = 'https://www.buymeacoffee.com/acrdaily';
 export const PAYPAL_LINK = 'https://paypal.me/blugyke';
@@ -39,14 +40,18 @@ const CSS = `<style>
 .way .pp .ppm{width:24px;height:24px;fill:#fff}
 .way .pp i{font-style:italic;font-weight:800}
 .way small{display:block;margin-top:10px;color:var(--fg3);font-size:13px}
-.thanks{margin-top:34px}
-.thanks h2{display:flex;align-items:center;gap:8px}
-.thanks h2 svg{width:18px;height:18px;fill:#FF453A}
-.sup{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:12px 0 0}
-.sup li{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:var(--panel);border:1px solid var(--line);font-size:14px}
-.sup li.m{border-color:#5A4E12}
-.sup li .tag{font:600 10px/1 Barlow,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#FFDD00}
-.sup li .n{color:var(--fg3);font-size:13px}
+.thanks{margin-top:22px;background:#141417;border:1px solid var(--line2);padding:12px 0 8px;cursor:pointer}
+.thanks h2{margin:0 14px;font:600 15px/1.2 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--fg)}
+.roll{position:relative;overflow:hidden;height:36px;margin-top:6px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
+.roll .empty{display:flex;align-items:center;height:100%;padding:0 14px;color:var(--fg2);font-size:14px;border:0}
+.roll .track{position:absolute;left:0;top:0;display:flex;height:100%;align-items:center;white-space:pre;will-change:transform;animation:roll var(--d,30s) linear infinite}
+.thanks:hover .track{animation-play-state:paused}
+.roll .nm{color:var(--fg);font:600 17px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em}
+.roll .sep{color:var(--fg2);font-size:14px}
+@keyframes roll{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.roll{height:auto;-webkit-mask-image:none;mask-image:none}
+  .roll .track{position:static;flex-wrap:wrap;white-space:normal;padding:4px 14px;animation:none;row-gap:6px}.roll .track>span+span{display:none}}
 </style>`;
 
 export function donatePage(env) {
@@ -70,19 +75,27 @@ export function donatePage(env) {
     </div>
   </div>
 
-  <div class="thanks" id="thanks" hidden>
-    <h2>${HEART}${esc(t('Thank you'))}</h2>
-    <p class="note">${esc(t('The drivers supporting ACR Daily right now.'))}</p>
-    <ul class="sup" id="sup"></ul>
+  <!-- the app's thank-you bar (client/acr_daily/supporters.py): the same list, rolling by; a click opens Buy Me a Coffee -->
+  <div class="thanks" id="thanks" role="link" tabindex="0" aria-label="Buy Me a Coffee">
+    <h2>${esc(t('THANK YOU TO OUR SUPPORTERS'))}</h2>
+    <div class="roll" id="roll"><div class="empty">${esc(t('ACR DAILY is free. Like it? Buy us a coffee.'))}</div></div>
   </div>
   </div>`, `account();
-fetch('/api/supporters').then(function(r){return r.ok?r.json():null}).then(function(j){
-  var s=j&&j.supporters||[];if(!s.length)return;var ul=document.getElementById('sup');
-  s.forEach(function(p){var li=document.createElement('li'),m=p.kind==='member'||p.kind==='monthly';if(m)li.className='m';
-    var b=document.createElement('b');b.textContent=p.name;li.appendChild(b);
-    if(m){var g=document.createElement('span');g.className='tag';g.textContent=p.level||${tq('Member')};li.appendChild(g)}
-    else if(p.coffees>1){var n=document.createElement('span');n.className='n';n.textContent='\\u2615 \\u00d7 '+p.coffees;li.appendChild(n)}
-    ul.appendChild(li)});
-  document.getElementById('thanks').hidden=false},function(){});`, env,
+(function(){var T=document.getElementById('thanks'),R=document.getElementById('roll'),url=${JSON.stringify(BMC_LINK)};
+  function go(){window.open(url,'_blank','noopener')}
+  T.addEventListener('click',go);T.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}});
+  // as the app's strip (supporters.py line_of): the names with a dot between, rolling round without a gap, ~33 px a second
+  fetch('/api/supporters').then(function(r){return r.ok?r.json():null}).then(function(j){
+    var s=(j&&j.supporters||[]).filter(function(p){return p&&typeof p==='object'});if(!s.length)return;
+    var u=String(j.url||'');if(u.indexOf('https://buymeacoffee.com/')===0||u.indexOf('https://www.buymeacoffee.com/')===0)url=u;
+    function copy(){var c=document.createElement('span');s.forEach(function(p,k){
+      if(k){var d=document.createElement('span');d.className='sep';d.textContent='   \u00b7   ';c.appendChild(d)}
+      var n=document.createElement('span');n.className='nm';n.textContent=String(p.name||'Someone');c.appendChild(n)});
+      var g=document.createElement('span');g.className='sep';g.textContent='        \u00b7        ';c.appendChild(g);return c}
+    var tr=document.createElement('div');tr.className='track';tr.appendChild(copy());
+    R.innerHTML='';R.appendChild(tr);
+    // (a short list: copies until one is wider than the strip, so it never runs out)
+    var one=tr.firstChild;while(tr.scrollWidth<R.clientWidth&&one.childNodes.length<400){var c=copy();while(c.firstChild)one.appendChild(c.firstChild)}
+    tr.appendChild(one.cloneNode(true));tr.style.setProperty('--d',(one.offsetWidth/33)+'s')},function(){})})();`, env,
   { title: t('Donate'), description: t('Support ACR Daily: Buy Me a Coffee or PayPal.') });
 }

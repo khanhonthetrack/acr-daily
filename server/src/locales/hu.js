@@ -2595,8 +2595,7 @@ export default {
  "Keep servers running and features coming.": "Tartsd életben a szervereket, és hozd az új funkciókat.",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Egy kávé egyszer, vagy havi tagság. A neved megjelenik az app köszönősávjában.",
  "Send any amount you like, straight from your PayPal account or a card.": "Küldj bármekkora összeget a PayPal-fiókodból vagy kártyával.",
- "Thank you": "Köszönjük",
- "The drivers supporting ACR Daily right now.": "Az ACR Dailyt most támogató versenyzők.",
- "Member": "Tag",
- "Support ACR Daily: Buy Me a Coffee or PayPal.": "Támogasd az ACR Dailyt: Buy Me a Coffee vagy PayPal."
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "Támogasd az ACR Dailyt: Buy Me a Coffee vagy PayPal.",
+ "THANK YOU TO OUR SUPPORTERS": "KÖSZÖNJÜK TÁMOGATÓINKNAK",
+ "ACR DAILY is free. Like it? Buy us a coffee.": "Az ACR DAILY ingyenes. Tetszik? Hívj meg egy kávéra."
 };

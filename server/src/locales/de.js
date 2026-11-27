@@ -2625,8 +2625,7 @@ export default {
  "Keep servers running and features coming.": "Halte die Server am Laufen und neue Funktionen im Kommen.",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Ein Kaffee einmalig oder eine monatliche Mitgliedschaft. Dein Name erscheint in der Dankesleiste der App.",
  "Send any amount you like, straight from your PayPal account or a card.": "Sende einen beliebigen Betrag, direkt von deinem PayPal-Konto oder per Karte.",
- "Thank you": "Danke",
- "The drivers supporting ACR Daily right now.": "Die Fahrer, die ACR Daily gerade unterstützen.",
- "Member": "Mitglied",
- "Support ACR Daily: Buy Me a Coffee or PayPal.": "ACR Daily unterstützen: Buy Me a Coffee oder PayPal."
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "ACR Daily unterstützen: Buy Me a Coffee oder PayPal.",
+ "THANK YOU TO OUR SUPPORTERS": "DANKE AN UNSERE UNTERSTÜTZER",
+ "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILY ist kostenlos. Gefällt es dir? Spendier uns einen Kaffee."
 };

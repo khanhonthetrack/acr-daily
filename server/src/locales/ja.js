@@ -2595,8 +2595,7 @@ export default {
  "Keep servers running and features coming.": "サーバーを動かし続け、新機能を届け続けるために。",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "1回きりのコーヒー、または毎月のメンバーシップ。あなたの名前がアプリの感謝バーに表示されます。",
  "Send any amount you like, straight from your PayPal account or a card.": "PayPal アカウントやカードから、好きな金額を送れます。",
- "Thank you": "ありがとう",
- "The drivers supporting ACR Daily right now.": "今 ACR Daily を支援しているドライバー。",
- "Member": "メンバー",
- "Support ACR Daily: Buy Me a Coffee or PayPal.": "ACR Daily を支援：Buy Me a Coffee または PayPal。"
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "ACR Daily を支援：Buy Me a Coffee または PayPal。",
+ "THANK YOU TO OUR SUPPORTERS": "サポーターの皆さん、ありがとう",
+ "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILYは無料です。気に入ったらコーヒーをおごってください。"
 };

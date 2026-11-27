@@ -2595,8 +2595,7 @@ export default {
  "Keep servers running and features coming.": "让服务器持续运行，新功能不断到来。",
  "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "一次请一杯咖啡，或每月成为会员。你的名字会出现在应用的感谢栏中。",
  "Send any amount you like, straight from your PayPal account or a card.": "从你的 PayPal 账户或银行卡发送任意金额。",
- "Thank you": "谢谢",
- "The drivers supporting ACR Daily right now.": "正在支持 ACR Daily 的车手。",
- "Member": "会员",
- "Support ACR Daily: Buy Me a Coffee or PayPal.": "支持 ACR Daily：Buy Me a Coffee 或 PayPal。"
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "支持 ACR Daily：Buy Me a Coffee 或 PayPal。",
+ "THANK YOU TO OUR SUPPORTERS": "感谢我们的支持者",
+ "ACR DAILY is free. Like it? Buy us a coffee.": "ACR DAILY 免费。喜欢的话，请我们喝杯咖啡吧。"
 };
