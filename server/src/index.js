@@ -568,10 +568,14 @@ async function discordTick(env, now = Date.now(), force = false) {
   return { ...did, board: 'posted' };
 }
 
+/** The bot's token as pasted into the secret: a stray newline / space or a "Bot " in front would otherwise read as
+ *  "not set" (the APIs check its shape) and turn the whole bot off without a word. */
+const botToken = (env) => String(env.DISCORD_BOT_TOKEN || '').trim().replace(/^Bot\s+/i, '');
+
 /** The Discord server Events for the two dailies (src/discordevents.js): only with DISCORD_DAILY_EVENTS = "1"; off,
  *  the ones still up are deleted (src/discordevents.js removeEvents). Off until DISCORD_BOT_TOKEN is set. */
 async function discordEvents(env, now = Date.now()) {
-  const api = eventsApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  const api = eventsApi(botToken(env), env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   const store = { get: (key) => discordGet(env, key), set: (key, id, state, date) => discordSet(env, key, id, state, date) };
   if (env.DISCORD_DAILY_EVENTS !== '1') {
@@ -584,7 +588,7 @@ async function discordEvents(env, now = Date.now()) {
 
 /** The FAQ message in #faq (src/discordfaq.js), as the bot; off until DISCORD_BOT_TOKEN is set. */
 async function discordFaq(env) {
-  const api = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  const api = faqApi(botToken(env), env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   return syncFaq({ api, site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
@@ -593,7 +597,7 @@ async function discordFaq(env) {
 /** /event set up on Discord (src/discordrsvp.js): tables, Public Key, the command, the Interactions Endpoint URL; once.
  *  Off until DISCORD_BOT_TOKEN is set. */
 async function discordCommands(env) {
-  const api = rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  const api = rsvpApi(botToken(env), env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   const site = (env.SITE_URL || '').replace(/\/+$/, '');
   return syncCommands({ api, hashOf: sha256, endpoint: /^https:\/\//.test(site) ? site + '/discord/interactions' : '',
@@ -604,7 +608,7 @@ async function discordCommands(env) {
 /** Event cards queued in discord_events (channel_id 'queued'), posted by the bot (src/discordrsvp.js postQueued). One
  *  small read a run while nothing waits (the table only has the cards; the cron runs every 5 minutes). */
 async function discordQueued(env, now = Date.now()) {
-  const rsvp = rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID), chat = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  const rsvp = rsvpApi(botToken(env), env.DISCORD_GUILD_ID), chat = faqApi(botToken(env), env.DISCORD_GUILD_ID);
   if (!rsvp || !chat) return {};
   let queued;
   try {
@@ -648,7 +652,7 @@ async function discordInteraction(req, env, ctx) {
   let it;
   try { it = JSON.parse(body); } catch { return new Response('bad json', { status: 400 }); }
   const { response, after } = await handleInteraction(it, { store: rsvpStore(env), now: Date.now(),
-    api: rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID), site: (env.SITE_URL || '').replace(/\/+$/, '') });
+    api: rsvpApi(botToken(env), env.DISCORD_GUILD_ID), site: (env.SITE_URL || '').replace(/\/+$/, '') });
   if (after) ctx.waitUntil(after().then((r) => { if (r && /^not/.test(String(r.scheduled || r.card))) console.error('discord event', r); })
     .catch((e) => console.error('discord event', e)));
   return new Response(JSON.stringify(response), { headers: { 'Content-Type': 'application/json' } });
@@ -657,7 +661,7 @@ async function discordInteraction(req, env, ctx) {
 /** #changelog on Discord: each version out (LATEST_VERSION and older) posted once, oldest first, by the FAQ's bot
  *  (src/changelog.js). */
 async function discordChangelog(env) {
-  const api = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  const api = faqApi(botToken(env), env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   return syncChangelogs({ api, latest: latestVersion(env), site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
     channel: (a) => botChannel(a, CHANGELOG_CHANNEL, "What's new in each version of the app. Posted by the bot."),
