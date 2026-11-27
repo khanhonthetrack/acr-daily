@@ -15,6 +15,7 @@ const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart
 
 /** The x-signature-sha256 header checked: HMAC-SHA256 of the raw body with the signing secret, hex. */
 export async function signatureOk(raw, secret, sig) {
+  secret = String(secret || '').trim();      // (a pasted secret often carries a stray newline: every delivery refused)
   if (!secret || !sig) return false;
   const key = await crypto.subtle.importKey('raw', utf8.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const want = hex(await crypto.subtle.sign('HMAC', key, utf8.encode(raw)));
