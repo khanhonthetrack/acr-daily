@@ -73,6 +73,11 @@ class SupportBarTest(unittest.TestCase):
             b.open()
         op.assert_called_once_with('https://buymeacoffee.com/acrdaily')
 
+    def test_the_button_is_buy_me_a_coffees_own(self):
+        b = self.bar({'supporters': []})
+        self.assertTrue(b.btn.cget('image'))
+        self.assertEqual(b._btn_pic.height(), round(supporters.BTN_H * b.k))
+
     def test_line_of(self):
         self.assertIsNone(supporters.line_of([]))
         names = [t for t, is_name in supporters.line_of([{'name': 'A'}, {}]) if is_name]

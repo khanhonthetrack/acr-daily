@@ -1,4 +1,4 @@
-"""The launcher's thank-you card: a coffee cup, THANK YOU TO OUR SUPPORTERS and a yellow SUPPORT button that opens
+"""The launcher's thank-you card: THANK YOU TO OUR SUPPORTERS and Buy Me a Coffee's own yellow button, which opens
 buymeacoffee.com/acrdaily, with the current supporters on Buy Me a Coffee rolling by under them (the user, 27 Nov 2026:
 "thank the supporters as a small rolling thin bar ... with a button to open buy me a coffee", "a list of current
 supporters", then "make bar bigger, put buy me a coffee logo somehow").
@@ -14,7 +14,7 @@ from .i18n import _
 URL = 'https://buymeacoffee.com/acrdaily'
 BG, FG, NAME, LINE = '#141417', '#A1A1AA', '#F4F4F5', '#2B2B31'
 ACC, WHITE, COFFEE, INK = '#E30613', '#F4F4F5', '#FFDD00', '#0A0A0B'
-LOGO = 44                       # (the cup, px at 100 %)
+BTN_H = 44                      # (Buy Me a Coffee's button, px high at 100 %)
 ROLL_H = 34                     # (the names' strip)
 STEP_MS, STEP_PX = 30, 1
 EVERY_MS = 10 * 60 * 1000
@@ -34,13 +34,15 @@ def line_of(people):
     return out
 
 
-def draw_cup(cv, x, y, s, cup=WHITE, coffee=COFFEE, ink=INK, w=2):
-    """A coffee cup with a lid, Buy Me a Coffee's way (white cup, yellow coffee), in a box s wide from (x, y)."""
-    P = lambda *pts: [v for i, (a, b) in enumerate(zip(pts[::2], pts[1::2])) for v in (x + a * s, y + b * s)]
-    cv.create_polygon(*P(0.24, 0.34, 0.76, 0.34, 0.66, 0.94, 0.34, 0.94), fill=cup, outline=ink, width=w)
-    cv.create_polygon(*P(0.27, 0.48, 0.73, 0.48, 0.69, 0.76, 0.31, 0.76), fill=coffee, outline='')
-    cv.create_rectangle(*P(0.18, 0.24, 0.82, 0.34), fill=cup, outline=ink, width=w)
-    cv.create_rectangle(*P(0.12, 0.12, 0.88, 0.24), fill=cup, outline=ink, width=w)
+def button_picture(h):
+    """Buy Me a Coffee's yellow button (photos/bmc-button.png, 545 x 153) h px high, or None."""
+    try:
+        import os
+        from PIL import Image, ImageTk
+        src = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photos', 'bmc-button.png')).convert('RGBA')
+        return ImageTk.PhotoImage(src.resize((round(src.width * h / src.height), h), Image.LANCZOS))
+    except Exception:
+        return None
 
 
 class SupportBar:
@@ -59,19 +61,17 @@ class SupportBar:
         self.f = tk.Frame(parent, bg=BG, highlightthickness=1, highlightbackground=LINE)
         top = tk.Frame(self.f, bg=BG)
         top.pack(fill='x', padx=12, pady=(10, 0))
-        logo = tk.Canvas(top, bg=BG, highlightthickness=0, width=round(LOGO * k), height=round(LOGO * k), cursor='hand2')
-        logo.pack(side='left')
-        draw_cup(logo, 0, 0, LOGO * k, w=max(1, round(2 * k)))
-        logo.bind('<Button-1>', lambda _e: self.open())
-        words = tk.Frame(top, bg=BG)
-        words.pack(side='left', padx=(10, 0))
-        tk.Label(words, text=_('THANK YOU TO OUR SUPPORTERS'), bg=BG, fg=WHITE, font=(cond, 13), anchor='w').pack(fill='x')
-        tk.Label(words, text='Buy Me a Coffee', bg=BG, fg=FG, font=(font, 9), anchor='w').pack(fill='x')
-        self.btn = tk.Label(top, text=_('SUPPORT'), bg=COFFEE, fg=INK, font=(cond, 12), padx=16, pady=6, cursor='hand2')
+        tk.Label(top, text=_('THANK YOU TO OUR SUPPORTERS'), bg=BG, fg=WHITE, font=(cond, 13), anchor='w').pack(side='left')
+        # Buy Me a Coffee's own yellow button (photos/bmc-button.png, from their embed code); a plain one without it
+        self._btn_pic = button_picture(round(BTN_H * k))
+        if self._btn_pic is not None:
+            self.btn = tk.Label(top, image=self._btn_pic, bg=BG, bd=0, cursor='hand2')
+        else:
+            self.btn = tk.Label(top, text=_('SUPPORT'), bg=COFFEE, fg=INK, font=(cond, 12), padx=16, pady=6, cursor='hand2')
+            self.btn.bind('<Enter>', lambda _e: self.btn.configure(bg=ACC, fg=WHITE))
+            self.btn.bind('<Leave>', lambda _e: self.btn.configure(bg=COFFEE, fg=INK))
         self.btn.pack(side='right')
         self.btn.bind('<Button-1>', lambda _e: self.open())
-        self.btn.bind('<Enter>', lambda _e: self.btn.configure(bg=ACC, fg=WHITE))
-        self.btn.bind('<Leave>', lambda _e: self.btn.configure(bg=COFFEE, fg=INK))
         self.cv = tk.Canvas(self.f, bg=BG, highlightthickness=0, height=round(ROLL_H * k), cursor='hand2')
         self.cv.pack(fill='x', padx=1, pady=(6, 6))
         self.cv.bind('<Button-1>', lambda _e: self.open())
