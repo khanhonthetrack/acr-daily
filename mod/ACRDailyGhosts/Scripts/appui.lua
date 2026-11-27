@@ -784,7 +784,26 @@ end
 
 -- WATCH's broadcast (0.2, the app's ig_watch.py): drawn over the stage from data.overlay, never taking a click or a key,
 -- no backdrop; its words set in place when only they change (a clock ticking), made again otherwise.
-local ov = nil             -- {w, tree, texts, buttons, scrolls, edits, shape}
+local ov = nil             -- {w, tree, texts, buttons, scrolls, edits, shape, k}
+
+-- The broadcast's size for this screen: its panels are laid out in 1080-tall units, so on a narrower screen than 21:9
+-- they take more of its width (the user's players at 16:9, 27 Nov 2026: "a bit too big compared to the screen").
+-- Full size from 21:9 up, smaller with a narrower screen, never under 80 %. -> k, the screen's {w, h} in units
+local WLL = nil
+local function ov_scale()
+    local k, w, h = 1.0, 1920.0, 1080.0
+    pcall(function()
+        if not (WLL and WLL:IsValid()) then WLL = StaticFindObject("/Script/UMG.Default__WidgetLayoutLibrary") end
+        local world = UEHelpers.GetWorld()
+        local size, sc = WLL:GetViewportSize(world), WLL:GetViewportScale(world)
+        if size and sc and sc > 0 and size.X > 0 and size.Y > 0 then
+            w, h = size.X / sc, size.Y / sc
+            k = math.max(0.8, math.min(1.0, (w / h) / (21 / 9)))
+        end
+    end)
+    return k, w, h
+end
+
 local function drop_overlay()
     if ov and ov.w and ov.w:IsValid() then ov.w:RemoveFromParent() end
     ov = nil
@@ -796,7 +815,8 @@ local function overlay(node)
         return
     end
     local sh = table.concat(shape(node, {}))
-    if ov and ov.shape == sh and ov.w:IsValid() and ov.w:IsInViewport() then
+    local k, sw, shh = ov_scale()
+    if ov and ov.shape == sh and ov.k == k and ov.w:IsValid() and ov.w:IsInViewport() then
         local words = texts_of(node, {})
         if #words == #ov.texts and set_lives(ov, node) then
             for i, s in ipairs(words) do
@@ -822,12 +842,22 @@ local function overlay(node)
     local body = build(P, node)
     if body then
         local s = canvas:AddChildToCanvas(body)
-        s:SetAnchors({Minimum = {X = 0.0, Y = 0.0}, Maximum = {X = 1.0, Y = 1.0}})
-        s:SetOffsets({Left = 36.0, Top = 30.0, Right = 36.0, Bottom = 30.0})
+        if k < 1.0 then
+            -- laid out over a screen 1/k as big, then drawn k as big from the top left: the same layout, smaller
+            s:SetAnchors({Minimum = {X = 0.0, Y = 0.0}, Maximum = {X = 0.0, Y = 0.0}})
+            s:SetAlignment({X = 0.0, Y = 0.0})
+            s:SetPosition({X = 36.0, Y = 30.0})
+            s:SetSize({X = (sw - 72.0) / k, Y = (shh - 60.0) / k})
+            body:SetRenderTransformPivot({X = 0.0, Y = 0.0})
+            body:SetRenderScale({X = k, Y = k})
+        else
+            s:SetAnchors({Minimum = {X = 0.0, Y = 0.0}, Maximum = {X = 1.0, Y = 1.0}})
+            s:SetOffsets({Left = 36.0, Top = 30.0, Right = 36.0, Bottom = 30.0})
+        end
     end
     -- (with a button in it, RANKED's chat: the mouse reaches it; anything else over the stage never takes a click)
     w:SetVisibility(#P.buttons > 0 and K.SELF_HIT or K.NOT_HIT)
-    P.shape = sh
+    P.shape, P.k = sh, k
     ov = P
 end
 
