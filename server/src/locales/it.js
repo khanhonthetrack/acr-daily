@@ -2618,5 +2618,15 @@ export default {
  "not a zip file": "non è un file zip",
  "damaged zip file": "file zip danneggiato",
  "not an Excel workbook": "non è una cartella di lavoro Excel",
- "the workbook has no sheet": "la cartella di lavoro non ha fogli"
+ "the workbook has no sheet": "la cartella di lavoro non ha fogli",
+ "Donate": "Dona",
+ "Buy Me a Coffee or PayPal": "Buy Me a Coffee o PayPal",
+ "Support ACR Daily": "Sostieni ACR Daily",
+ "ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!": "ACR Daily è gratis per tutti. Il tuo sostegno tiene accesi i server e porta nuove prove, rally e funzioni. Grazie!",
+ "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Un caffè una volta, o un abbonamento ogni mese. Il tuo nome compare nella barra dei ringraziamenti dell'app.",
+ "Send any amount you like, straight from your PayPal account or a card.": "Invia l'importo che vuoi, dal tuo conto PayPal o con una carta.",
+ "Thank you": "Grazie",
+ "The drivers supporting ACR Daily right now.": "I piloti che sostengono ACR Daily in questo momento.",
+ "Member": "Membro",
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "Sostieni ACR Daily: Buy Me a Coffee o PayPal."
 };

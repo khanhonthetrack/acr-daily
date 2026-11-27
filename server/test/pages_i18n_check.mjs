@@ -14,6 +14,7 @@ import { inboxPage, h2hPage, cupsPage, cupPage } from '../src/socialpages.js';
 import { driverPage, rankingPage, teamsPage, teamPage } from '../src/driverpages.js';
 import { changelogPage } from '../src/changelogpage.js';
 import { liveriesPage } from '../src/liverypage.js';
+import { donatePage } from '../src/donatepage.js';
 import { teamH2hPage, teamCupsPage, teamCupPage } from '../src/teampages.js';
 
 const env = { CREDITS_FROM: '2026-10-12', SOURCE_URL: 'https://github.com/x/y', DISCORD_URL: 'https://discord.gg/x', LATEST_VERSION: '0.0.30',
@@ -24,7 +25,7 @@ const pages = {
   newEvent: () => eventEditPage({ leagueId: '7' }, env), editEvent: () => eventEditPage({ eventId: 3 }, env), join: () => joinPage('ABCDEFGH', env), newRally: () => rallyNewPage(env),
   tt: () => timeTrialPage(env), ttPrivate: () => timeTrialPage(env, { week: 'p-abcdefghij' }), credits: () => creditsPage(env), report: () => reportPage(env), inbox: () => inboxPage(env),
   h2h: () => h2hPage(env), cups: () => cupsPage(env), cup: () => cupPage('abcd1234', env), driver: () => driverPage('76561198000000000', env),
-  ranking: () => rankingPage(env), teams: () => teamsPage(env), team: () => teamPage('12', env), changelog: () => changelogPage(env), liveries: () => liveriesPage(env),
+  ranking: () => rankingPage(env), teams: () => teamsPage(env), team: () => teamPage('12', env), changelog: () => changelogPage(env), liveries: () => liveriesPage(env), donate: () => donatePage(env),
   teamH2h: () => teamH2hPage(env), teamCups: () => teamCupsPage(env), teamCup: () => teamCupPage('abcd1234', env),
 };
 let bad = 0;

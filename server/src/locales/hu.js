@@ -2588,5 +2588,15 @@ export default {
  "not a zip file": "nem zip-fájl",
  "damaged zip file": "sérült zip-fájl",
  "not an Excel workbook": "nem Excel-munkafüzet",
- "the workbook has no sheet": "a munkafüzetben nincs munkalap"
+ "the workbook has no sheet": "a munkafüzetben nincs munkalap",
+ "Donate": "Támogatás",
+ "Buy Me a Coffee or PayPal": "Buy Me a Coffee vagy PayPal",
+ "Support ACR Daily": "Támogasd az ACR Dailyt",
+ "ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!": "Az ACR Daily mindenkinek ingyenes. A támogatásod tartja életben a szervereket, és hozza az új szakaszokat, ralikat és funkciókat. Köszönjük!",
+ "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "Egy kávé egyszer, vagy havi tagság. A neved megjelenik az app köszönősávjában.",
+ "Send any amount you like, straight from your PayPal account or a card.": "Küldj bármekkora összeget a PayPal-fiókodból vagy kártyával.",
+ "Thank you": "Köszönjük",
+ "The drivers supporting ACR Daily right now.": "Az ACR Dailyt most támogató versenyzők.",
+ "Member": "Tag",
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "Támogasd az ACR Dailyt: Buy Me a Coffee vagy PayPal."
 };

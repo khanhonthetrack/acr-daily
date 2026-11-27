@@ -25,7 +25,7 @@ test('every page has the one header, and no other', () => {
     const h = make();
     assert.equal((h.match(/<header\b/g) || []).length, 1, `${name}: one header`);
     assert.match(h, /<header class="site">/, name);
-    assert.deepEqual(hrefs(h), ['daily', 'tt', 'leagues', '1v1', 'cups', 'ranked', 'ranking', 'teams', 'liveries', 'discord', 'guide', 'inbox'], name);
+    assert.deepEqual(hrefs(h), ['daily', 'tt', 'leagues', '1v1', 'cups', 'ranked', 'ranking', 'teams', 'liveries', 'discord', 'donate', 'guide', 'inbox'], name);
     assert.match(h, /header\.site \.dd\{/, `${name}: the header's CSS`);
     assert.doesNotMatch(h, /class="hof|class="hnav"><a class="l home"/, `${name}: no old header`);
   }
@@ -38,7 +38,7 @@ test('the parts as the app names them; COMPETITIONS and COMMUNITY drop-downs; th
   const comp = h.slice(h.indexOf('data-g="comp"'), h.indexOf('data-g="comm"'));
   for (const k of ['leagues', '1v1', 'cups', 'ranked']) assert.match(comp, new RegExp(`data-k="${k}"`));
   const comm = h.slice(h.indexOf('data-g="comm"'));
-  for (const k of ['liveries', 'ranking', 'teams', 'discord']) assert.match(comm, new RegExp(`data-k="${k}"`));
+  for (const k of ['liveries', 'ranking', 'teams', 'discord', 'donate']) assert.match(comm, new RegExp(`data-k="${k}"`));
   assert.match(h, /aria-expanded="false" aria-haspopup="true">Competitions/);
   assert.match(h, /href="\/discord" data-k="discord"[^>]*target="_blank"/);
   assert.match(h, /href="\/guide" data-k="guide"/);

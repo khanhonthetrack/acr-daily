@@ -77,6 +77,7 @@ import { replayPage } from './replaypage.js';
 import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
 import { developersPage } from './developerspage.js';
+import { donatePage } from './donatepage.js';
 import { broadcastPage, BROADCAST_HEADERS } from './broadcast.js';
 import { dailiesOverlayPage } from './dailiesoverlay.js';
 import { rankedPage, specialPage } from './rankedpage.js';
@@ -1867,6 +1868,7 @@ async function route(req, env, ctx, L) {
         { json, err, admin: isAdmin(req, env) });
       if (res) return res;
     }
+    if (path === '/donate') return html(inLang(L, () => donatePage(env)));   // support ACR Daily (src/donatepage.js)
     if (path === '/liveries') return html(inLang(L, () => liveriesPage(env)));   // the drivers' liveries (src/liverypage.js)
     if (path.startsWith('/api/replays')) {             // REPLAYS: proofs of a run, shared runs (src/replays.js)
       // (the website's share button posts with its cookie: from this site's own pages only; the app signs in by token)

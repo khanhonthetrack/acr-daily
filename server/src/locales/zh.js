@@ -2588,5 +2588,15 @@ export default {
  "not a zip file": "不是 zip 文件",
  "damaged zip file": "zip 文件已损坏",
  "not an Excel workbook": "不是 Excel 工作簿",
- "the workbook has no sheet": "工作簿中没有工作表"
+ "the workbook has no sheet": "工作簿中没有工作表",
+ "Donate": "捐助",
+ "Buy Me a Coffee or PayPal": "Buy Me a Coffee 或 PayPal",
+ "Support ACR Daily": "支持 ACR Daily",
+ "ACR Daily is free for everyone. Your support keeps the servers running and the new stages, rallies and features coming. Thank you!": "ACR Daily 对所有人免费。你的支持让服务器持续运行，并带来新的赛段、拉力赛和功能。谢谢！",
+ "A coffee once, or a membership every month. Your name shows in the app's thank-you bar.": "一次请一杯咖啡，或每月成为会员。你的名字会出现在应用的感谢栏中。",
+ "Send any amount you like, straight from your PayPal account or a card.": "从你的 PayPal 账户或银行卡发送任意金额。",
+ "Thank you": "谢谢",
+ "The drivers supporting ACR Daily right now.": "正在支持 ACR Daily 的车手。",
+ "Member": "会员",
+ "Support ACR Daily: Buy Me a Coffee or PayPal.": "支持 ACR Daily：Buy Me a Coffee 或 PayPal。"
 };

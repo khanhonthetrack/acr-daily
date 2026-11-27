@@ -3,7 +3,7 @@
 //
 // The logo, then the parts of the game as the app names them (client tabsui.py NAV): DAILIES, TIME TRIAL, COMPETITIONS
 // and COMMUNITY, the last two drop-downs: COMPETITIONS holds Rallies, 1V1 and Cups (the app's COMPETITIONS tab),
-// COMMUNITY holds Ranking, Teams, Liveries and Discord. Each is grey; the part this page is in is underlined in its
+// COMMUNITY holds Ranking, Teams, Liveries, Discord and Donate. Each is grey; the part this page is in is underlined in its
 // colour (the game's modes' colours, as in the app), each item of a drop-down has its colour as a bar. On the right:
 // how to play (in words while signed out, a ? signed in), the inbox and the credits (signed in), the language and
 // SIGN IN (signed out) or the driver's menu (their picture: driver page, credits and shop, language, sign out), then
@@ -26,7 +26,8 @@ const BURGER = '<svg class="hic" viewBox="0 0 24 24" aria-hidden="true"><path d=
 
 // the parts' colours: the game's modes (client tabsui.py TABS, NAV_COLOUR); COMMUNITY's green; Ranking red, Teams turquoise
 const C = { daily: '#F4F4F5', tt: '#BF5AF2', leagues: '#5BA8FF', '1v1': '#FF9F43', cups: '#FFD60A', comm: '#30D158',
-  liveries: '#30D158', ranking: '#FF453A', teams: '#40E0D0', discord: '#8C9EFF' };
+  liveries: '#30D158', ranking: '#FF453A', teams: '#40E0D0', discord: '#8C9EFF',
+  donate: '#FFDD00' };
 
 /** The header's HTML (with HEADER_FIT and its script after it). opts.me: fetch /api/me here (the page doesn't). */
 export function siteHeader(env = {}, opts = {}) {
@@ -51,7 +52,9 @@ ${group('comm', t('Community'), C.comm, [
     item('ranking', '/ranking', t('Ranking'), t('Driver rating and world rank'), C.ranking),
     item('teams', '/teams', t('Teams'), t('Teams and their drivers'), C.teams),
     item('liveries', '/liveries', t('Liveries'), t('Painted by the drivers, ready for your car'), C.liveries),
-    hasDiscord(env) ? item('discord', '/discord', 'Discord', t('Chat, ideas and live timing'), C.discord, true) : ''])}
+    hasDiscord(env) ? item('discord', '/discord', 'Discord', t('Chat, ideas and live timing'), C.discord, true) : '',
+    // DONATE (the user, 27 Nov 2026; src/donatepage.js)
+    item('donate', '/donate', t('Donate'), t('Buy Me a Coffee or PayPal'), C.donate)])}
 </nav>
 <div class="hside">
 <a class="hi help" href="/guide" data-k="guide" title="${t('How to play')}" aria-label="${t('How to play')}">${HELP}<span class="tx">${t('How to play')}</span></a>
@@ -105,7 +108,7 @@ var headerMe=(function(){var h=document.querySelector('header.site'),LP=h&&h.que
     var p=location.pathname;
     navOn(p==='/'||/^\\/stage\\//.test(p)?'daily':/^\\/tt$/.test(p)?'tt':/^\\/(leagues|rallies|l\\/|e\\/|join\\/)/.test(p)?'leagues':
       /^\\/1v1/.test(p)?'1v1':/^\\/cups?(\\/|$)/.test(p)?'cups':/^\\/ranked/.test(p)?'ranked':/^\\/liveries/.test(p)?'liveries':/^\\/(ranking|d\\/)/.test(p)?'ranking':
-      /^\\/(teams|t\\/)/.test(p)?'teams':/^\\/inbox/.test(p)?'inbox':/^\\/guide/.test(p)?'guide':'')}
+      /^\\/(teams|t\\/)/.test(p)?'teams':/^\\/inbox/.test(p)?'inbox':/^\\/donate/.test(p)?'donate':/^\\/guide/.test(p)?'guide':'')}
   // me: /api/me's answer (signed out: null or {signedIn: false})
   return function(me){var a=document.getElementById('acct');if(!h||!a)return;var inn=!!(me&&me.signedIn);
     h.classList.toggle('in',inn);a.innerHTML='';
