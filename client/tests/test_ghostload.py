@@ -238,11 +238,13 @@ class TheGamesShare(unittest.TestCase):
         reader = None
         try:
             self.ov._write_ingame([('L1', (1.0, 2.0, 3.0, 0.1, 0.0, 0.0), None, car)], 100.0, None,
-                                  {'L1': ('Ann  de  Vries', '#FFB547', True), 'L9': ('Bob', '#FFB547', True)})
+                                  {'L1': ('Ann  de  Vries', '#FFB547', True, 'C:\\ACR Daily\\pics\\flag-nl.png'),
+                                   'L9': ('Bob', '#FFB547', True)})
             reader = open(os.path.join(self.d, 'ingame-ghosts.txt'), newline='')
             lines = reader.read().split('\n')
             self.assertEqual(lines[2], 'name L1 1 1 FFB547 Ann de Vries')      # (only cars sent: L9 is not)
-            self.assertEqual(lines[3], 'end 1')
+            self.assertEqual(lines[3], 'flag L1 1 C:\\ACR Daily\\pics\\flag-nl.png')
+            self.assertEqual(lines[4], 'end 1')
         finally:
             if reader:
                 reader.close()
@@ -255,6 +257,78 @@ class TheGamesShare(unittest.TestCase):
             fh.write('CAM 8 100.00 200.00 300.00 -5.0 90.0 0.0 80.0 8 M weekend 8'.ljust(159) + '\n')
         self.ov._game_camera(1920, 1080)
         self.assertFalse(self.ov._cam_names)
+
+
+class GhostFlagLabels(unittest.TestCase):
+    """Ghost nickname flag rendering (Tk canvas + ingame-ghosts.txt), runnable on any OS."""
+
+    def _load_ghostui(self):
+        if ghostui is not None:
+            return ghostui
+        import importlib
+        from unittest import mock
+        tk_stub = types.ModuleType('tkinter')
+        tk_stub.TclError = Exception
+        with mock.patch.dict(sys.modules, {'tkinter': tk_stub}):
+            return importlib.import_module('acr_daily.ghostui')
+
+    def test_write_ingame_and_tk_flag_on_left(self):
+        from unittest import mock
+        gu = self._load_ghostui()
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+
+        ov = gu.GhostOverlay.__new__(gu.GhostOverlay)
+        ov._ingame_path = lambda name: os.path.join(d, name)
+        ov.root, ov.cfg, ov._n = None, {'ingame': False, 'always': True}, 0
+        ov.rect = (0, 0, 1280, 720)
+        ov._cam_at, ov._cam_names, ov._cam_fresh = -1e9, False, False
+
+        drawn_imgs, drawn_texts = [], []
+
+        class Canvas:
+            def delete(self, *_a): pass
+            def create_image(self, x, y, **kw): drawn_imgs.append((x, y, kw))
+            def create_text(self, x, y, **kw): drawn_texts.append((x, y, kw))
+            def create_line(self, *_a, **_kw): pass
+            def create_polygon(self, *_a, **_kw): pass
+
+        ov.c = Canvas()
+        ov._name_font = types.SimpleNamespace(metrics=lambda k: 18 if k == 'ascent' else 22, measure=lambda s: 10.0 * len(s))
+        fake_flag = object()
+        ov._flag_tk = staticmethod(lambda code, w, h: fake_flag if (code == 'pl' and (w, h) == (27, 18)) else None)
+        ov._flag_png = staticmethod(lambda code: '/tmp/pics/flag-%s.png' % code if code else None)
+
+        drv = types.SimpleNamespace(
+            id=1, name='Kajetan', sid='76561198000000001', car='Skoda Fabia RS Rally2', root=None,
+            motion=lambda _now: ((0.0, 0.0, 20.0, 0.0, 0.0, 0.0), (0.0,) * 6),
+            trace=types.SimpleNamespace(passed=lambda *_a: 0, path=lambda *_a: []),
+            clock_now=lambda _now: 0, ahead_s=lambda *_a: None,
+        )
+        ov.app = types.SimpleNamespace(watch=types.SimpleNamespace(on=False, country_of=lambda _n, _s=None: 'pl'))
+        f = types.SimpleNamespace(x=0.0, y=0.0, z=0.0, heading=0.0, pitch=0.0, roll=0.0, car='Skoda Fabia RS Rally2')
+        ov._draw(f, others=[drv], labels=True)
+
+        self.assertEqual(len(drawn_imgs), 1)
+        ix, iy, ikw = drawn_imgs[0]
+        self.assertIs(ikw['image'], fake_flag)
+        self.assertEqual(ikw['anchor'], 'se')
+        self.assertEqual(len(drawn_texts), 2)
+        tx, ty, tkw = drawn_texts[1]
+        self.assertEqual(tkw['text'], 'Kajetan')
+        self.assertEqual(ty, iy)
+        self.assertLess(ix, tx)  # flag is to the left of the nickname
+
+        # Also verify _write_ingame emits flag line with spaces in path
+        with mock.patch.object(gu, 'open_kept', side_effect=lambda p, write=False, binary=False: open(p, 'w+' if write else 'r')):
+            ov._write_ingame([('L1', (1.0, 2.0, 3.0, 0.1, 0.0, 0.0), None, ('Skoda Fabia RS Rally2', None))],
+                             100.0, None, {'L1': ('Kajetan', '#FFB547', True, '/tmp/ACR Daily/flag-pl.png')})
+            ov._ghosts_fh.close()
+        with open(os.path.join(d, 'ingame-ghosts.txt')) as fh:
+            lines = fh.read().splitlines()
+        self.assertEqual(lines[2], 'name L1 1 1 FFB547 Kajetan')
+        self.assertEqual(lines[3], 'flag L1 1 /tmp/ACR Daily/flag-pl.png')
+        self.assertEqual(lines[4], 'end 1')
 
 
 if __name__ == '__main__':
