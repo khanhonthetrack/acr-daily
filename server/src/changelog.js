@@ -75,6 +75,14 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // since 0.2.3: a player's own Rally Weekend calendar that skips days (1dfd80d); its test builds (0.2.3.X)
+    version: '0.2.4', date: '2026-11-28', title: N_("Fixes for DRIVE"), photo: 'alsace',
+    changes: [
+      FIX(N_("DRIVE no longer stops with \"unexpected day in the Rally Weekend calendar\" when your own Rally Weekend in the game skips a day.")),
+      NOTE(N_("If DRIVE can't set up a daily, don't drive it in Time Attack: runs there don't count. Tell us on Discord in bug-reports.")),
+    ],
+  },
+  {
     // everything since 0.2.2 the app brings: REPLAYS (40bd8d2..1bff980), the whole car carried (a851847, 82b69d4,
     // 2a22ef9), HOME (bea6bb4), WATCH (9141f0c, 0430987, PR 100, 699e27c), the tile (0f9f619), CODRIVER's words
     // (a18b549, 699e27c), the supporters bar (2fb17af..acae0e0); its test builds (0.2.2.X) show it under their own number
