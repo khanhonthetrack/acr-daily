@@ -1464,14 +1464,19 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const route = st && await env.DB.prepare('SELECT length FROM routes WHERE track = ?').bind(st.track).first();
     if (route && impossiblyFast(timeMs, route.length)) return err('invalid: impossibly fast for the stage\'s length', 422);
     const splits = Array.isArray(b.splitsMs) ? b.splitsMs.slice(0, 10).map((x) => Math.round(+x)).filter(Number.isFinite) : null;
+    // (the app's own splits, at the route's fractions: the others' live splits on this stage, rules.splits; each one
+    // under the stage's time, in order)
+    const live0 = Array.isArray(b.liveSplitsMs) ? b.liveSplitsMs.slice(0, 10).map((x) => Math.round(+x)) : [];
+    const live = live0.length && live0.every((x, i) => Number.isFinite(x) && x > 0 && x <= timeMs + penMs && (!i || x >= live0[i - 1]))
+      ? live0 : null;
     const done = entry.done + 1;
     const status = done >= nStages ? 'finished' : 'running';
     const dmg = carDamage(b.damage, no2);                // (the car at the finish line: the next stage after a crash)
     const whole = carState(b.carState, no2);             // (all of it, the mod's copy: kept too, replacing the last)
     await env.DB.batch([
-      env.DB.prepare(`INSERT INTO league_stage_times (event_id, steam_id, stage_no, time_ms, penalty_ms, splits, started, created)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, no2, timeMs, penMs, splits ? JSON.stringify(splits) : null,
-        Number.isFinite(+b.startedAt) ? Math.round(+b.startedAt) : null, now),
+      env.DB.prepare(`INSERT INTO league_stage_times (event_id, steam_id, stage_no, time_ms, penalty_ms, splits, live_splits, started, created)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, no2, timeMs, penMs, splits ? JSON.stringify(splits) : null,
+        live ? JSON.stringify(live) : null, Number.isFinite(+b.startedAt) ? Math.round(+b.startedAt) : null, now),
       env.DB.prepare(`UPDATE league_entries SET done = ?, on_stage = NULL, total_ms = total_ms + ?, status = ?, updated = ?, app_version = ?,
         damage = ?, car_state = ? WHERE event_id = ? AND steam_id = ?`)
         .bind(done, timeMs + penMs, status, now, v, dmg, whole, ev.id, me.steam_id),

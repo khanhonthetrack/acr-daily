@@ -78,6 +78,22 @@ test('an event the game can run: days, service parks, times', () => {
   assert.equal(checkEvent(ev({ car: null, carClass: 'Rally2/R5' }), CAT, NOW).value.car_class, 'Rally2/R5');
 });
 
+test('live splits: off unless the admins turn them on; on, the stage times are not hidden', () => {
+  const off = checkEvent(ev(), CAT, NOW).value;
+  assert.equal(off.rules.splits, undefined);
+  assert.deepEqual(off.hide, { weather: true, times: true, stages: true });
+  const on = checkEvent(ev({ rules: { splits: true }, hide: { weather: true, times: true, stages: false } }), CAT, NOW).value;
+  assert.equal(on.rules.splits, true);
+  assert.deepEqual(on.hide, { weather: true, times: false, stages: false });
+  assert.equal(checkEvent(ev({ rules: { splits: 'yes please' } }), CAT, NOW).value.rules.splits, undefined);
+  // each stage's live splits (the app's) in the standings, beside the game's
+  const st = eventStandings({ stages: [{}, {}], opens: NOW - H, closes: NOW + H },
+    [{ steam_id: 'a', name: 'A', status: 'running', done: 1, started: NOW - H }],
+    [{ steam_id: 'a', stage_no: 0, time_ms: 100000, penalty_ms: 0, splits: '[40000]', live_splits: '[25000,50000,75000]' }], NOW);
+  assert.deepEqual(st.rows[0].stages[0].liveSplits, [25000, 50000, 75000]);
+  assert.deepEqual(st.rows[0].stages[0].splits, [40000]);
+});
+
 test('an event in several places: its stages from any location, its rally their names in order', () => {
   const st = ev().stages;
   const v = checkEvent(ev({ stages: [st[0], { ...st[1], track: 'Greece Elatia' }, st[2]] }), CAT, NOW).value;

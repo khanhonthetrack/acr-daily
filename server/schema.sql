@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS league_stage_times (
   started    INTEGER,
   created    INTEGER NOT NULL,
   retired    TEXT,                      -- why the stage counts as retired (its slowest time + the rule's minutes); NULL: driven (0032)
+  live_splits TEXT,                     -- JSON: the app's own splits (ms at the route's fractions), the live splits (0054)
   PRIMARY KEY (event_id, steam_id, stage_no)
 );
 

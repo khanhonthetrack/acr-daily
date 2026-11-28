@@ -129,6 +129,7 @@ function stagesText(x){var t=x.stages.map(function(s,i){return 'SS'+(i+1)+' '+hi
   return t+(x.hidden&&!x.revealed?' · '+hiddenNote(x.hidden)+' '+${tq('You see them when you press DRIVE in the app.')}:x.hidden?' · '+hiddenNote(x.hidden):'')}
 function ruleChips(R){var c=el('div','chips');[R.damage?F(${tq('Damage {0}')},LV[R.damageIntensity]||R.damageIntensity):${tq('No damage')},F(${tq('Wear {0}')},LV[R.wear]||R.wear),F(${tq('Failures {0}')},LV[R.failures]||R.failures),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LV[R.penalty]||R.penalty)]
   .concat(R.hardcore?[${tq('Hardcore Mode')}]:[]).concat(R.assists==='off'?[${tq('No driving aids')}]:[])
+  .concat(R.splits?[${tq('Live splits')}]:[])
   .forEach(function(x){c.appendChild(el('span','chip',x))});return c}
 // find a driver by name (GET /api/players): a text box and what it finds; onPick(player)
 function picker(box,onPick,ph){box.innerHTML='';var inp=el('input'),res=el('div','picks'),t=null,seq=0;

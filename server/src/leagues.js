@@ -182,6 +182,9 @@ export function checkEvent(b, cat, now = Date.now()) {
     hardcore: !!r.hardcore,
     assists: ASSISTS.includes(r.assists) ? r.assists : DEFAULT_RULES.assists,
   };
+  // live splits on its stages (the app's, as the dailies'): off unless the admins turn them on (the user, 28 Nov 2026).
+  // They show the others' times, so the stage times are not hidden then (the hide below)
+  if (r.splits === true || r.splits === 1 || r.splits === 'true') rules.splits = true;
   if (rules.damage && rules.damageIntensity === 'off') rules.damageIntensity = 'light';
   if (rules.hardcore) {          // what the game itself locks them at (and writes into its save) in Hardcore Mode
     Object.assign(rules, { damage: true, damageIntensity: 'realistic', wear: 'realistic', failures: 'realistic',
@@ -223,7 +226,7 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (closes - opens > LIMITS.windowDays * 86400000) return { error: `an event is open for at most ${LIMITS.windowDays} days` };
   if (closes < now + 3600000) return { error: 'the event must stay open for at least another hour' };
   return { value: { name, rally: placesOf(stages, cat).join(PLACES_SEP), car, car_class: carClass, car_classes: carClasses,
-    rules, stages, opens, closes, hide: checkHide(b.hide) } };
+    rules, stages, opens, closes, hide: checkHide(rules.splits ? { ...(b.hide || {}), times: false } : b.hide) } };
 }
 
 /** What of an event is kept from its drivers until it ends (src/hidden.js): b.hide = {weather, times, stages} (each
@@ -365,7 +368,9 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
       if (x.retired) return standIn(d, k, x);
       const s = stages[k].find((y) => y.steamId === e.steam_id) || {};
       return { timeMs: x.time_ms, penaltyMs: x.penalty_ms, stewardMs: d.pen[k], totalMs: stageTotal(d, k),
-        pos: s.pos || null, cumPos: s.cumPos || null, splits: x.splits ? JSON.parse(x.splits) : null };
+        pos: s.pos || null, cumPos: s.cumPos || null, splits: x.splits ? JSON.parse(x.splits) : null,
+        // (the app's own splits, at the route's fractions as the dailies': the live splits, rules.splits)
+        ...(x.live_splits ? { liveSplits: JSON.parse(x.live_splits) } : {}) };
     });
     const unpriced = cells.some((x) => x && x.totalMs == null);   // a retired stage nobody has a time on yet
     const totalMs = unpriced ? null : cells.reduce((a, x, k) => a + (x ? x.totalMs : d.pen[k]), 0) + d.over;

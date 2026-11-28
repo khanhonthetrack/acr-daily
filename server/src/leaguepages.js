@@ -991,7 +991,7 @@ export function eventPage(id, env, meta = {}) {
     fact(e.status==='upcoming'?${tq('Opens')}:${tq('Opened')},when(e.opens));
     fact(e.status==='closed'?${tq('Closed')}:${tq('Closes')},when(e.closes)+(e.status==='open'?' ('+F(${tq('{0} left')},left(e.closes))+')':''));
     var r=$('rules');r.innerHTML='';var R=e.rules;
-    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].concat(R.hardcore?[${tq('Hardcore Mode')}]:[]).concat(R.assists==='off'?[${tq('No driving aids')}]:[]).concat(R.retire?[F(${tq('DNF: slowest + {0} min')},R.retire)]:[]).forEach(function(x){r.appendChild(el('span','chip',x))});
+    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].concat(R.hardcore?[${tq('Hardcore Mode')}]:[]).concat(R.assists==='off'?[${tq('No driving aids')}]:[]).concat(R.retire?[F(${tq('DNF: slowest + {0} min')},R.retire)]:[]).concat(R.splits?[${tq('Live splits')}]:[]).forEach(function(x){r.appendChild(el('span','chip',x))});
     if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip',F(${tq('Power Stage: SS{0}')},e.stages.length)));
     if(e.hidden){var hn=hiddenNote(e.hidden);if(hn)r.appendChild(el('span','chip',${tq('Hidden until it ends')}));
       $('hidn').textContent=hn?hn+' '+(e.revealed?(e.me.staff&&!rk?${tq('You see the set-up: you run the championship.')}:${tq('You see the set-up: you made it, or have pressed DRIVE on it.')}):${tq('Drivers see the set-up when they press DRIVE in the app.')})+' '+revealWhen(e):'';
@@ -1239,7 +1239,10 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
     var g=el('div','classes');[['stages',${tq('Stage names (and their lengths and maps)')}],['weather',${tq('Weather')}],['times',${tq("Stage times: the start time of day, and the drivers' results")}]].forEach(function(x){
       var l=el('label','sp'),cb=el('input');cb.type='checkbox';cb.checked=!!S.hide[x[0]];cb.onchange=function(){S.hide[x[0]]=this.checked};
       if(showOnly&&!cb.checked)cb.disabled=true;   // (started: it can show more, not hide more)
-      add(l,cb,x[1]);g.appendChild(l)});b.appendChild(g)}
+      if(x[0]==='times'&&S.rules&&S.rules.splits){cb.checked=false;cb.disabled=true}   // (live splits show the times)
+      add(l,cb,x[1]);g.appendChild(l)});
+    if(S.rules&&S.rules.splits)add(b,el('p','note',${tq('Live splits are on, so stage times are not hidden.')}));
+    b.appendChild(g)}
   function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:LEVELS[v]||v,String(S.rules[key]))});
     s.onchange=function(){S.rules[key]=this.value==='true'?true:this.value==='false'?false:this.value;draw()};l.appendChild(s);return l}
   function rules(b){add(b,el('h3',null,${tq('Settings')}));var g=el('div','twocol');
@@ -1251,6 +1254,10 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
     g.appendChild(sel(${tq('Manual respawn')},'respawn',['true','false'],[${tq('On')},${tq('Off (stuck = retire)')}]));
     if(!S.rules.hardcore)g.appendChild(sel(${tq('Penalties (cuts, respawns, jump starts...)')},'penalty',CAT.rules.penalty));
     g.appendChild(sel(${tq('Driving aids')},'assists',CAT.rules.assists||['any','off'],[${tq("Each driver's choice")},${tq('Off: no ABS, traction control or starting handbrake assist')}]));
+    // live splits on the stages, as the dailies' (off unless the admins turn it on: the user, 28 Nov 2026); they show the
+    // others' times, so the stage times are not hidden then (src/leagues.js checkEvent)
+    g.appendChild(sel(${tq('Live splits')},'splits',['false','true'],[${tq('Off')},${tq('On: each driver sees where they stand at every split')}]));
+    if(S.rules.splits&&S.hide)S.hide.times=false;
     var rl=el('label');add(rl,el('span',null,${tq('A retirement (DNF)')}));var rs=el('select');
     [0,1,2,5,10,15,30].forEach(function(m){opt(rs,String(m),m?F(${tq('Stays in: slowest time + {0} min per stage missed')},m):${tq('Out of the event')},String(S.rules.retire||0))});
     rs.onchange=function(){var m=+this.value;if(m)S.rules.retire=m;else delete S.rules.retire};rl.appendChild(rs);g.appendChild(rl);b.appendChild(g)}
