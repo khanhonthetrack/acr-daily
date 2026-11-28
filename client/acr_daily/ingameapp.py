@@ -428,7 +428,10 @@ class InGameApp:
         self._chat_on_stage = chat is not None
         if watch is None or chat is None:
             return watch or chat
-        return stack(watch, chat)
+        # (each across the whole screen: a stack's layers sit top left at their smallest otherwise, and the broadcast's
+        # bottom row, the dash and the driver bar, came up to the middle of the screen with the chat on: the user's
+        # screenshot, 28 Nov 2026)
+        return stack(dict(watch, al='f', va='f'), dict(chat, al='f', va='f'))
 
     # ---- WATCH (watch.py, ig_watch.py)
     def watch_overlay(self):

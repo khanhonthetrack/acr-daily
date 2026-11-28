@@ -11,6 +11,8 @@ from .ingamekit import box, btn, col, row, size, sp, txt
 
 W = 520
 SHOWN = 8                                  # lines on screen (Page Up: further back)
+SHOWN_WATCHING = 6                         # ... while WATCH's broadcast is on too
+BOTTOM, BOTTOM_WATCHING = 300, 110         # room under it: the game's own displays / WATCH's ACR DAILY mark and keys
 NAVY, LIVE_C, SOFT_C, MUTED_C = '0A1428', 'FF2D3A', 'D4D4D8', '85858E'
 
 
@@ -40,9 +42,12 @@ def overlay(ig):
     m = ig.mem('chat-stage')
     st = rankedchat.state(ig.mem('live'), key)
     rankedchat.poll(a, st, key)
-    back = max(0, min(m.get('back', 0), max(0, len(st['lines']) - SHOWN)))
+    # (watching meanwhile: fewer lines, lower, just over the broadcast's ACR DAILY mark, under its tower: 28 Nov 2026)
+    watching = bool(getattr(getattr(a, 'watch', None), 'on', False))
+    shown = SHOWN_WATCHING if watching else SHOWN
+    back = max(0, min(m.get('back', 0), max(0, len(st['lines']) - shown)))
     m['back'] = back
-    lines = st['lines'][max(0, len(st['lines']) - SHOWN - back):len(st['lines']) - back]
+    lines = st['lines'][max(0, len(st['lines']) - shown - back):len(st['lines']) - back]
     me = a.s.get('steamId')
     # (its own off button, outside the click-to-write part: the user, 28 Nov 2026 "add a turn off button for chat";
     # back on in SETTINGS)
@@ -67,7 +72,7 @@ def overlay(ig):
     # (a click on it opens the box to write, as T: the user, 24 Nov 2026 "press with a mouse on the chat/comment window
     # and start writing"; appui.lua chat_tick)
     panel = size(col(head, btn('chat:open', c=col(*out))), w=W)
-    return col(sp(fill=1), row(panel, sp(fill=1)), sp(h=300))
+    return col(sp(fill=1), row(panel, sp(fill=1)), sp(h=BOTTOM_WATCHING if watching else BOTTOM))
 
 
 def key(ig, what):

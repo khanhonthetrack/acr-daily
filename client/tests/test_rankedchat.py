@@ -72,6 +72,7 @@ class OnStage(unittest.TestCase):
         ig.app = app()
         ig.app._lr_registered.return_value = ('rally2', 1000)
         ig.app._lr_following.return_value = ('rally2', 1000)       # (its rally the one driven)
+        ig.app.watch = None                                          # (not watching)
         ig.app.lr_data = {('rally2', 1000): {'phase': 'running'}}
         mem = {}
         ig.mem = lambda k: mem.setdefault(k, {})
@@ -117,6 +118,32 @@ class OnStage(unittest.TestCase):
             ig_chat.key(ig, 'off')
         self.assertFalse(rankedchat.on(ig.app))
         self.assertIsNone(ig_chat.overlay(ig))
+
+    def test_with_watch_s_broadcast(self):
+        """Watching meanwhile: the chat lower and shorter; with the broadcast, each layer across the whole screen (a
+        stack's layers sit top left at their smallest: the dash and the driver bar came up to the middle, 28 Nov 2026)."""
+        from acr_daily import ig_chat
+        from acr_daily.ingameapp import InGameApp
+        ig = self.ig()
+        st = rankedchat.state(ig.mem('live'), ('rally2', 1000))
+        rankedchat.take(st, [{'id': i, 'steamId': 's2', 'name': 'Bob', 'body': 'line %d' % i, 'at': i} for i in range(20)])
+        st['at'] = 1e18
+        node = ig_chat.overlay(ig)
+        self.assertIn('line 12', str(node))
+        self.assertEqual(node['c'][-1].get('h'), ig_chat.BOTTOM)
+        ig.app.watch = mock.Mock(on=True)
+        node = ig_chat.overlay(ig)
+        self.assertNotIn('line 13', str(node))
+        self.assertIn('line 14', str(node))
+        self.assertEqual(node['c'][-1].get('h'), ig_chat.BOTTOM_WATCHING)
+        self_ = mock.Mock()
+        self_._in_menus.return_value = False
+        self_.app._on_stage.return_value = True
+        self_.watch_overlay.return_value = {'t': 'col', 'c': []}
+        with mock.patch.object(ig_chat, 'overlay', return_value={'t': 'col', 'c': [{'t': 'sp'}]}):
+            tree = InGameApp.stage_overlay(self_)
+        self.assertEqual(tree['t'], 'stack')
+        self.assertEqual([(x.get('al'), x.get('va')) for x in tree['c']], [('f', 'f'), ('f', 'f')])
 
     def test_a_line_typed_on_the_stage(self):
         from acr_daily import ig_chat
