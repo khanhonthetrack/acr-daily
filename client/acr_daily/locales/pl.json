@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "Nie zalogowano · przejazdy czekają, aż się zalogujesz",
  "Cancelled. Nothing changed.": "Anulowano. Nic się nie zmieniło.",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "NOWA WERSJA %s  ·  AKTUALIZUJ PO TYM PRZEJEŹDZIE",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "Jest już ACR Daily %s (masz %s).\n\nZaktualizować teraz?",
  "UPDATE TO %s  ›": "AKTUALIZUJ DO %s  ›",
  "INSTALLING %s ...": "INSTALOWANIE %s ...",
  "Sign in with Steam to put this run on the leaderboard.": "Zaloguj się przez Steam, aby ten przejazd trafił do tabeli wyników.",

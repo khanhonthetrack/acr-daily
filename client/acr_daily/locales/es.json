@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "Sin sesión · las pasadas esperan hasta que la inicies",
  "Cancelled. Nothing changed.": "Cancelado. No ha cambiado nada.",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "NUEVA VERSIÓN %s  ·  ACTUALIZA TRAS ESTA PASADA",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "Ya está ACR Daily %s (tienes la %s).\n\n¿Actualizar ahora?",
  "UPDATE TO %s  ›": "ACTUALIZAR A %s  ›",
  "INSTALLING %s ...": "INSTALANDO %s ...",
  "Sign in with Steam to put this run on the leaderboard.": "Inicia sesión con Steam para que esta pasada entre en la clasificación.",

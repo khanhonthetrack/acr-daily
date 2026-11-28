@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "未サインイン · サインインするまで走行は保留されます",
  "Cancelled. Nothing changed.": "キャンセルしました。何も変わっていません。",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "新バージョン %s  ·  この走行の後にアップデート",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "ACR Daily %s が公開されました（現在のバージョン: %s）。\n\n今すぐ更新しますか？",
  "UPDATE TO %s  ›": "%s にアップデート  ›",
  "INSTALLING %s ...": "%s をインストール中 ...",
  "Sign in with Steam to put this run on the leaderboard.": "この走行をリーダーボードに載せるには Steam でサインインしてください。",

@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "Nem vagy bejelentkezve · a menetek várnak, amíg be nem jelentkezel",
  "Cancelled. Nothing changed.": "Megszakítva. Semmi sem változott.",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "ÚJ VERZIÓ: %s  ·  FRISSÍTÉS E MENET UTÁN",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "Megjelent az ACR Daily %s (neked a %s van).\n\nFrissítsünk most?",
  "UPDATE TO %s  ›": "FRISSÍTÉS: %s  ›",
  "INSTALLING %s ...": "%s TELEPÍTÉSE ...",
  "Sign in with Steam to put this run on the leaderboard.": "Jelentkezz be Steammel, hogy ez a menet felkerüljön a ranglistára.",

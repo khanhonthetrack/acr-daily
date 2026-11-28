@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "Non hai effettuato l'accesso · le manche aspettano finché non accedi",
  "Cancelled. Nothing changed.": "Annullato. Non è cambiato nulla.",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "NUOVA VERSIONE %s  ·  AGGIORNA DOPO QUESTA MANCHE",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "È uscito ACR Daily %s (hai la %s).\n\nAggiornare ora?",
  "UPDATE TO %s  ›": "AGGIORNA A %s  ›",
  "INSTALLING %s ...": "INSTALLAZIONE DI %s ...",
  "Sign in with Steam to put this run on the leaderboard.": "Accedi con Steam per mettere questa manche in classifica.",

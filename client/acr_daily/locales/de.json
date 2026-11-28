@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "Nicht angemeldet · Läufe warten, bis du es bist",
  "Cancelled. Nothing changed.": "Abgebrochen. Nichts wurde geändert.",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "NEUE VERSION %s  ·  UPDATE NACH DIESEM LAUF",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "ACR Daily %s ist da (du hast %s).\n\nJetzt aktualisieren?",
  "UPDATE TO %s  ›": "AUF %s AKTUALISIEREN  ›",
  "INSTALLING %s ...": "%s WIRD INSTALLIERT ...",
  "Sign in with Steam to put this run on the leaderboard.": "Melde dich mit Steam an, damit dieser Lauf in die Bestenliste kommt.",

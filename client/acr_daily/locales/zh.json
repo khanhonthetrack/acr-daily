@@ -58,6 +58,7 @@
  "Not signed in · runs wait until you are": "未登录 · 驾驶记录会等到你登录后再发送",
  "Cancelled. Nothing changed.": "已取消。没有任何更改。",
  "NEW VERSION %s  ·  UPDATE AFTER THIS RUN": "新版本 %s  ·  本次驾驶后更新",
+ "ACR Daily %s is out (you have %s).\n\nUpdate now?": "ACR Daily %s 已发布（你的版本：%s）。\n\n现在更新吗？",
  "UPDATE TO %s  ›": "更新到 %s  ›",
  "INSTALLING %s ...": "正在安装 %s ...",
  "Sign in with Steam to put this run on the leaderboard.": "通过 Steam 登录，才能让这次驾驶进入排行榜。",

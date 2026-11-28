@@ -1057,7 +1057,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.refresh_driver()
         self.refresh_community()                   # (HOME's COMMUNITY tile; a time trial's track; after a game update: communityui.py)
         threading.Thread(target=self.flush_leagues, daemon=True).start()
-        threading.Thread(target=self.check_update, daemon=True).start()
+        threading.Thread(target=self.check_update, args=(True,), daemon=True).start()
         self._resume_waiting()
         self.root.after(TICK_MS, self.tick)
         self.root.after(60000, self.periodic)
@@ -2584,8 +2584,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             d['judge'].set_ghost(tr['trace'])
             d['ghost_name'] = shown_name(target)
 
-    def check_update(self):
-        """(thread) Ask the server for the latest version; tick() shows the UPDATE bar. A test build (four parts:
+    def check_update(self, launch=False):
+        """(thread) Ask the server for the latest version; tick() shows the UPDATE bar (launch: the check as the app
+        starts, whose newer version is also asked about, _ask_update). A test build (four parts:
         0.1.5.4, for the testers) also looks on GitHub for a newer test build (updater.latest_test_build): each change of
         the app on main makes one (.github/workflows/dev.yml), so testers have the work for the next release as it lands."""
         def ver(x):
@@ -2615,6 +2616,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if offer:
             if forced:
                 offer['forced'] = True
+            elif launch:
+                offer['ask'] = True
             self.update_info = offer
 
     def _driving(self):
@@ -2746,6 +2749,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 if not self.update_busy:                   # (failed: its message box says why)
                     scr.close()
                     self._update_screen = None
+        elif info.get('ask') and not self.update_busy and not self._driving() and not self._game_open_cached():
+            info['ask'] = False
+            self.root.after(0, self._ask_update)
         if not self.upd.winfo_ismapped():
             self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
         if self.update_busy:
@@ -2756,6 +2762,26 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             text = _('UPDATE TO %s  ›') % info['version']
         if self.upd.cget('text') != text:
             self.upd.configure(text=text, cursor='watch' if self.update_busy or self._driving() else 'hand2')
+
+    def _ask_update(self):
+        """A newer version at launch, the one this app has still allowed (the user, 28 Nov 2026: a driver didn't see the
+        UPDATE button, drove on the old app and lost the run): asked once, Yes / No, over every other window. No: the
+        UPDATE bar stays. (Never while a run is on or the game is open: _render_update waits for that.)"""
+        info = self.update_info
+        if not info or self.update_busy or self._driving():
+            return
+        self.to_front()
+        self.root.attributes('-topmost', True)
+        try:
+            yes = messagebox.askyesno('ACR Daily', _('ACR Daily %s is out (you have %s).\n\nUpdate now?')
+                                      % (info['version'], __version__), parent=self.root)
+        finally:
+            try:
+                self.root.attributes('-topmost', False)
+            except tk.TclError:
+                pass
+        if yes:
+            self.do_update()
 
     def do_update(self):
         info = self.update_info
