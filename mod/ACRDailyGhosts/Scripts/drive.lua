@@ -728,7 +728,65 @@ local function norm(v)
     return out
 end
 
-D._snap = {read = snap_read, write = snap_write, CAR = SNAP_CAR, TYRES = SNAP_TYRES, json = to_json, norm = norm}   -- (tests: client/tests/test_mod_snapshot.py)
+-- The car's setup at the line too (the user, 28 Nov 2026: "make sure setups are preserved as well": a driver's own setup
+-- came back as the game's "balanced" one when an event's rally was set up again after a stop between stages without a
+-- Service Park). The game carries it between a Rally Weekend's stages as the car and the tyres, its component's own
+-- snapshot (PlayerCarSetupComponent: SnapshotSerializableDataPlayerCarSetup.Setup, an RPCCarSetup: the setup's ID and
+-- every setting as {Path, Value}, the value a string), so it is kept the same way: {id, n, by = {<path> = <value>}}.
+-- Written back by path only (a setting the car at the line didn't list is left as it is); never into the game's own
+-- store at NEXT STAGE (the game carries it itself there, with the player's changes at a Service Park).
+local function setup_read(s)
+    local st = s.Setup
+    local out = {by = {}, n = 0}
+    pcall(function() out.id = st.ID:ToString() end)
+    local list = st.Settings
+    for i = 1, #list do
+        local e = list[i]
+        local ok, k, v = pcall(function() return e.Path:ToString(), e.Value:ToString() end)
+        if ok and k ~= "" then
+            out.by[k] = v
+            out.n = out.n + 1
+        end
+    end
+    return out
+end
+
+local function setup_write(s, d, st)
+    if type(d) ~= "table" or type(d.by) ~= "table" then return end
+    local list = s.Setup.Settings
+    for i = 1, #list do
+        local e = list[i]
+        local okk, k = pcall(function() return e.Path:ToString() end)
+        local v = okk and d.by[k] or nil
+        if type(v) == "string" then
+            local ok = pcall(function() e.Value = v end)
+            local okr, now = pcall(function() return e.Value:ToString() end)
+            if ok and okr and now == v then st.set = st.set + 1 else st.skipped = st.skipped + 1 end
+        end
+    end
+    if type(d.id) == "string" and d.id ~= "" and d.id ~= "None" then
+        pcall(function() s.Setup.ID = FName(d.id) end)
+    end
+end
+
+local function setup_comp(pc)
+    for _, k in ipairs({"PlayerCarSetup", "PlayerCarSetupComponent"}) do
+        local ok, c = pcall(function() return pc[k] end)
+        if ok and c and c.IsValid and c:IsValid() then return c end
+    end
+    local c = FindFirstOf("PlayerCarSetupComponent")
+    if c and c:IsValid() then return c end
+    return nil
+end
+
+local function comp_of(pc, which)
+    if which == "car" then return pc.CarRace end
+    if which == "tyres" then return pc.PlayerTiresSetup end
+    return setup_comp(pc)
+end
+
+D._snap = {read = snap_read, write = snap_write, CAR = SNAP_CAR, TYRES = SNAP_TYRES, json = to_json, norm = norm,
+           setup_read = setup_read, setup_write = setup_write}   -- (tests: client/tests/test_mod_snapshot.py)
 
 -- _G.ACRDAILY_FINISH: {world, at, pending, car (snap_read of the car's), tyres (of the tyres'), lights (zone names),
 -- parts {<part> = life points 0-100} (main.lua writes these to ingame-damage.txt while it is kept), stored}
@@ -756,6 +814,7 @@ local function capture(f)
     f.capturing = true
     pcall(function() pc.CarRace:ClientStoreSnapshot() end)
     pcall(function() pc.PlayerTiresSetup:ClientStoreSnapshot() end)
+    pcall(function() setup_comp(pc):ClientStoreSnapshot() end)
     f.capturing = false
     local parts = {}
     for k, v in pairs(f.car and f.car.CarDamage and f.car.CarDamage.PartsStates and f.car.CarDamage.PartsStates.by or {}) do
@@ -766,12 +825,13 @@ local function capture(f)
     for _ in pairs(f.tyres and f.tyres.ProviderState and f.tyres.ProviderState.Tires and f.tyres.ProviderState.Tires.by or {}) do
         nt = nt + 1
     end
-    log("finish: the car kept as it crossed the line (%s, %d tyres; whole copy %s)", f.car and "car" or "NO car", nt,
-        tostring(f.held))
+    log("finish: the car kept as it crossed the line (%s, %d tyres, setup %s; whole copy %s)", f.car and "car" or "NO car",
+        nt, f.setup and (tostring(f.setup.id) .. " " .. f.setup.n) or "NOT kept", tostring(f.held))
     if f.car then                                        -- (on disk for the app: FINISH_FILE above)
         local ok, e = pcall(function()
             local h = assert(io.open(FINISH_FILE .. ".tmp", "w"))
-            h:write(to_json({v = 1, at = f.stamp, world = f.world, car = f.car, tyres = f.tyres, lights = f.lights}))
+            h:write(to_json({v = 1, at = f.stamp, world = f.world, car = f.car, tyres = f.tyres, lights = f.lights,
+                             setup = f.setup}))
             h:close()
             os.remove(FINISH_FILE)
             assert(os.rename(FINISH_FILE .. ".tmp", FINISH_FILE))
@@ -836,20 +896,26 @@ load_whole = function(pc, whole)
     if type(whole.tyres) == "table" then
         pcall(function() pc.PlayerTiresSetup:ClientStoreSnapshot() end)
     end
+    if type(whole.setup) == "table" then               -- (the setup as at the line: the player's own, not the default)
+        local oks, es = pcall(function() setup_comp(pc):ClientStoreSnapshot() end)
+        if not oks then LOAD.said.setup = "failed " .. tostring(es) end
+    end
     local said = LOAD.said
     LOAD = nil
     if not ok1 then error(tostring(e1)) end
-    return string.format("car %s tyres %s", said.car or "not loaded", said.tyres or "none")
+    return string.format("car %s tyres %s setup %s", said.car or "not loaded", said.tyres or "none", said.setup or "none")
 end
 
 local function on_load(which, self, s)
     -- (inside load_whole's store call: the game's struct, the kept car written in, loaded back)
     local whole = LOAD.data
     if which == "car" and LOAD.said.car then return end  -- (loaded whole already)
-    local data = which == "car" and whole.car or whole.tyres
+    local data = whole[which == "car" and "car" or which == "tyres" and "tyres" or "setup"]
     if type(data) ~= "table" then return end
     local st = {set = 0, skipped = 0}
-    if which == "car" then
+    if which == "setup" then
+        setup_write(s, data, st)
+    elseif which == "car" then
         local names = {}
         pcall(function()
             local zn = s.LightsDamage.ZoneNames
@@ -872,16 +938,20 @@ end
 local function on_stored(which, self, param)
     if LOAD then
         local pc = UEHelpers.GetPlayerController()
-        local comp = which == "car" and pc.CarRace or pc.PlayerTiresSetup
-        if self:get():GetAddress() == comp:GetAddress() then on_load(which, self, param:get()) end
+        local comp = comp_of(pc, which)
+        if comp and self:get():GetAddress() == comp:GetAddress() then on_load(which, self, param:get()) end
         return
     end
     local f = rawget(_G, "ACRDAILY_FINISH")
     if not f then return end
     local pc = UEHelpers.GetPlayerController()
-    local comp = which == "car" and pc.CarRace or pc.PlayerTiresSetup
-    if self:get():GetAddress() ~= comp:GetAddress() then return end
+    local comp = comp_of(pc, which)
+    if not comp or self:get():GetAddress() ~= comp:GetAddress() then return end
     local s = param:get()
+    if which == "setup" then                             -- (kept at the line only: the game carries it at NEXT STAGE)
+        if f.capturing then f.setup = setup_read(s) end
+        return
+    end
     if f.capturing then
         if which == "car" then
             local okh, eh = pcall(hold_whole, s, f.stamp)
@@ -933,7 +1003,8 @@ if not rawget(_G, "ACRDAILY_SNAP_HOOKED") then              -- (once a game: the
     _G.ACRDAILY_SNAP_HOOKED = true
     for _, h in ipairs({{"/Script/acr.PlayerRaceSectorsTracker:MulticastOnLastSectorPassed", "finish"},
             {"/Script/acr.CarRaceComponent:ServerSnapshotStored", "car"},
-            {"/Script/acr.PlayerTiresSetupComponent:ServerSnapshotStored", "tyres"}}) do
+            {"/Script/acr.PlayerTiresSetupComponent:ServerSnapshotStored", "tyres"},
+            {"/Script/acr.PlayerCarSetupComponent:ServerSnapshotStored", "setup"}}) do
         local kind = h[2]
         local ok, e = pcall(RegisterHook, h[1], function(self, param)
             local fn = rawget(_G, "ACRDAILY_SNAP_ON")

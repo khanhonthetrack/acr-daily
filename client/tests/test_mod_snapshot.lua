@@ -118,6 +118,30 @@ local t_new = {ProviderState = {Tires = {tyre("Soft_0", 1.0)}}}
 S.write(t_new, S.TYRES, back.tyres, {set = 0, skipped = 0})
 check(math.abs(t_new.ProviderState.Tires[1].Damage.Wear.Normalized - 0.33) < 1e-6, "tyre back from JSON")
 
+-- the setup at the line (28 Nov 2026: a driver's own setup came back as "balanced"): its settings by path, as strings
+-- (the game's FString: read with ToString, written with a Lua string), its ID; back from JSON; a setting the car at the
+-- line didn't list left as it is
+FName = function(s) return name(s) end
+local function setting(path, value)
+    local raw = {Path = name(path), v = value}
+    return setmetatable({}, {
+        __index = function(_, k) if k == "Value" then return name(raw.v) end return raw[k] end,
+        __newindex = function(_, k, v) if k == "Value" then raw.v = v else raw[k] = v end end})
+end
+local function setup(id, list) return {Setup = {ID = name(id), Settings = list}} end
+local s_line = S.setup_read(setup("MyGravel", {setting("Suspension.Front.Spring", "85000"), setting("Brakes.Bias", "0.58")}))
+check(s_line.id == "MyGravel" and s_line.n == 2 and s_line.by["Brakes.Bias"] == "0.58", "the setup read")
+local s_back = S.norm(decode(S.json({setup = s_line}))).setup
+local balanced = setup("Balanced", {setting("Brakes.Bias", "0.62"), setting("Suspension.Front.Spring", "70000"),
+                                    setting("Diff.Preload", "80")})
+local sst = {set = 0, skipped = 0}
+S.setup_write(balanced, s_back, sst)
+check(balanced.Setup.Settings[1].Value:ToString() == "0.58", "brake bias as at the line")
+check(balanced.Setup.Settings[2].Value:ToString() == "85000", "springs as at the line")
+check(balanced.Setup.Settings[3].Value:ToString() == "80", "a setting not listed at the line: left")
+check(balanced.Setup.ID:ToString() == "MyGravel", "the setup's id")
+check(sst.set == 2 and sst.skipped == 0, "two written")
+
 -- a part's state from its life points, as the game set them on a Service Park (27 Nov 2026): the engine's and the
 -- bodywork's thresholds as the game has them (single precision)
 local ENGINE = {1.0, 0.99000000953674, 0.85000002384186, 0.34999999403954, 0.050000000745058}
