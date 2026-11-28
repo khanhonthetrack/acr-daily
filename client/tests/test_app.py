@@ -1835,6 +1835,7 @@ class WagerDaily(unittest.TestCase):
         with mock.patch('acr_daily.settings.RESULTS', f):
             a.local_runs = app_mod.local_runs()
         self.assertEqual(a.local_runs, ((DAY + '/2', ('7',)),))
+        a.api.pending_ids.return_value = frozenset({DAY + '/2'})   # (not sent yet: waiting in the queue)
         self.assertTrue(a._driven(2))
         b = self.app()
         b.local_runs = ((DAY + '/2', ('8',)),)                    # another Steam account's run on this PC
@@ -1842,6 +1843,35 @@ class WagerDaily(unittest.TestCase):
         b.dailies[2].pop('started_once', None)
         b.awaiting = [{'slot': 2, 'result': {'challengeId': DAY + '/2'}}]   # waiting for the game's official time
         self.assertTrue(b._driven(2))
+
+    def test_a_run_the_server_refused_is_not_a_start(self):
+        """An app too old for the day drove it, then was updated (SteamboatJoe, 28 Nov 2026): its run is on this PC but
+        the server never took it (426), so the board hasn't it and the next run is the first."""
+        a = self.app()
+        a.local_runs = ((DAY + '/2', ('7',)),)
+        a.dailies[2]['board'] = None
+        self.assertTrue(a._driven(2))                            # the board not in yet: the PC's record, for now
+        self.assertFalse(a.dailies[2].get('started_once'))       # (not kept)
+        a.dailies[2]['board'] = {'entries': [{'steamId': 'other', 'totalMs': 1}]}
+        self.assertFalse(a._driven(2))                           # not on the board: it never counted
+        a.api.pending_ids.return_value = frozenset({DAY + '/2'})
+        self.assertTrue(a._driven(2))                            # waiting to be sent: a start
+        a.api.pending_ids.return_value = frozenset()
+        a.dailies[2].pop('started_once', None)
+        a.dailies[2]['board'] = {'entries': [{'steamId': '7', 'totalMs': None, 'status': 'dnf'}]}
+        self.assertTrue(a._driven(2))                            # on the board, a DNF too
+
+    def test_pending_ids_read_again_when_the_file_changes(self):
+        import json
+        import threading
+        p = os.path.join(tempfile.mkdtemp(), 'pending.json')
+        api = api_mod.Api.__new__(api_mod.Api)
+        api.lock = threading.Lock()
+        with mock.patch('acr_daily.settings.PENDING', p):
+            self.assertEqual(api.pending_ids(), frozenset())
+            with open(p, 'w', encoding='utf-8') as f:
+                json.dump([{'challengeId': 'a/1'}, 'junk'], f)
+            self.assertEqual(api.pending_ids(), frozenset({'a/1'}))
 
     def test_sign_out_forgets_the_credits(self):
         a = self.app(entered=True)

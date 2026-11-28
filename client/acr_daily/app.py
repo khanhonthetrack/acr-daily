@@ -4141,19 +4141,32 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         me = self.s.get('steamId')
         if d.get('started_once'):
             return True
-        on_board = any(e.get('steamId') == me for e in (d.get('board') or {}).get('entries', [])) if me else False
+        board = d.get('board')
+        on_board = any(e.get('steamId') == me for e in (board or {}).get('entries', [])) if me else False
         cid = (d.get('ch') or {}).get('id')
         # a run of it on this PC (under this Steam account, as far as the game said), or one waiting for its official
         # time: a stake can't come after it (only the first run counts)
         # (a practice run outside the Rally Weekend waiting in case the game saved it after all: not a start)
-        here = bool(cid) and (any(c == cid and (not me or not ids or me in ids) for c, ids in self.local_runs) or
-                              any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting
-                                  if not a.get('practice')))
+        ran_here = bool(cid) and any(c == cid and (not me or not ids or me in ids) for c, ids in self.local_runs)
+        waits = bool(cid) and (any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting
+                                   if not a.get('practice')) or cid in self._pending_ids())
+        # A run on this PC that was sent is the board's to tell: one the server refused (an app too old for the day,
+        # updated after it: SteamboatJoe, 28 Nov 2026, "it said I had already done it") never counted, and the next
+        # run is the first there. Before the board is in, the PC's record decides, but only for now: not kept.
+        if ran_here and not on_board and not waits and me and board is None:
+            return True
+        here = waits or (ran_here and not me)
         # (a run without the stake the wager daily needs never counted: not a start)
         d['started_once'] = on_board or here or \
             bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked')
              and not d.get('norally'))
         return on_board or here
+
+    def _pending_ids(self):
+        try:
+            return frozenset(self.api.pending_ids())
+        except Exception:
+            return frozenset()
 
     # -------------------------------------------------------------- credits (a prototype: server src/credits.js)
 

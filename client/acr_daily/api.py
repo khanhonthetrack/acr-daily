@@ -362,6 +362,18 @@ class Api:
         except (OSError, ValueError):
             return []
 
+    def pending_ids(self):
+        """The challenge ids of the runs waiting to be sent (app.py _driven), read again only when the file changes."""
+        try:
+            stamp = os.stat(settings.PENDING).st_mtime_ns
+        except OSError:
+            return frozenset()
+        if getattr(self, '_ids_at', None) != stamp:
+            with self.lock:
+                self._ids = frozenset(b.get('challengeId') for b in self._pending() if isinstance(b, dict))
+            self._ids_at = stamp
+        return self._ids
+
     def pending_count(self):
         """How many runs wait to be sent (the main window's footer, on every tick): the file is read once, then the count
         is kept as _queue and flush change it (it was opened and read 20 times a second)."""
