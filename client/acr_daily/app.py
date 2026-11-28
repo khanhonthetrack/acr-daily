@@ -1837,7 +1837,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         # RANKED's start board (WAIT / GO) only on the stage (the user, 19 Nov 2026: not as soon as the game opens)
         gate = getattr(self, '_lr_gate', None)
         g = gate.snapshot() if gate is not None and self._on_stage() else None
-        logo = ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
+        if g and getattr(getattr(self, 'watch', None), 'on', False):
+            g = dict(g, side=True)                 # (watching meanwhile: small, at the side, the broadcast kept clear)
+        logo =ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
         view = getattr(self, '_hud_view', None) if self._widget_on('strip') and not menus else None
         brand = ingamehud.brand_file(settings.DIR) if ov else None
         if ov is not None:

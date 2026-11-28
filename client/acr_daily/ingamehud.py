@@ -154,6 +154,8 @@ def gate(g, logo=None):
         out['rule'] = _t(g['rule'])
     if g.get('drive'):
         out['drive'] = _t(g.get('drive_words'))
+    if g.get('side'):            # (WATCH on: smaller, at the right edge, off the broadcast; the user, 28 Nov 2026)
+        out['side'] = '1'
     return out
 
 
