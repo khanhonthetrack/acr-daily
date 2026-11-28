@@ -44,22 +44,32 @@ class Languages(unittest.TestCase):
 
     def test_every_word_fills_in(self):
         """A translation takes the English's values: the same % specs (or all of them numbered, %2$s, for another
-        order), so filling it in never raises."""
+        order), so filling it in never raises. And in the English's order: plain %s/%d go in left to right, so a
+        translation that moves them needs the numbers (ja's '%s から %d ステージ' broke the RANKED page, 28 Nov 2026)."""
         spec = re.compile(r'%(?:(\d)\$)?[-#0 +]*\d*(?:\.\d+)?([sdifr%])')
+        date = re.compile(r'%-?[aAbBHMSYyjpe]')                        # (a date's format: strftime's, i18n.strftime)
         sample = {'s': 'x', 'd': 3, 'i': 3, 'f': 1.5, 'r': 'x'}
         for code in i18n.CODES:
             if code == 'en':
                 continue
             i18n.load(code)
             for en, tr in i18n._words.items():
-                if '%' not in en or re.fullmatch(r'[%a-zA-Z.:,·\-年月日() ]+', en):   # (a date's format: strftime's)
+                if '%' not in en or date.search(en):
                     continue
-                args = tuple(sample[m.group(2)] for m in spec.finditer(en) if m.group(2) != '%')
+                kinds = [m.group(2) for m in spec.finditer(en) if m.group(2) != '%']
+                args = tuple(sample[k] for k in kinds)
                 for form in (tr if isinstance(tr, list) else [tr]):
+                    if isinstance(tr, list) and not spec.search(form.replace('%%', '')):
+                        continue         # (a plural's "one" form may leave its number out: liverally.py checks)
                     try:
                         i18n._Ordered(form) % args if '$' in form else form % args
                     except (TypeError, ValueError, KeyError) as e:
                         self.fail('%s: %r -> %r: %s' % (code, en, form, e))
+                    if '$' not in form:
+                        own = [m.group(2) for m in spec.finditer(form) if m.group(2) != '%']
+                        if own:          # (a plural's "one" form may leave its number out)
+                            self.assertEqual(own, kinds[:len(own)] if len(own) < len(kinds) else kinds,
+                                             '%s: %r -> %r: the values in another order need %%1$, %%2$...' % (code, en, form))
 
     def test_plurals(self):
         self.assertEqual([i18n.plural_index('pl', n) for n in (1, 2, 4, 5, 12, 22, 25)], [0, 1, 1, 2, 2, 1, 2])

@@ -261,13 +261,14 @@ ${PAGER_JS()}
   tw();setInterval(tw,60000);
   // a special event (src/liverallies.js SPECIALS: the Skoda Saturday Challenge) in the official cup's place while it is listed (the user,
   // 25 Nov 2026: "Put the announcement of this special event in the place of mini challenge"); else ACR Daily's own cup, open for
-  // entries or under way (src/cups.js): a strip over the stages, to its page
-  var SPP=get('/api/liverallies').then(function(j){var x=j&&j.specials&&j.specials[0];if(!x)return false;var s=$('cupstrip');s.className='cupstrip sp';
+  // entries or under way (src/cups.js): a strip over the stages, to its page. Not once it is over (the user, 28 Nov 2026: "remove
+  // the special event bar for skoda on main website, it already finished"; its results stay in RANKED)
+  var SPP=get('/api/liverallies').then(function(j){var x=((j&&j.specials)||[]).filter(function(y){return y.phase!=='over'})[0];if(!x)return false;var s=$('cupstrip');s.className='cupstrip sp';
     s.href='/ranked/'+x.key;s.innerHTML='';var im=el('img');im.src='/series/'+x.key+'.webp';im.alt='';s.appendChild(im);
     s.appendChild(el('span','tag',${tq('SPECIAL EVENT')}));s.appendChild(el('span','cn',x.name));
     var d=new Date(x.starts),when=d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'})+' '+d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'});
     var cs=el('span','cs');coined(cs,F(${tq('{0} · {1} stages of {2} · free entry · {3} registered · every finisher gets {4}')},when,x.stages,x.rally,x.signups||0,x.prize));s.appendChild(cs);
-    s.appendChild(el('span','go',x.phase==='signup'?${tq('Register ›')}:x.phase==='running'?${tq('Watch it live ›')}:${tq('Results ›')}));s.hidden=false;return true}).catch(function(){return false});
+    s.appendChild(el('span','go',x.phase==='signup'?${tq('Register ›')}:${tq('Watch it live ›')}));s.hidden=false;return true}).catch(function(){return false});
   SPP.then(function(sp){if(sp)return;get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
     s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL CUP')}));s.appendChild(el('span','cn',c.name));
     var cs=el('span','cs'),said=open?F(${tq('Entries open · {0} of {1} drivers · starts {2}')},c.entrants,c.size,

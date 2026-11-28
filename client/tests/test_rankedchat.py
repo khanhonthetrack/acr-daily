@@ -71,6 +71,7 @@ class OnStage(unittest.TestCase):
         ig = mock.Mock()
         ig.app = app()
         ig.app._lr_registered.return_value = ('rally2', 1000)
+        ig.app._lr_following.return_value = ('rally2', 1000)       # (its rally the one driven)
         ig.app.lr_data = {('rally2', 1000): {'phase': 'running'}}
         mem = {}
         ig.mem = lambda k: mem.setdefault(k, {})
@@ -94,6 +95,28 @@ class OnStage(unittest.TestCase):
         ig.app.s['rankedChat'] = True
         ig.app.lr_data[('rally2', 1000)]['phase'] = 'over'
         self.assertIsNone(ig_chat.overlay(ig))          # (the session over: no chat on the stage)
+
+    def test_not_on_another_stage(self):
+        """Registered for a ranked hour but driving a time trial or a daily: no chat (the user, 28 Nov 2026)."""
+        from acr_daily import ig_chat
+        ig = self.ig()
+        rankedchat.state(ig.mem('live'), ('rally2', 1000))['at'] = 1e18
+        self.assertIsNotNone(ig_chat.overlay(ig))
+        ig.app._lr_following.return_value = None
+        self.assertIsNone(ig_chat.overlay(ig))
+        with mock.patch('acr_daily.rankedchat.threading.Thread', Now):
+            ig_chat.send(ig, 'hello')
+        ig.app.api.live_chat_send.assert_not_called()
+
+    def test_its_turn_off_button(self):
+        from acr_daily import ig_chat
+        ig = self.ig()
+        rankedchat.state(ig.mem('live'), ('rally2', 1000))['at'] = 1e18
+        self.assertIn("'chat:off'", str(ig_chat.overlay(ig)))
+        with mock.patch('acr_daily.settings.save'):
+            ig_chat.key(ig, 'off')
+        self.assertFalse(rankedchat.on(ig.app))
+        self.assertIsNone(ig_chat.overlay(ig))
 
     def test_a_line_typed_on_the_stage(self):
         from acr_daily import ig_chat

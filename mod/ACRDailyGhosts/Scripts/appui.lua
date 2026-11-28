@@ -1471,6 +1471,11 @@ function M.tick(t)
             local okp, p = pcall(function() return b.btn:IsPressed() end)
             p = okp and p == true
             if p and not b.pressed and b.id == "chat:open" and chat_on and not chatbox then pcall(chat_open, t) end
+            -- (its TURN OFF button, 28 Nov 2026: the app turns the chat off, the overlay goes with the next data)
+            if p and not b.pressed and b.id == "chat:off" then
+                if chatbox then pcall(chat_close, t) end
+                tell("chatkey", "off")
+            end
             b.pressed = p
         end
     end

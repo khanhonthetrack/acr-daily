@@ -15,12 +15,15 @@ NAVY, LIVE_C, SOFT_C, MUTED_C = '0A1428', 'FF2D3A', 'D4D4D8', '85858E'
 
 
 def session_key(app):
-    """My ranked session while it runs (registered, its rally not over), or None."""
+    """My ranked session while I drive it (registered, its rally not over, and the stage on screen its own: the app
+    following its event), or None. Registered alone isn't enough: a time trial or a daily driven while signed up for
+    the next hour showed the chat (the user, 28 Nov 2026: "why did I see chat in the time trial")."""
     try:
         key = app._lr_registered()
+        following = app._lr_following()
     except Exception:
         return None
-    if not key:
+    if not key or following != key:
         return None
     v = (getattr(app, 'lr_data', None) or {}).get(key) or {}
     return None if v.get('phase') == 'over' or v.get('resultsOut') else key
@@ -41,10 +44,15 @@ def overlay(ig):
     m['back'] = back
     lines = st['lines'][max(0, len(st['lines']) - SHOWN - back):len(st['lines']) - back]
     me = a.s.get('steamId')
-    out = [box(row(txt(_('CHAT'), 15, 'bold', 'FFFFFF', sp=120, va='c'), sp(fill=1),
+    # (its own off button, outside the click-to-write part: the user, 28 Nov 2026 "add a turn off button for chat";
+    # back on in SETTINGS)
+    head = box(row(txt(_('CHAT'), 15, 'bold', 'FFFFFF', sp=120, va='c'), sp(fill=1),
                    txt(_('T or click to write · PgUp / PgDn scroll') if not m.get('typing') else _('Enter send · Esc cancel'),
-                       12, 'semi', 'FFFFFF', va='c')),
-               bg=LIVE_C, p=[12, 4, 12, 4])]
+                       12, 'semi', 'FFFFFF', va='c'), sp(10),
+                   btn('chat:off', _('TURN OFF') + '  ✕', bg=NAVY, hov='FFFFFF', fg='FFFFFF', hfg=NAVY, sz=12, f='bold',
+                       p=[8, 2, 8, 2], r=2, va='c')),
+               bg=LIVE_C, p=[12, 4, 8, 4])
+    out = []
     for x in lines:
         mine = x.get('steamId') == me
         out.append(box(row(txt((x.get('name') or '?')[:16], 15, 'bold', LIVE_C if mine else 'FFFFFF', va='t'), sp(8),
@@ -58,7 +66,7 @@ def overlay(ig):
         out.append(box(txt(st['note'], 13, 'semi', 'FF9F0A', wrap=True), bg=NAVY, a=0.85, p=[12, 3, 12, 3]))
     # (a click on it opens the box to write, as T: the user, 24 Nov 2026 "press with a mouse on the chat/comment window
     # and start writing"; appui.lua chat_tick)
-    panel = size(btn('chat:open', c=col(*out)), w=W)
+    panel = size(col(head, btn('chat:open', c=col(*out))), w=W)
     return col(sp(fill=1), row(panel, sp(fill=1)), sp(h=300))
 
 
@@ -72,6 +80,10 @@ def key(ig, what):
         m['back'] = max(0, m.get('back', 0) - 3)
     elif what in ('typing', 'idle'):
         m['typing'] = what == 'typing'
+    elif what == 'off':                    # (its TURN OFF button: as SETTINGS' Ranked chat switch)
+        if rankedchat.on(ig.app):
+            rankedchat.toggle(ig.app)
+        m['typing'] = False
     m['at'] = time.monotonic()
 
 
