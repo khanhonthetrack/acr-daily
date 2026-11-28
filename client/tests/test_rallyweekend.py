@@ -238,9 +238,17 @@ class Calendars(unittest.TestCase):
                           (1, 'ServiceParkDefault'), (1, 'NoZone'), (2, 'ServiceParkDefault')])
         self.assertFalse(w['in_progress'])
         self.assertIsNone(rw.progress(fake_save(THREE_DAYS)))
-        # days out of order are not the game's
-        with self.assertRaises(saveslot.SaveError):
-            rw.read_weekend(fake_save([THREE_DAYS[0], (2,) + THREE_DAYS[1][1:]]))
+        # a player's own calendar that skips or reorders days reads, and the daily is set up over it (28 Nov 2026)
+        for days in ((0, 2), (0, 4, 1), (1, 1)):
+            own = fake_save([(day,) + THREE_DAYS[k][1:] for k, day in enumerate(days)])
+            self.assertEqual([s['day'] for s in rw.read_weekend(own)['stages']], list(days))
+            w = rw.read_weekend(rw.apply_weekend(own, 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 28800,
+                                                 'WT_LIGHT_CLOUDS'))
+            self.assertEqual([(s['stage'], s['day']) for s in w['stages']], [('AlsaceS4SaverneShort1Forward', 0)])
+        # a day that can't be one: not a calendar as the game lays it out
+        for day in (-1, rw.MAX_READ_DAYS):
+            with self.assertRaises(saveslot.SaveError):
+                rw.read_weekend(fake_save([THREE_DAYS[0], (day,) + THREE_DAYS[1][1:]]))
 
     def test_writes_a_league_event(self):
         new = rw.apply_event(fake_save(THREE_DAYS), EVENT, 'SkodaFabiaRSRally2',

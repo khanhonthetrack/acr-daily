@@ -139,7 +139,8 @@ def location_preset(stage_id):
     return None
 LENGTHS = ['Short', 'Medium', 'Long']        # the game's presets for 1, 2 and 3 days (more days: Long)
 SERVICE, NO_ZONE = 'ServiceParkDefault', 'NoZone'
-MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's menus: 3 days; leagues.legs)
+MAX_READ_DAYS = 100                          # a day in a calendar read from the save: 0 .. 99 (any the game may keep)
+MAX_DAYS, MAX_STAGES = 4, 16                # what a league event may hold (the game's menus: 3 days; leagues.legs)
 STATE = saveslot._fstring('ERaceEventSerializableContext::RaceEventState')
 DATA = saveslot._fstring('RaceEventRallyWeekendDataComponent')
 WEATHERS = ['WT_CLEAR', 'WT_LIGHT_CLOUDS', 'WT_HEAVY_CLOUDS', 'WT_LIGHT_FOG', 'WT_HEAVY_FOG', 'WT_LIGHT_RAIN',
@@ -266,10 +267,12 @@ def _read_weekend(b, block):
     o += 4
     stages = []
     for _k in range(n):
+        # Any day 1..MAX_READ_DAYS, in any order: a player's own calendar can skip days (seen 28 Nov 2026: "unexpected
+        # day ... at 697" stopped DRIVE for a driver of 0.2.3). The app replaces the calendar anyway; the stage id,
+        # weather blocks and zone that follow still check the layout.
         day = _i(b, o)
-        last = stages[-1]['day'] if stages else 0
-        if day not in (last, last + 1):              # day 1 first, then the same day or the next
-            raise SaveError('unexpected day in the Rally Weekend calendar at %d' % (o - d))
+        if not 0 <= day < MAX_READ_DAYS:
+            raise SaveError('unexpected day in the Rally Weekend calendar at %d (%d)' % (o - d, day))
         o += 4
         s = saveslot._fstring_at(b, o)
         if not s or not ANY_STAGE_RE.match(s[0]):
