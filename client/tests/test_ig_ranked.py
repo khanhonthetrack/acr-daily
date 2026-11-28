@@ -112,12 +112,18 @@ class WatchLive(unittest.TestCase):
         self.assertTrue(ig_ranked.watchable(view(), 3)[0])                                       # (not in it: any)
         a = app(self.sessions(), {RUNNING: v})
         ig = ig_of(a)
-        said = []
-        ig.say = lambda t, lines: said.append(lines)
+        asked = []
+        ig.ask = lambda t, lines, label, fn, safe=False, **k: asked.append((lines, fn, safe))
+        # (a stage still to drive: WATCH all the same once asked, the question on CANCEL first; 28 Nov 2026)
+        self.assertIn('live.watch:rally2|%d|2' % RUNNING[1], ids(ig_ranked.page(ig)))
         with mock.patch.object(ig_watch, 'start_event') as go:
             ig_ranked.click(ig, 'watch', 'rally2|%d|2' % RUNNING[1])
             go.assert_not_called()
-            self.assertTrue(said)
+            self.assertEqual(len(asked), 1)
+            self.assertTrue(asked[0][2])
+            self.assertIn('DNF', ' '.join(asked[0][0]))
+            asked[0][1]()                                  # (WATCH ANYWAY)
+            self.assertEqual(go.call_args[0][1]['stageNo'], 2)
             ig_ranked.click(ig, 'watch', 'rally2|%d|1' % RUNNING[1])
         x = go.call_args[0][1]
         self.assertEqual([x['eventId'], x['kind'], x['stageNo'], x['stage']['stageId'], x['steamId'], x['session']],

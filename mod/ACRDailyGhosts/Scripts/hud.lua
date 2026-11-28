@@ -938,7 +938,34 @@ end
 
 local MODE = {ready = RED, wait = RED, turn = GREEN, ["break"] = AMBER, late = ORANGE}
 
+-- WATCH on meanwhile (p.side): the board smaller at the right edge, a little under the middle, not over the broadcast's
+-- driver bar or its tower (the user, 28 Nov 2026: "could be a bit smaller, on the side ... not to cover the main screen")
+local GATE_SIDE = 0.6
+local function place_gate(G, side)
+    if G.side == side then return end
+    G.side = side
+    pcall(function()
+        if side then
+            G.slot:SetAnchors({Minimum = {X = 1.0, Y = 0.5}, Maximum = {X = 1.0, Y = 0.5}})
+            G.slot:SetAlignment({X = 1.0, Y = 0.5})
+            G.slot:SetPosition({X = -24.0, Y = 40.0})
+            G.box:SetRenderTransformPivot({X = 1.0, Y = 0.5})
+            G.box:SetRenderScale({X = GATE_SIDE, Y = GATE_SIDE})
+            G.anim.dx, G.anim.dy = 40, 0
+        else
+            G.slot:SetAnchors({Minimum = {X = 0.5, Y = 0.0}, Maximum = {X = 0.5, Y = 0.0}})
+            G.slot:SetAlignment({X = 0.5, Y = 0.0})
+            G.slot:SetPosition({X = 0.0, Y = BAR.y + 30.0})
+            G.box:SetRenderTransformPivot({X = 0.5, Y = 0.0})
+            G.box:SetRenderScale({X = 1.0, Y = 1.0})
+            G.anim.dx, G.anim.dy = 0, -40
+        end
+        G.anim.drawn = nil                             -- (its slide set again from the new side)
+    end)
+end
+
 local function put_gate(G, p, clock, t, dt)
+    if p then place_gate(G, p.side == "1") end
     G.anim.want = p and 1 or 0
     anim_step(G.anim, G.box, dt)
     if not p then

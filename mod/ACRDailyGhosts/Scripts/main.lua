@@ -2221,7 +2221,10 @@ local function tick()
         local list = {}
         for id, c in pairs(cars) do
             local n = ghost_names[id]
-            if n and n.shown and c.shown and not c.near then
+            -- (WATCH: not over the car followed: the camera is on it, so its name sat in the middle of the screen, and
+            -- the broadcast's driver bar says it; the user, 28 Nov 2026)
+            local followed = W.on and watching and watching.id == id
+            if n and n.shown and c.shown and not c.near and not followed then
                 list[#list + 1] = {x = c.shown[1], y = c.shown[2], z = c.shown[3] + NAME_UP, text = n.text,
                                    colour = n.colour, flag = ghost_names["\0flag:" .. id]}
             end

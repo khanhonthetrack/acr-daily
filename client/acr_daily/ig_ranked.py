@@ -325,7 +325,7 @@ def watchable(v, no):
         return True, ''
     if (e.get('done') or 0) >= no:
         return True, ''
-    return False, _('after you drive it')
+    return False, _('not driven yet')
 
 
 def watch_part(ig, info, now):
@@ -353,28 +353,34 @@ def watch_part(ig, info, now):
             on = sum(1 for x in (queues[k] if k < len(queues) else []) if x.get('state') == 'driving')
             ok, why = watchable(v, no)
             label = 'SS%d  ·  %s' % (no, n_('%d on it', '%d on it', on) % on) if on else 'SS%d' % no
-            sub = txt(s.get('name') or '', 13, 'medium', FG2 if ok else MUTED, pad=[0, 4, 0, 0])
-            if ok:
-                b = btn(tab_id(TAB, 'watch', '%s|%d|%d' % (key[0], key[1], no)), _('WATCH  %s') % label,
-                        bg=LIVE if on else PANEL2, hov=WHITE, fg=BG if on else WHITE, hfg=BG, sz=16, f='bold', p=[14, 6, 14, 6],
-                        r=2, ol=None if on else LINE2)
-            else:
-                b = box(txt('SS%d  ·  %s' % (no, why), 16, 'bold', MUTED), bg='-', ol=LINE2, olw=1, p=[14, 6, 14, 6], r=2)
+            sub = txt(s.get('name') or '' if ok else '%s  ·  %s' % (s.get('name') or '', why), 13, 'medium',
+                      FG2 if ok else MUTED, pad=[0, 4, 0, 0])
+            # (one still to drive: WATCH all the same, asked first: the user, 28 Nov 2026 "add an option to watch a
+            # ranked EVEN THOUGH you are registered"; start_watch says what a start meanwhile does)
+            b = btn(tab_id(TAB, 'watch', '%s|%d|%d' % (key[0], key[1], no)), _('WATCH  %s') % label,
+                    bg=LIVE if on and ok else PANEL2, hov=WHITE, fg=BG if on and ok else (WHITE if ok else SOFT), hfg=BG,
+                    sz=16, f='bold', p=[14, 6, 14, 6], r=2, ol=None if on and ok else LINE2)
             btns.append(col(b, sub, pad=[0 if k == 0 else 10, 0, 0, 0]))
         out.append(box(col(head, row(*btns, pad=[0, 12, 0, 0])), bg=PANEL if i % 2 == 0 else STRIPE, p=[20, 14, 20, 14]))
     return col(*out)
 
 
-def start_watch(ig, key, no):
+def start_watch(ig, key, no, sure=False):
     """WATCH on stage no (1..) of a ranked session under way: its stage set up in the game, the camera on its drivers
-    (only the session's: its relay room, watch.py room)."""
+    (only the session's: its relay room, watch.py room). One of mine still to drive: asked first (watching counts for
+    nothing; driving off the start line meanwhile is a start before my turn: a DNF, liverallyui._lr_watch)."""
     a = ig.app
     v = a.lr_data.get(key) or {}
     ev = v.get('event') or {}
     stages = ev.get('stages') or []
-    ok, why = watchable(v, no)
-    if not ok or not (1 <= no <= len(stages)):
-        ig.say(_('WATCH'), [_('You can watch this stage after you drive it: a start on it before your own run is a DNF.')])
+    if not (1 <= no <= len(stages)):
+        return
+    ok, _why = watchable(v, no)
+    if not ok and not sure:
+        ig.ask(_('WATCH'), [_('You have not driven SS%d yet. You can watch it, but stay on the start line: driving off '
+                              'while watching is a start before your turn, a DNF.') % no,
+                            _('Leave WATCH (Esc, then back to the menu) before your turn.')],
+               _('WATCH ANYWAY'), lambda: start_watch(ig, key, no, sure=True), safe=True)
         return
     from . import ig_watch
     sid = next((x.get('steamId') for x in ((v.get('queues') or [])[no - 1] if no - 1 < len(v.get('queues') or []) else [])
