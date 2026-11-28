@@ -36,6 +36,27 @@ PARK_DIR = os.path.join(settings.DIR, 'league-rallies')
 PENDING = os.path.join(settings.DIR, 'league-pending.json')
 
 
+def splits_on(ev):
+    """Whether an event shows live splits on its stages (its rules.splits: off unless its admins turned them on; the
+    user, 28 Nov 2026, from a driver's "it feels like you're driving all alone" in multi-stage events)."""
+    return bool(((ev or {}).get('rules') or {}).get('splits'))
+
+
+def stage_field(rows, k):
+    """An event's standings rows (GET /api/events/:id) -> the runs on stage k (0..) as standings.standing takes them:
+    [{steamId, name, look, splits (the app's live splits on it), totalMs (the stage's, penalties in)}]. A stage
+    retired, not driven or not known (hidden) left out."""
+    out = []
+    for r in rows or []:
+        cells = r.get('stages') or []
+        c = cells[k] if 0 <= k < len(cells) else None
+        if not isinstance(c, dict) or c.get('retired') or c.get('totalMs') is None:
+            continue
+        out.append({'steamId': r.get('steamId'), 'name': r.get('name') or '?', 'look': r.get('look'),
+                    'splits': c.get('liveSplits') or None, 'totalMs': c['totalMs']})
+    return out
+
+
 STAFF = ('owner', 'admin')
 
 

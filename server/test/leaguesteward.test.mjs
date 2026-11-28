@@ -52,6 +52,20 @@ test('the car at the finish line is kept with the stage, for the next one after 
   assert.equal(carDamage({ Engine: 50 }, -1), null);
 });
 
+test("a stage's live splits (the app's) are kept with its time; a list that can't be a run's is not", async () => {
+  const { env, db, id } = world();
+  await call(env, `/api/events/${id}/start`, BEN, { car: 'Skoda Fabia RS Rally2', at: NOW - 600000 });
+  await call(env, `/api/events/${id}/stage`, BEN, { no: 0, timeMs: 250000, penaltyMs: 2000, splitsMs: [90000],
+    liveSplitsMs: [61000, 125000, 190000] });
+  await call(env, `/api/events/${id}/begin`, BEN, { no: 1, at: NOW - 300000 });
+  await call(env, `/api/events/${id}/stage`, BEN, { no: 1, timeMs: 150000, penaltyMs: 0, liveSplitsMs: [90000, 40000, 300000] });
+  const rows = db.prepare('SELECT stage_no, splits, live_splits FROM league_stage_times WHERE event_id = ? ORDER BY stage_no').all(id);
+  assert.deepEqual(rows.map((r) => [r.stage_no, r.splits, r.live_splits]), [[0, '[90000]', '[61000,125000,190000]'], [1, null, null]]);
+  const ev = (await call(env, `/api/events/${id}`, CAT)).body;
+  const ben = (ev.standings || ev.event.standings).find((r) => r.steamId === BEN);
+  assert.deepEqual(ben.stages[0].liveSplits, [61000, 125000, 190000]);
+});
+
 test('the whole car at the finish line is kept on the entry too, one per entry, for any PC', async () => {
   const { env, id } = world();
   const Z1 = 'H4sIAAAAAAAAA6tWSkksSVSyUlAqS8wpTVWqBQBJ0Sg0EgAAAA==', Z2 = 'H4sIAAAAAAAAA6tWKkksSlSyUqoFADPSXR8NAAAA';

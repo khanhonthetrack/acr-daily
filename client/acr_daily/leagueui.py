@@ -1349,6 +1349,11 @@ class LeaguesUI:
                 run['sent'] = None                 # (the next stage under way: the last one's results left behind)
                 self._league_started(run)
                 self._league_live(run, f, 'live', force=True)
+                self._league_field_fetch(run)      # (live splits on: the others' times on this stage)
+            elif e == 'split' and j.splits:
+                n = len(j.splits)
+                from .app import split_title
+                self._league_standing(run, split_title(j.split_at[n - 1]), j.splits[-1], n - 1, 'split')
                 if hasattr(self, '_replay_tag'):   # (its replay, followed by the server: a proof of its finish)
                     st = (run['ev'].get('stages') or [{}] * (run['no'] + 1))[run['no']] or {}
                     self._replay_tag('event', 'event:%d:%d' % (run['ev']['id'], run['no']),
@@ -1358,6 +1363,7 @@ class LeaguesUI:
             elif e == 'finished':
                 if hasattr(self, '_replay_end'):
                     self._replay_end('finished', j.result)
+                self._league_standing(run, _('FINISH (provisional)'), (j.result or {}).get('totalMs'), None, 'finish')
                 self._league_live(run, f, 'finished', force=True)
                 self._league_finished(run)
             elif e in ('dnf', 'invalid'):
@@ -1390,6 +1396,42 @@ class LeaguesUI:
         waiting.note('%s: SS%d started again after its time was sent: DNF' % (run['ev'].get('name'), s['k'] + 1))
         self._league_failed(run, said("SS%d restarted after its finish: a restart doesn't count, the entry ends", s['k'] + 1))
         return True
+
+    # -------------------------------------------------------------- live splits (the event's rules.splits)
+    def _league_field_fetch(self, run):
+        """At a stage's start, an event with live splits on: the others' runs on it (their live splits and stage times,
+        leagues.stage_field), asked once in a thread; kept as run['field'] = (stage no, runs)."""
+        run['field'] = None
+        if not leagues.splits_on(run['ev']) or run.get('ignore') or not getattr(self.api, 'configured', False):
+            return
+        ev_id, k = run['ev']['id'], run['no']
+
+        def go():
+            try:
+                r = self.api.event(ev_id) or {}
+            except Exception as e:
+                waiting.note('live splits of %s: %r' % (ev_id, e))
+                return
+            if run.get('no') == k:
+                run['field'] = (k, leagues.stage_field(r.get('standings') or [], k))
+        threading.Thread(target=go, daemon=True).start()
+
+    def _league_standing(self, run, title, my_ms, split, kind):
+        """Where this run stands on the stage among the event's drivers (a split, the finish), under the timer as a
+        daily's: only with live splits on and the others' runs in (_league_field_fetch)."""
+        field = run.get('field')
+        if my_ms is None or not leagues.splits_on(run['ev']) or not field or field[0] != run['no'] \
+                or not hasattr(self, 'overlay'):
+            return
+        from .app import FINISH_SHOW_S, SPLIT_SHOW_S
+        from .standings import standing
+        st = standing(field[1], self.s.get('steamId'), my_ms, split)
+        if st is None or st['of'] < 2:            # (nobody else on it yet: nothing to stand against)
+            return
+        st['pbGap'] = None                        # (one run a stage: no "best of mine" before it)
+        self.overlay.show_standing(title, st)
+        self.panel_until = time.monotonic() + (FINISH_SHOW_S if kind == 'finish' else SPLIT_SHOW_S)
+        self.panel_slot = ('league', run['ev']['id'])
 
     def _league_live(self, run, f, state, force=False):
         """Where we are on the event's stage, for the website (a cup match followed live on its map): every liveSendS
@@ -1698,6 +1740,8 @@ class LeaguesUI:
         time_ms, pen_ms = int(round(o['time'] * 1000)), int(round(o['penalty'] * 1000))
         item = {'kind': 'stage', 'eventId': event_id, 'no': k, 'timeMs': time_ms, 'penaltyMs': pen_ms,
                 'splitsMs': [int(round(t * 1000)) for t in o['splits']], 'startedAt': r.get('startedAt'),
+                # (the app's own splits, at the route's fractions: the others' live splits on this stage)
+                'liveSplitsMs': [int(x) for x in (r.get('splits') or []) if isinstance(x, (int, float))],
                 'clockMs': r.get('clockMs'), 'resets': r.get('resets')}
         if isinstance(r.get('damage'), dict):      # (the car at the finish line: the server keeps it for the next stage)
             item['damage'] = r['damage']

@@ -4587,7 +4587,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         ps = getattr(self, 'panel_slot', None)
         if ps is None:
             return
-        if isinstance(ps, tuple):
+        if isinstance(ps, tuple) and ps[0] == 'league':     # (an event's live splits: leagueui._league_standing)
+            run = getattr(self, 'league_run', None)
+            j = run.get('judge') if run else None
+            stale = not run or self.drive_target != 'league' or run['ev'].get('id') != ps[1]
+        elif isinstance(ps, tuple):
             j = ((getattr(self, 'tt', None) or {}).get(ps[1]) or {}).get('judge')
             stale = not self._tt_judged() or self.tt_active != ps[1]
         else:

@@ -1518,3 +1518,67 @@ class DailyAsSetUp(unittest.TestCase):
 
     def test_a_run_from_before_says_nothing(self):
         self.assertEqual(leagues.daily_changed(rw.read_weekend(self.save(weather='WT_STORM')), {'stageId': self.STAGE}), [])
+
+
+class LiveSplits(unittest.TestCase):
+    """An event's live splits (rules.splits, off unless its admins turn them on; 28 Nov 2026): where I stand on the stage
+    at each split and at the finish, among the others' runs on it, as a daily's."""
+    ROWS = [{'steamId': 'a', 'name': 'Ann', 'stages': [{'totalMs': 100000, 'liveSplits': [24000, 50000, 76000]}, None]},
+            {'steamId': 'b', 'name': 'Ben', 'stages': [{'totalMs': 104000, 'liveSplits': [26000, 52000, 77000]}]},
+            {'steamId': 'c', 'name': 'Cat', 'stages': [{'retired': True, 'totalMs': 160000}]},
+            {'steamId': 'd', 'name': 'Dan', 'stages': [{'totalMs': None}]},
+            {'steamId': 'me', 'name': 'Me', 'stages': [None]}]
+
+    def test_off_unless_turned_on(self):
+        self.assertFalse(leagues.splits_on({'rules': {}}))
+        self.assertFalse(leagues.splits_on({}))
+        self.assertTrue(leagues.splits_on({'rules': {'splits': True}}))
+
+    def test_the_stage_s_runs(self):
+        f = leagues.stage_field(self.ROWS, 0)
+        self.assertEqual([(x['name'], x['totalMs'], x['splits']) for x in f],
+                         [('Ann', 100000, [24000, 50000, 76000]), ('Ben', 104000, [26000, 52000, 77000])])
+        self.assertEqual(leagues.stage_field(self.ROWS, 1), [])
+        self.assertEqual(leagues.stage_field(self.ROWS, 5), [])
+
+    def ui(self, splits=True):
+        ui = leagueui.LeaguesUI.__new__(leagueui.LeaguesUI)
+        ui.s = {'steamId': 'me'}
+        ui.overlay = mock.Mock()
+        ev = {'id': 7, 'rules': {'splits': True} if splits else {}}
+        return ui, {'ev': ev, 'no': 0, 'field': (0, leagues.stage_field(self.ROWS, 0))}
+
+    def test_where_I_stand_at_a_split_and_at_the_finish(self):
+        ui, run = self.ui()
+        ui._league_standing(run, 'SPLIT 2', 51000, 1, 'split')
+        title, st = ui.overlay.show_standing.call_args[0]
+        self.assertEqual((title, st['pos'], st['of'], st['gapLeader'], st['pbGap']), ('SPLIT 2', 2, 3, 1000, None))
+        self.assertEqual(ui.panel_slot, ('league', 7))
+        ui._league_standing(run, 'FINISH', 99000, None, 'finish')
+        self.assertEqual(ui.overlay.show_standing.call_args[0][1]['pos'], 1)
+
+    def test_nothing_with_splits_off_or_without_the_others_times(self):
+        ui, run = self.ui(splits=False)
+        ui._league_standing(run, 'SPLIT 1', 25000, 0, 'split')
+        ui.overlay.show_standing.assert_not_called()
+        ui, run = self.ui()
+        run['field'] = (1, run['field'][1])                       # (another stage's)
+        ui._league_standing(run, 'SPLIT 1', 25000, 0, 'split')
+        run['field'] = (0, [])                                    # (nobody else on it yet)
+        ui._league_standing(run, 'SPLIT 1', 25000, 0, 'split')
+        ui.overlay.show_standing.assert_not_called()
+
+    def test_the_others_runs_asked_at_the_start_only_with_splits_on(self):
+        ui, run = self.ui(splits=False)
+        ui.api = mock.Mock(configured=True)
+        ui._league_field_fetch(run)
+        ui.api.event.assert_not_called()
+        self.assertIsNone(run['field'])
+        ui, run = self.ui()
+        ui.api = mock.Mock(configured=True)
+        ui.api.event.return_value = {'standings': self.ROWS}
+        with mock.patch('acr_daily.leagueui.threading.Thread') as th:
+            th.side_effect = lambda target, daemon: mock.Mock(start=target)
+            ui._league_field_fetch(run)
+        ui.api.event.assert_called_once_with(7)
+        self.assertEqual([x['name'] for x in run['field'][1]], ['Ann', 'Ben'])
